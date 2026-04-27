@@ -16,9 +16,8 @@ This is a [`claude-code-hermit`](https://github.com/gtapps/claude-code-hermit) p
 Three steps to a running 24/7 Home Assistant hermit:
 > ```
 > # Install
-> claude plugin marketplace add gtapps/claude-code-hermit
-> claude plugin install claude-code-hermit@claude-code-hermit --scope project
-> claude plugin install claude-code-homeassistant-hermit@claude-code-hermit --scope project
+> /plugin marketplace add gtapps/claude-code-hermit
+> /plugin install claude-code-homeassistant-hermit@claude-code-hermit --scope project
 >
 > # Setup Wizard
 > /claude-code-homeassistant-hermit:hatch
