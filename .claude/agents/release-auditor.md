@@ -80,6 +80,24 @@ Abort with: `Plugin 'plugins/<slug>/' not found. Available: <comma-separated slu
 - Version must be valid semver.
 - The `name` field must equal `<slug>`. If it does not: FAIL with `manifest name '<value>' does not match slug '<slug>'`.
 
+### 7. Dependency version triad
+
+For domain plugins, the three core-version fields (`required_core_version`, `requires["claude-code-hermit"]`, `dependencies[].version` for `claude-code-hermit`) must reference the same base SemVer. Operators may differ (`>=` for the runtime check in `doctor-check.js`, `^` for the resolver) — but the underlying version number must match. CLAUDE.md requires all three be updated together; this check enforces it.
+
+- **Skip silently** if `<slug> == "claude-code-hermit"` (core has no self-dependency).
+- Read all three values in one `jq` call:
+  ```bash
+  read -r REQ_CORE REQUIRES DEPS < <(jq -r '[
+    (.required_core_version // ""),
+    (.requires["claude-code-hermit"] // ""),
+    (.dependencies[]? | select(.name=="claude-code-hermit") | .version)
+  ] | @tsv' plugins/<slug>/.claude-plugin/plugin.json)
+  ```
+- If any of the three is empty: FAIL with `dep triad: missing field — required_core_version='<v>', requires.claude-code-hermit='<v>', dependencies.claude-code-hermit='<v>'`.
+- Strip leading operator characters character-by-class from each to get the base version (e.g., `^1.0.18` → `1.0.18`). `sed 's/^[<>=^~!]*//'` covers all SemVer range prefixes including `!=`.
+- If the three base versions are not identical: FAIL printing all three values verbatim (operator + version) so the human can see which field drifted.
+- Otherwise: PASS with the agreed base version.
+
 ## Output
 
 ```

@@ -195,12 +195,20 @@ Run `claude plugin tag --push` from the plugin directory — it validates plugin
 (cd plugins/<slug> && claude plugin tag --push)
 ```
 
-Then create the GitHub release pointing to the new double-dash tag:
+Then create the GitHub release pointing to the new double-dash tag. Source the release notes from the CHANGELOG section we just wrote — `--generate-notes` would otherwise interleave commits from sibling-plugin releases that landed since the last core tag.
 
 ```bash
 VERSION=$(jq -r '.version' plugins/<slug>/.claude-plugin/plugin.json)
 TAG="<slug>--v$VERSION"
-gh release create "$TAG" --title "$TAG" --generate-notes
+NOTES_FILE=$(mktemp)
+awk -v ver="$VERSION" '
+  $0 ~ "^## \\[" ver "\\]" {flag=1; next}
+  /^## \[/ && flag {exit}
+  flag {print}
+' plugins/<slug>/CHANGELOG.md > "$NOTES_FILE"
+[ ! -s "$NOTES_FILE" ] && { echo "CHANGELOG section for $VERSION not found in plugins/<slug>/CHANGELOG.md — fix and retry"; rm "$NOTES_FILE"; exit 1; }
+gh release create "$TAG" --title "$TAG" --notes-file "$NOTES_FILE"
+rm "$NOTES_FILE"
 ```
 
 **Note on legacy tags:** the core plugin (`claude-code-hermit`) historically released under the unprefixed `v<X.Y.Z>` format (e.g. `v1.0.18`) and the prefixed single-dash format (e.g. `claude-code-hermit-v1.0.20`). Those tags remain in place. From this point forward, all plugins use the double-dash format (`<slug>--v<X.Y.Z>`). Existing single-dash release tags were backfilled with double-dash aliases in April 2026.
