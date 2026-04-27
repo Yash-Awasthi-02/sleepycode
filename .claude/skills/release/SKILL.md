@@ -68,7 +68,7 @@ If the auditor reports any FAIL, fix before proceeding. WARNs are acceptable if 
 
 Read `plugins/<slug>/.claude-plugin/plugin.json` for the current version and `plugins/<slug>/CHANGELOG.md` for recent entries.
 
-Review the uncommitted or recently committed changes (`git diff` and/or `git log` since the last `<slug>-v<version>` tag — fall back to `git log` since the last unprefixed `v<version>` tag for plugins released under the legacy tag scheme) to understand what changed.
+Review the uncommitted or recently committed changes (`git diff` and/or `git log` since the last `<slug>--v<version>` tag — fall back to `<slug>-v<version>` for pre-migration releases, then `v<version>` for the legacy unprefixed scheme).
 
 Decide the bump level:
 - **Patch** (0.0.X) — bug fixes, behavioral changes via updated instructions, small additions
@@ -186,17 +186,23 @@ Run `git branch --show-current` and compare to `main` (or the repo's default bra
 
 ### 7b. Tag and publish
 
-The tag format is **plugin-prefixed**: `<slug>-v<X.Y.Z>`. This avoids collisions when multiple plugins ship from the same monorepo.
+The tag format is **plugin-prefixed with double-dash separator**: `<slug>--v<X.Y.Z>`. This is the format Claude Code's native dependency resolver requires to find matching versions for `dependencies` entries.
+
+Run `claude plugin tag --push` from the plugin directory — it validates plugin contents, confirms `plugin.json` and `marketplace.json` versions agree, requires a clean working tree, and refuses if the tag already exists:
+
+```bash
+(cd plugins/<slug> && claude plugin tag --push)
+```
+
+Then create the GitHub release pointing to the new double-dash tag:
 
 ```bash
 VERSION=$(jq -r '.version' plugins/<slug>/.claude-plugin/plugin.json)
-TAG="<slug>-v$VERSION"
-git tag "$TAG"
-git push origin "$TAG"
+TAG="<slug>--v$VERSION"
 gh release create "$TAG" --title "$TAG" --generate-notes
 ```
 
-**Note on legacy tags:** the core plugin (`claude-code-hermit`) historically released under the unprefixed `v<X.Y.Z>` format (e.g. `v1.0.18`). From the monorepo migration onward, all plugins use the prefixed format. The historical unprefixed tags remain in place; new releases use the prefixed format only. If continuity matters for a specific release, the operator may also push the unprefixed tag manually as an alias — but that is not the skill's responsibility.
+**Note on legacy tags:** the core plugin (`claude-code-hermit`) historically released under the unprefixed `v<X.Y.Z>` format (e.g. `v1.0.18`) and the prefixed single-dash format (e.g. `claude-code-hermit-v1.0.20`). Those tags remain in place. From this point forward, all plugins use the double-dash format (`<slug>--v<X.Y.Z>`). Existing single-dash release tags were backfilled with double-dash aliases in April 2026.
 
 ### 8. Report
 

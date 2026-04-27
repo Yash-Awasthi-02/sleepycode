@@ -10,9 +10,9 @@ The top-level `.claude-plugin/marketplace.json` is the only marketplace. The REA
 
 - **Per-plugin paths**: every plugin lives at `plugins/<slug>/`. Tests, scripts, skills, agents, hooks, state-templates, docs, CHANGELOG, CLAUDE.md all live inside that dir.
 - **Tests run from inside the plugin dir**: `cd plugins/<slug> && bash tests/run-all.sh`. Some test helpers use CWD-relative paths and break if invoked from repo root.
-- **Tag format**: `<slug>-v<X.Y.Z>` (e.g. `claude-code-hermit-v1.0.19`). Historical unprefixed `v1.0.18` etc. tags remain for core; new releases use the prefixed format.
+- **Tag format**: `<slug>--v<X.Y.Z>` (double-dash, e.g. `claude-code-hermit--v1.0.20`). Historical single-dash tags (`<slug>-v<X.Y.Z>`) and unprefixed core tags (`v1.0.18` etc.) remain; new releases use the double-dash format only.
 - **Independent versioning**: each plugin's `plugin.json` bumps on its own cadence. Domain plugins declare core compat via `required_core_version: ">=X.Y.Z"` (semver range, not pin).
-- **Dependency fields**: `required_core_version` AND `requires` are kept in sync intentionally (defensive duplication for in-monorepo + external consumers). Update both if either bumps.
+- **Dependency fields**: `required_core_version`, `requires`, AND `dependencies` are kept in sync. `required_core_version` and `requires` are hermit-internal; `dependencies` is the Claude Code native resolver field. Update all three if the core version requirement changes.
 - **Marketplace.json bumps**: only the matching plugin's entry. The release skill takes a slug arg: `/release <plugin-slug>`.
 
 ## Commits
