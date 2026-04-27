@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **README rewrite for fleet marketing launch** — restructure to match the hermit family voice: hero + 3-step install callout above the fold, narrative `How It Works` (folds in v0.2.0 `/dev-up` family + Chrome-extension verification pairing), Quick Start with Prerequisites, narrative preamble on Git Safety, trimmed three component tables to one, and Documentation list switched to "Read this when..." annotated style. No code or behaviour changes.
+
 ## [0.2.1] - 2026-04-27
 
 ### Fixed
