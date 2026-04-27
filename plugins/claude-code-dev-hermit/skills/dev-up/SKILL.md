@@ -12,7 +12,7 @@ Operator-invoked. Not auto-triggered. If you want it to fire on browser-testing 
 ## Prerequisites
 
 - Verify `.claude-code-hermit/sessions/` exists. If not: tell the operator to run `/claude-code-hermit:hatch` and `/claude-code-dev-hermit:hatch`, then exit.
-- Read `.claude-code-hermit/config.json` once at start. Cache `claude-code-dev-hermit.commands.dev_start`, `commands.dev_stop`, `dev_required_ports`, `dev_expected_listeners`, `dev_health_url`, `dev_health_timeout_secs`, `dev_auth_check`, and `dev_log_path_pattern` for use across gates.
+- Read `.claude-code-hermit/config.json` once at start. Cache `claude-code-dev-hermit.commands.dev_start`, `commands.dev_stop`, `dev_required_ports`, `dev_expected_listeners`, `dev_health_url`, `dev_health_timeout_secs`, `dev_auth_check`, `dev_log_path_pattern`, and `dev_error_pattern` for use across gates.
 
 ## Plan
 
@@ -106,19 +106,33 @@ If `dev_health_url` is set: `curl` must be in PATH (or skip Gate 6 — the healt
 
 ### Gate 5 — register the Monitor entry
 
-The dev server's stdout/stderr stream as conversation notifications via the Monitor tool. We do NOT wrap with grep — the dev server's natural output flows through. Error-pattern filtering against log files is the job of `/dev-log-watch`, which runs as a separate Monitor entry.
+Dev servers (Next.js, Vite, pnpm workspaces) emit hundreds of lines/sec during startup and hot-reload. Piping raw output through Monitor exhausts its notification budget and causes Monitor to kill the entire process tree, taking the dev server down with it. To prevent this, we funnel the full stream to a log file via `tee` and pass only error-matched lines to Monitor. Monitor stays calm; `TaskStop` still owns the whole bash process group for clean teardown.
+
+The pipeline is composed by `scripts/lib/dev-server-command.js` so shell escaping for `commands.dev_start`, the log path, and the error pattern is handled in one place — never hand-build the pipeline in this skill. Compose:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/lib/dev-server-command.js" "$(jq -nc \
+  --arg start "$dev_start" \
+  --arg log ".claude-code-hermit/state/dev-server.log" \
+  --arg pat "$dev_error_pattern" \
+  '{devStart:$start, logPath:$log, errorPattern:$pat}')"
+```
+
+(Omit the `errorPattern` field if `dev_error_pattern` is unset — the helper falls back to its built-in default, which is anchored on common Node/Vite/Next.js error signals and avoids false-positives on the bare lowercase word "error" that Next.js writes during normal compile feedback.) The helper returns `{ command, pattern, usedDefault }`.
 
 We need a stable id `dev-server` so `/dev-down` can find this entry. The `/watch` skill's ad-hoc form auto-generates `adhoc-<epoch>-...` ids (see `claude-code-hermit:watch` SKILL.md "Starting an ad-hoc watch"), so we invoke the Monitor tool directly and append the registry entry ourselves with the chosen id — same recipe as `/watch`'s ad-hoc steps 5–8, but with our id.
 
 Steps:
 
-1. Invoke the Monitor tool with all four required params:
+1. Truncate the log file to start fresh: `> .claude-code-hermit/state/dev-server.log` (logs are session-scoped and overwritten on each `/dev-up` boot).
+2. Compose the pipeline via the helper above; capture `command` and `pattern`.
+3. Invoke the Monitor tool with all four required params:
    - `description`: `"dev-server: <commands.dev_start>"` (shown in every notification)
-   - `command`: `commands.dev_start` verbatim
+   - `command`: the helper's `command` field, used verbatim
    - `timeout_ms`: 300000 (required by tool schema; ignored when persistent)
    - `persistent`: true
-2. Read `.claude-code-hermit/state/monitors.runtime.json` (create if missing per the watch skill's contract).
-3. Append:
+4. Read `.claude-code-hermit/state/monitors.runtime.json` (create if missing per the watch skill's contract).
+5. Append:
    ```json
    {
      "id": "dev-server",
@@ -129,10 +143,15 @@ Steps:
      "class": "stream"
    }
    ```
-4. Write the registry back.
-5. Append to SHELL.md `## Monitoring`: `- [ACTIVE] dev-server (started HH:MM)`.
+6. Write the registry back.
+7. Append to SHELL.md `## Monitoring`: `- [ACTIVE] dev-server (started HH:MM)`.
 
 If the Monitor invocation errors, FAIL and surface the error. Do not partially append to the registry.
+
+> Lifecycle notes:
+> - The helper appends `|| true` to the grep stage so a healthy server (zero error matches) doesn't return exit 1 and kill the pipeline.
+> - On `TaskStop`, Monitor SIGTERMs the bash wrapper with a 10s drain. Clean teardown via SIGPIPE only fires when the dev server next *writes* — a quiet server is reaped by the SIGKILL at end-of-drain. Don't expect graceful shutdown semantics.
+> - If Claude Code restarts this Monitor task on its own, the pipeline will try to re-spawn `commands.dev_start` while the previous instance may still hold the port. The next `/dev-up` Gate 3 will catch that as `port held`; recover by running `/dev-down` first.
 
 ### Gate 6 — health probe (optional)
 
@@ -161,6 +180,8 @@ Helper returns JSON `{ ok, status, elapsedMs, error? }` and exits 0 on 2xx, 1 on
 dev-up
   start:    npm run dev (commands.dev_start)
   ports:    3000 free, 4000 held by encore (allowed via dev_expected_listeners)
+  filter:   ^\s*(Error|TypeError|...):|EADDRINUSE|... (default; set dev_error_pattern to override)
+  log:      .claude-code-hermit/state/dev-server.log (full stdout, session-scoped)
   monitor:  dev-server registered (session-scoped)
   health:   200 OK at http://localhost:3000/api/health (after 4123ms)
   status:   up

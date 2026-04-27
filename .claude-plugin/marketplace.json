@@ -19,13 +19,19 @@
       "license": "MIT",
       "homepage": "https://github.com/gtapps/claude-code-hermit",
       "repository": "https://github.com/gtapps/claude-code-hermit",
-      "keywords": ["autonomous", "agent", "session", "subagents", "gtapps"]
+      "keywords": [
+        "autonomous",
+        "agent",
+        "session",
+        "subagents",
+        "gtapps"
+      ]
     },
     {
       "name": "claude-code-dev-hermit",
       "source": "./plugins/claude-code-dev-hermit",
       "description": "Git safety, quality workflow, and dev conventions for claude-code-hermit",
-      "version": "0.2.0",
+      "version": "0.2.1",
       "category": "development",
       "author": {
         "name": "gtapps"
@@ -33,7 +39,12 @@
       "license": "MIT",
       "homepage": "https://github.com/gtapps/claude-code-hermit",
       "repository": "https://github.com/gtapps/claude-code-hermit",
-      "keywords": ["development", "git-safety", "code-review", "gtapps"]
+      "keywords": [
+        "development",
+        "git-safety",
+        "code-review",
+        "gtapps"
+      ]
     },
     {
       "name": "claude-code-homeassistant-hermit",
@@ -48,7 +59,12 @@
       "license": "MIT",
       "homepage": "https://github.com/gtapps/claude-code-hermit",
       "repository": "https://github.com/gtapps/claude-code-hermit",
-      "keywords": ["home-assistant", "automation", "mcp", "gtapps"]
+      "keywords": [
+        "home-assistant",
+        "automation",
+        "mcp",
+        "gtapps"
+      ]
     }
   ]
 }

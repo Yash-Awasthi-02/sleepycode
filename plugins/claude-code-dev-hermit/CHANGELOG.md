@@ -1,10 +1,37 @@
 # Changelog
 
-## [Unreleased]
+## [0.2.1] - 2026-04-27
+
+### Fixed
+
+- **`dev-up`: dev server no longer killed by Monitor on chatty output** — Gate 5 now wraps `commands.dev_start` in `{ … } 2>&1 | tee .claude-code-hermit/state/dev-server.log | grep --line-buffered -E <pattern> || true`. Monitor receives only error-matched lines and never trips its notification-rate limit. Full stdout is preserved in the log file for forensics. Error pattern defaults to anchored Node/Vite/Next.js signals (e.g. `^\s*(Error|TypeError|...):`, `EADDRINUSE`, `Uncaught`) to avoid false-positives on the bare word "error" common in Next.js compile output; override via `dev_error_pattern` in config.
+
+### Added
+
+- **`scripts/lib/dev-server-command.js`** — builds the Monitor pipeline command for `/dev-up` Gate 5. Handles shell-escaping of `commands.dev_start`, log path, and error pattern via `shellQuote`; ships the anchored default regex; exports `buildDevServerCommand({ devStart, logPath, errorPattern })`. Co-located `dev-server-command.test.js` covers input validation, defaulting, shell-injection safety (`bash -n` round-trips for adversarial inputs), and runtime smoke (filter correctness, zero-match exit-0 guard).
 
 ### Changed
 
-- **`dev-adapt` and `dev-up` examples neutralized for OSS** — dropped `local:dev` from the `package.json#scripts` priority list (uncommon outside specific orgs); swapped worked-example output from `pnpm local:dev` / `infisical secrets ...` to `npm run dev` / `direnv status ...` so the docs read as plain conventions instead of personal tooling. Detection logic for Infisical/1Password/direnv unchanged — still proposes whichever marker file is present.
+- **`dev-adapt` and `dev-up` examples neutralized for OSS** — dropped `local:dev` from the `package.json#scripts` priority list; swapped worked-example output to `npm run dev` / `direnv status`. Detection logic unchanged.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/dev-up/SKILL.md` | Gate 5 rewritten to use tee\|grep pipeline via helper; error pattern resolution documented |
+| `scripts/lib/dev-server-command.js` | New: pipeline builder with shell-safe composition and default error regex |
+| `scripts/lib/dev-server-command.test.js` | New: 18 tests covering validation, escaping, and runtime behaviour |
+| `skills/dev-adapt/SKILL.md` | OSS example neutralization |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Refresh** `skills/dev-up/SKILL.md` from the plugin.
+
+No `config.json` changes required.
+
+**Note:** `/dev-up` now writes full dev-server stdout to `.claude-code-hermit/state/dev-server.log` each session (truncated at each boot). Only error-matched lines appear as Monitor notifications. To tune the error pattern, set `claude-code-dev-hermit.dev_error_pattern` in `.claude-code-hermit/config.json`.
 
 ## [0.2.0] - 2026-04-27
 
