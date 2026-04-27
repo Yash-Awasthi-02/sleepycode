@@ -22,7 +22,14 @@ Always launch Claude Code from this repo's root, not from inside a plugin dir. A
 - **Use `/commit` for every commit in this repo.** It detects which plugin's scope the diff belongs to, routes the CHANGELOG entry to that plugin's `CHANGELOG.md`, path-scopes staging (never `git add -A`), and runs `/simplify` on every diff (including markdown-only). The skill enforces "one plugin per commit" — cross-plugin changes are split into separate `/commit` runs.
 - Root-scope edits (CI, root README, `.claude/`, `.claude-plugin/marketplace.json`) skip the CHANGELOG step entirely — they don't ship to operators. `/commit` handles that automatically.
 - Releases still go through `/release <slug>`, which promotes a plugin's `[Unreleased]` section to a real version. `/commit` accumulates those entries during day-to-day work.
-- **Where these skills live**: `/commit`, `/release`, `/create-pr`, `/test-run` are repo-internal skills under `.claude/skills/` (root) and `plugins/<slug>/.claude/skills/` — they're not shipped to operators, only used during monorepo dev.
+- **Where these skills live**: `/commit`, `/release`, `/create-pr`, `/test-run` are repo-internal skills under `.claude/skills/` — they're not shipped to operators, only used during monorepo dev.
+
+## Branching
+
+- **Default: commit to `main`.** Tags land cleanly, no stranded-tag risk. Use this for single-plugin patches, doc edits, dep bumps, and any clear-cut change.
+- **Feature branch + PR when**: cross-plugin refactor, risky/speculative work, or you want CI green / a review pass (`/ultrareview`, `/code-review`) before merging. After merge, run `/release <slug>` from `main` — the skill detects the already-bumped version and skips to tagging.
+- **Avoid `release/X.Y.Z` branches.** Squash-merge changes the SHA, stranding the tag on an orphan commit. `/release` step 8 handles this case, but the clean path is to bump on `main` directly. Reserve release branches for coordinating multi-PR ships.
+- **Tags ship immediately to operators** — no staging. A PR is your safety gate when in doubt.
 
 ## Layout gotchas
 
