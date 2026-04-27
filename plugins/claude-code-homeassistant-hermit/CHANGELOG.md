@@ -11,6 +11,7 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 - **manifest: move hermit-internal fields to `hermit-meta.json` sidecar.** `required_core_version`, `requires`, and `hermit.boot_skill` removed from `plugin.json` so `claude plugin tag --push` passes the native validator cleanly.
 - **remove per-plugin release skill** — `.claude/skills/release/SKILL.md` deleted; the root `/release claude-code-homeassistant-hermit` skill covers the full validation suite. Per-plugin skill was a lower-fidelity duplicate with zero audience.
 - **README architecture diagram: core version pin updated to `≥ 1.0.17`** — was a stale `≥ 1.0.15` left over from the v0.0.4 bump.
+- **plugin.json + hermit-meta.json: bump core requirement to `>=1.0.21` / `^1.0.21`** — was `>=1.0.17` / `^1.0.17`. Aligns the HA plugin with the upcoming core release. `required_core_version`, `requires.claude-code-hermit` (in `hermit-meta.json`), and `dependencies[0].version` (in `plugin.json`) all bumped together. Updated `README.md` architecture diagram.
 
 ### Files affected
 
@@ -19,10 +20,13 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 | `plugins/claude-code-homeassistant-hermit/README.md` | Prerequisite: v2.1.98+ → v2.1.110+; architecture block core pin: `≥ 1.0.15` → `≥ 1.0.17` |
 | `plugins/claude-code-homeassistant-hermit/.claude-plugin/plugin.json` | `dependencies[0].version`: `>=1.0.17` → `^1.0.17` |
 | `plugins/claude-code-homeassistant-hermit/.claude/skills/release/SKILL.md` | Deleted |
+| `plugins/claude-code-homeassistant-hermit/.claude-plugin/hermit-meta.json` | `required_core_version` + `requires`: `>=1.0.17` → `>=1.0.21` |
+| `plugins/claude-code-homeassistant-hermit/.claude-plugin/plugin.json` | `dependencies[0].version`: `^1.0.17` → `^1.0.21` |
+| `plugins/claude-code-homeassistant-hermit/README.md` | Architecture core pin: `≥ 1.0.17` → `≥ 1.0.21` |
 
 ### Upgrade Instructions
 
-No operator action required.
+Operators on core `<1.0.21` should upgrade core first (`/claude-code-hermit:hermit-evolve`); `hermit-doctor` will flag the gap until core is at `>=1.0.21`.
 
 No `config.json` changes required.
 
