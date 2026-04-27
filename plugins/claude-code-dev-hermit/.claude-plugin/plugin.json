@@ -1,10 +1,6 @@
 {
   "name": "claude-code-dev-hermit",
   "version": "0.2.0",
-  "required_core_version": ">=1.0.18",
-  "requires": {
-    "claude-code-hermit": ">=1.0.18"
-  },
   "dependencies": [{ "name": "claude-code-hermit", "version": "^1.0.18" }],
   "description": "Git safety, quality workflow, and dev conventions for claude-code-hermit",
   "author": {
