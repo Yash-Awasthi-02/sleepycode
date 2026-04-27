@@ -67,8 +67,8 @@ To add a first-party (pattern 1) hermit:
 Every plugin in this fleet that depends on the core hermit declares a semver-range string in its `plugin.json`:
 
 ```json
-"required_core_version": ">=1.0.20",
-"requires": { "claude-code-hermit": ">=1.0.20" }
+"required_core_version": ">=1.0.21",
+"requires": { "claude-code-hermit": ">=1.0.21" }
 ```
 
 `required_core_version` is the canonical fleet contract. It is read by the core plugin's `hermit-doctor` (the `dependencies` check), `smoke-test`, and `hermit-evolve`, and by external/third-party hermits that live outside this monorepo. The parallel `requires.claude-code-hermit` field mirrors it — the two must agree, and `tests/run-hooks.sh` enforces this on every CI run (test `sibling manifests: required_core_version vs requires consistency`). When you bump one, bump both.
