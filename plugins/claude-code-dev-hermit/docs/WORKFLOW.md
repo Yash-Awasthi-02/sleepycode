@@ -229,4 +229,5 @@ Two dev-specific jobs registered in `config.json` during `/hatch` ([skills/hatch
 | Hook binding | [hooks/hooks.json](../hooks/hooks.json) |
 | Push guard | [scripts/git-push-guard.js](../scripts/git-push-guard.js) |
 | CLAUDE.md template | [state-templates/CLAUDE-APPEND.md](../state-templates/CLAUDE-APPEND.md) |
-| Plugin manifest (requires core ≥ 1.0.18) | [.claude-plugin/plugin.json](../.claude-plugin/plugin.json) |
+| Plugin manifest | [.claude-plugin/plugin.json](../.claude-plugin/plugin.json) |
+| Hermit-internal manifest fields (`required_core_version`, `requires`) | [.claude-plugin/hermit-meta.json](../.claude-plugin/hermit-meta.json) |

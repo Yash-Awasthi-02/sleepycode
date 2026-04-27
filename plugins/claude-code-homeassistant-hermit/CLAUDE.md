@@ -10,7 +10,8 @@ A Home Assistant domain layer for `claude-code-hermit`: skills, subagents, a saf
 - `bin/ha-agent-lab` + `src/ha_agent_lab/` — Python CLI (REST client, policy engine, simulation, apply)
 - `settings.json` — pre-approved permissions for safe CLI and read-only MCP tools
 - `state-templates/CLAUDE-APPEND.md` — block injected into the target project's `CLAUDE.md` by `hatch`
-- `.claude-plugin/plugin.json` — manifest (`requires: claude-code-hermit >= 1.0.17`)
+- `.claude-plugin/plugin.json` — plugin manifest
+- `.claude-plugin/hermit-meta.json` — hermit-internal fields (`required_core_version`, `requires`, `hermit.boot_skill`)
 
 ## Core Rules
 
