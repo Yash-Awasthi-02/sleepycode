@@ -77,7 +77,7 @@ Run `claude plugin validate .` in the repo root. If it reports errors, fix them 
 git add .claude-plugin/plugin.json .claude-plugin/marketplace.json README.md CHANGELOG.md
 git commit -m "claude-code-dev-hermit--vNEW — <one-line summary from first line of changelog body>"
 claude plugin tag --push
-git push origin main
+git push
 ```
 
 If no upstream is set: `git push --set-upstream origin main` before tagging.
