@@ -1,6 +1,6 @@
 # Skills Reference
 
-Six skills, each invoked with `/claude-code-dev-hermit:`.
+Nine skills, each invoked with `/claude-code-dev-hermit:`.
 
 ---
 
@@ -38,7 +38,7 @@ Project profiling. Run after hatch or whenever the project's test or CI setup ch
 6. Writes confirmed values to `.claude-code-hermit/config.json` under `claude-code-dev-hermit.*`
 7. Writes a compiled `dev-profile-<date>.md` artifact for future sessions
 
-**Config keys written:** `commands.test`, `commands.typecheck`, `commands.lint`, `protected_branches`, `commit_format`, `commit_format_pattern`.
+**Config keys written:** `commands.test`, `commands.typecheck`, `commands.lint`, `commands.dev_start`, `commands.dev_stop`, `protected_branches`, `commit_format`, `commit_format_pattern`, `dev_required_ports`, `dev_expected_listeners`, `dev_health_url`, `dev_health_timeout_secs`, `dev_auth_check`, `dev_log_path_pattern`, `dev_error_pattern`, `dev_noise_pattern`. The `dev_*` group is written only when the project has a service-on-port dev workflow (mobile, desktop, library, embedded projects skip these).
 
 ---
 
@@ -67,6 +67,40 @@ Does not push.
 - Bare description (`PROJ-123 add auth`) — operator picks prefix; description is slugified
 
 **Note:** the `implementer` agent creates its own branch inside its worktree independently. `/dev-branch` is for the main session.
+
+---
+
+## dev-up
+
+Boot the dev server in a Monitor-managed subprocess. Run before browser-testing or any task that exercises the running app.
+
+**What it does:** seven gates — config check, idempotency probe (skip if a dev-server monitor is already running and healthy), optional auth probe, port-free-or-allowlisted check (lsof primary, ss fallback), tool availability, register a Monitor entry that runs `commands.dev_start`, optional HTTP health-poll until 2xx (timeout configurable via `dev_health_timeout_secs`).
+
+**Lifetime is session-scoped.** The Monitor stops on `/session-close` and on the next session-start. For a long-lived server, run it in your own tmux/systemd/foreman.
+
+**Required config:** `commands.dev_start`. Optional: `dev_required_ports`, `dev_expected_listeners`, `dev_health_url`, `dev_auth_check`. Configure via `/dev-adapt`.
+
+**Encore-style daemon false-positives:** add the daemon's port + process_match regex to `dev_expected_listeners`. The port-check helper allowlists matched listeners.
+
+**Targets:** the service-on-port + HTTP archetype — Node (Next/Nuxt/Vite/Express/NestJS/Fastify), Python (Django/Flask/FastAPI), Ruby on Rails, Java (Spring Boot/Quarkus), PHP (Laravel `artisan serve`, Symfony `symfony serve`, vanilla `php -S`), Go, Rust, static-site generators (Hugo/Jekyll/Astro), monorepo umbrella commands (nx/turbo), docker-compose. Out of scope: mobile dev, desktop apps (Electron/Tauri), embedded/firmware — those have multi-process or device-coupled lifecycles this skill does not model.
+
+---
+
+## dev-down
+
+Stop the session-scoped dev server registered by `/dev-up`.
+
+**What it does:** three gates — confirm a `dev-server` Monitor exists; stop it via `commands.dev_stop` (e.g., `docker compose down`) if configured, otherwise via the watch skill's SIGTERM → 10s drain → SIGKILL; re-probe ports and warn if anything unexpected still binds. Custom `dev_stop` is required for compose / supervisord / foreman setups whose process tree the Monitor's signal cannot reach.
+
+---
+
+## dev-log-watch
+
+Generate a Monitor entry that tails the dev-server log file for error patterns. Run once per project during onboarding.
+
+**What it does:** four gates — config check (`dev_log_path_pattern` + `dev_error_pattern` required); build the canonical bash one-liner via `scripts/lib/log-watch-builder.js`, which detects `$(date ...)` substrings and emits the midnight while-loop wrapper for date-rotating logs (Winston/Pino/structlog) or plain `tail -F` for fixed paths (Rails `log/development.log`); verify the log directory exists; register either persistently into `config.monitors[]` (auto-registers each session) or ad-hoc for the current session only.
+
+**Use only for file logs.** stdout/journald/Docker stacks have native primitives — see `docs/DEV-LOG-WATCH.md` `## Use instead`.
 
 ---
 
@@ -115,7 +149,7 @@ Setup health check. Diagnoses whether the project is correctly configured for th
 
 **What it does:**
 
-Runs 14 dev-specific checks and produces a `PASS / WARN / FAIL` report. Manual mode also composes core validators (`/smoke-test`, `hermit-config-validator`, `/hermit-doctor`).
+Runs 17 dev-specific checks and produces a `PASS / WARN / FAIL` report. Manual mode also composes core validators (`/smoke-test`, `hermit-config-validator`, `/hermit-doctor`).
 
 | # | Property checked |
 |---|---|
@@ -123,7 +157,7 @@ Runs 14 dev-specific checks and produces a `PASS / WARN / FAIL` report. Manual m
 | 2 | Dev workflow marker in CLAUDE.md |
 | 3 | always_on requires strict hook profile |
 | 4 | Protected branches configured (**FAIL** if missing or empty) |
-| 5 | Test command binary reachable |
+| 5 | Test command binary reachable (via `scripts/lib/resolve-command.js`) |
 | 6 | Typecheck or lint configured |
 | 7 | Worktree support (`git worktree list`) |
 | 8 | git-push-guard.js parses cleanly |
@@ -133,6 +167,9 @@ Runs 14 dev-specific checks and produces a `PASS / WARN / FAIL` report. Manual m
 | 12 | `.claude/worktrees/` gitignored |
 | 13 | `.worktreeinclude` covers hermit config |
 | 14 | Auto-loaded env files free of credential-like keys |
+| 15 | Dev start command binary reachable (via the same resolver helper) |
+| 16 | Dev log path parent directory exists |
+| 17 | Dev required ports valid range; expected_listeners ports ⊆ required_ports |
 
 Concludes with a machine-readable `Safe for implementer: yes|no` line.
 

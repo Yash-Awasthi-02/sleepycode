@@ -87,5 +87,6 @@ Keep the exclusion list in your monitor `command` string, not in a separate file
 
 ## See also
 
+- [`/claude-code-dev-hermit:dev-log-watch`](../skills/dev-log-watch/SKILL.md) — generator skill that emits the recipe above as a Monitor entry. Reads `dev_log_path_pattern` / `dev_error_pattern` / `dev_noise_pattern` from config (set by `/dev-adapt`), detects rotating vs fixed paths, and registers persistently or ad-hoc.
 - [`claude-code-hermit:watch`](../../claude-code-hermit/skills/watch/SKILL.md) — background monitoring via CC Monitor. Wire the recipe above as a `command` in the `monitors[]` config array. Use this recipe when a plain `tail -F` against a static path won't survive midnight rotation.
 - [`claude-code-hermit:watch` docs](../../claude-code-hermit/docs/config-reference.md) — config schema for monitor entries.

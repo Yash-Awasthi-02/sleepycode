@@ -5,13 +5,22 @@
 ### Added
 
 - **`/dev-branch` skill** — create a feature branch from a clean tree before delegating to the implementer. Eight-gate validation: prerequisites, clean tree, fetch, base resolution from `protected_branches[0]` (skipping glob entries like `release/*`) with silent fallback to `origin/HEAD` / `main` / `master`, worktree collision (`git worktree list --porcelain`), branch-name collision (local + remote, offline-tolerant), checkout from `origin/<base>`, SHELL.md Progress Log append.
-- **`docs/DEV-LOG-WATCH.md`** — recipe for tailing rotating dev logs into a `/watch` monitor. Documents the two non-obvious gotchas (block-buffered pipes silencing output, midnight date rollover) with a copy-paste bash one-liner and per-stack path-pattern table. Linked from README Documentation.
-- **`docs/SKILLS.md`: backfilled `dev-adapt`, `dev-doctor`, `dev-branch` sections** — file previously documented only 3 of 5 skills; `dev-adapt` and `dev-doctor` were missing.
+- **`/dev-up` skill** — boot a session-scoped dev server in a Monitor-managed subprocess. Seven gates: `commands.dev_start` configured, idempotency (skip if dev-server monitor already running and healthy — within-session only, registry clears at session-start), optional `dev_auth_check` probe, ports free or matched against `dev_expected_listeners` (lsof primary, ss fallback for slim containers), tools available, register `id: "dev-server"` Monitor entry, optional HTTP health-poll until 2xx (timeout `dev_health_timeout_secs`, default 30s — bump for JVM/Rust cold starts). Operator-invoked; no auto-trigger.
+- **`/dev-down` skill** — stop the dev-server Monitor entry. Three gates: registry has dev-server, run `commands.dev_stop` if configured (docker-compose / supervisord / foreman) else SIGTERM-drain-SIGKILL via the watch skill, re-probe ports with allowlist awareness.
+- **`/dev-log-watch` skill** — generator that emits a Monitor entry tailing the project's dev log for error patterns. Detects `$(date ...)` substrings and emits the canonical midnight while-loop wrapper from `docs/DEV-LOG-WATCH.md` for rotating logs (Winston/Pino/structlog), or plain `tail -F` for fixed paths (Rails). Persists to `config.monitors[]` (auto-registers each session) or registers ad-hoc.
+- **`scripts/lib/` shared Node helpers (Node stdlib only)** — `resolve-command.js` (env-strip, segment split, npx/bunx/pnpm-dlx/yarn-dlx/bun-x wrapper detection, `command -v` resolve; replaces inline prose in dev-doctor check #5 and powers new check #15), `port-check.js` (lsof `-F pcL +c0` field-marker parsing with `ss -ltnpH` fallback; allowlist regex match against process name), `health-poll.js` (Node `http`/`https` based; configurable timeout and interval, returns `{ok, status, elapsedMs}`), `log-watch-builder.js` (rotating-vs-fixed pattern detection, single-quote escaping, GNU/BSD `date` fallback embedded), `shell-utils.js` (shared POSIX single-quote escaper used by resolve-command and log-watch-builder). Each helper has a co-located `*.test.js` runner plus `skill-structure.test.js` for the three new SKILL.md files; 103 assertions total, all green. Helpers are dual-use: `require()` from skills via `node scripts/lib/...` CLI invocation, or import as Node modules in tests.
+- **`docs/DEV-LOG-WATCH.md`** — recipe for tailing rotating dev logs into a `/watch` monitor. Documents the two non-obvious gotchas (block-buffered pipes silencing output, midnight date rollover) with a copy-paste bash one-liner and per-stack path-pattern table. Linked from README Documentation. Cross-references `/dev-log-watch` as the generator skill that emits the recipe.
+- **`docs/SKILLS.md`: backfilled `dev-adapt`, `dev-doctor`, `dev-branch` sections + new `dev-up` / `dev-down` / `dev-log-watch` entries** — was 3 of 5 skills before; now documents all nine skills.
 
 ### Changed
 
 - **`dev-doctor` check #4 promoted to FAIL** — `claude-code-dev-hermit.protected_branches` missing or empty now hard-fails (was WARN). Required by `/dev-branch` base resolution and used by `/dev-cleanup`. Existing operators with no configured `protected_branches` should run `/claude-code-dev-hermit:dev-adapt`.
 - **`dev-doctor` check #14 added — env-leakage scan** — warns when auto-loaded env files (`.env`, `.env.local`, `.env.development*`) contain credential-like keys (`*PASSWORD*`, `*SECRET*`, `*TOKEN*`, `*CREDENTIAL*`, `*PRIVATE_KEY*`, `*API_KEY*`). Excludes framework-public prefixes (`NEXT_PUBLIC_`, `VITE_`, `REACT_APP_`, `EXPO_PUBLIC_`, `PUBLIC_`, `VUE_APP_`), config-intent suffixes (`_NAME`, `_PREFIX`, `_LENGTH`, `_ENABLED`, `_URL`, `_HOST`, `_PATH`), and placeholder values. Recommends moving credentials to a non-auto-loaded file (e.g., `.env.local.dev-only`). Runs in both manual and scheduled modes.
+- **`dev-doctor` checks #15–17 added; check #5 migrated to shared resolver** — #15 `commands.dev_start` reachable (FAIL on unresolvable binary; PASS-with-skip if null). #16 `dev_log_path_pattern` parent dir exists (WARN if missing — log file may not have rotated in yet). #17 `dev_required_ports` valid range and `dev_expected_listeners` ports ⊆ `dev_required_ports`. Check #5's inline parsing prose replaced with a one-line invocation of `scripts/lib/resolve-command.js` — same behaviour, single source of truth.
+- **`dev-adapt` extended for dev-server profiling** — new "Dev environment" proposal block detects `commands.dev_start` (package.json scripts.dev / scripts.local:dev / language defaults), `dev_required_ports` (start-command parsing, framework conventions), `dev_health_url` (low-confidence proposal), `dev_health_timeout_secs` (60–120s for JVM/Rust/large monorepos), `dev_auth_check` (Infisical / direnv / op detection), `dev_log_path_pattern` (logs/ probe with date-suffix vs fixed-name discrimination), `dev_error_pattern` (stack-aware default — Winston/Pino/Lograge/Logback). Skipped entirely when no service-on-port signals are present (mobile, desktop, library projects). Operator confirms via a fourth AskUserQuestion (Yes/Edit/Skip).
+- **`CLAUDE-APPEND.md`: Local Dev Environment subsection added** — documents `/dev-up`/`/dev-down`/`/dev-log-watch` as operator-invoked, session-scoped lifetime (Monitor stops at `/session-close`), no auto-trigger by design (operators add a memory rule for auto-fire, not a config flag), and points stdout/journald/Docker stacks at `docs/DEV-LOG-WATCH.md` `## Use instead` instead of forcing them through `/dev-log-watch`.
+- **`scripts/lib/` flat-Node-stdlib structure introduced** — first shared-helpers directory in the plugin. Existing `scripts/git-push-guard.js` stays at the top level (single-purpose hook); cross-cutting helpers go under `lib/`. Same constraint set as core (no `package.json`, no `node_modules`).
+- **CHANGELOG hygiene: duplicate `[Unreleased]` block removed** — orphan block that had been hanging around since pre-0.1.7 (all 13 entries already shipped in 0.1.7 / 0.1.8, cross-checked against the upstream subtree merge `72fd9a1`). The release skill only ever rewrites the canonical top-of-file `[Unreleased]`, leaving the duplicate untouched across multiple releases. Cleared for posterity.
 - **`CLAUDE-APPEND.md`: dev-branch step inserted** — the Implement step now directs the main session to run `/dev-branch` first when on a protected branch. Reach caveat: existing projects pick up this change on next `/hermit-evolve` after the 0.1.10 release.
 - **README skills table + hatch Available-skills report** — list `/dev-branch` so it is discoverable post-install.
 - **docs: bump Claude Code prerequisite to v2.1.110+** — dep resolver and `claude plugin tag` both require v2.1.110+; operators on older versions can't install this plugin cleanly. Updated `docs/HOW-TO-USE.md` and `CONTRIBUTING.md`.
@@ -23,23 +32,38 @@
 | File | Change |
 |------|--------|
 | `skills/dev-branch/SKILL.md` | Added: feature-branch creation gate skill |
-| `docs/DEV-LOG-WATCH.md` | Added: recipe for tailing rotating dev logs |
-| `docs/SKILLS.md` | Backfilled dev-adapt, dev-branch, dev-doctor sections; count updated to six |
+| `skills/dev-up/SKILL.md` | Added: boot the session-scoped dev server (7 gates) |
+| `skills/dev-down/SKILL.md` | Added: stop the dev server (3 gates) |
+| `skills/dev-log-watch/SKILL.md` | Added: generate a Monitor entry tailing dev logs (4 gates) |
+| `scripts/lib/resolve-command.js` + `.test.js` | Added: shared command-resolver (also powers dev-doctor #5/#15) |
+| `scripts/lib/port-check.js` + `.test.js` | Added: lsof/ss listener probe with allowlist match |
+| `scripts/lib/health-poll.js` + `.test.js` | Added: HTTP health probe with retry until timeout |
+| `scripts/lib/log-watch-builder.js` + `.test.js` | Added: emits the canonical bash one-liner per `dev_log_path_pattern` shape |
+| `scripts/lib/shell-utils.js` | Added: shared `shellQuote` (POSIX single-quote escape); eliminates duplication between resolve-command and log-watch-builder |
+| `scripts/lib/skill-structure.test.js` | Added: structural lint for dev-up/dev-down/dev-log-watch SKILL.md files (frontmatter, gate count, internal links) |
+| `skills/dev-adapt/SKILL.md` | Extended Step 1 reads (package.json scripts.dev, log dirs, auth files), new "Dev environment" proposal block in Step 2, new fourth AskUserQuestion in Step 3, schema additions in Step 4, dev-environment body section in Step 5, dev block in Step 6 report |
+| `skills/dev-doctor/SKILL.md` | Check #5 prose replaced with helper invocation; checks #15–17 added |
+| `docs/DEV-LOG-WATCH.md` | Added: recipe for tailing rotating dev logs; cross-link to `/dev-log-watch` generator |
+| `docs/SKILLS.md` | Backfilled dev-adapt, dev-branch, dev-doctor; added dev-up, dev-down, dev-log-watch; count updated to nine |
 | `skills/dev-doctor/SKILL.md` | Check #4 WARN → FAIL; check #14 added (env-leakage scan) |
-| `skills/hatch/SKILL.md` | dev-branch added to Available-skills report; skills reordered |
-| `state-templates/CLAUDE-APPEND.md` | dev-branch step inserted into Implement; unconditional invocation |
-| `README.md` | dev-branch row added to skills table; DEV-LOG-WATCH link added |
+| `skills/hatch/SKILL.md` | dev-branch + dev-up/dev-down/dev-log-watch added to Available-skills report |
+| `state-templates/CLAUDE-APPEND.md` | dev-branch step inserted into Implement (unconditional); Local Dev Environment subsection added |
+| `README.md` | dev-branch + dev-up + dev-down + dev-log-watch rows added to skills table; DEV-LOG-WATCH link |
+| `CLAUDE.md` (plugin-local) | Plugin Structure refreshed — full skill list, `scripts/lib/` mention, `docs/` mention |
 | `docs/HOW-TO-USE.md` | Prerequisite: v2.1.80+ → v2.1.110+ |
 | `CONTRIBUTING.md` | Prerequisite: v2.1.80+ → v2.1.110+ |
 | `.claude-plugin/plugin.json` | `dependencies[0].version`: `>=1.0.18` → `^1.0.18` |
 | `.claude/skills/release/SKILL.md` | Deleted |
+| `CHANGELOG.md` | Duplicate `[Unreleased]` block removed (debris from pre-0.1.7 cycle) |
 
 ### Upgrade Instructions
 
 1. **`dev-doctor` check #4 is now FAIL on missing `protected_branches`.** If you have not run `/claude-code-dev-hermit:dev-adapt` since installing the plugin, do so now to populate `claude-code-dev-hermit.protected_branches` in `.claude-code-hermit/config.json`. Without this, `/dev-branch` cannot resolve a base and existing operators will see a new FAIL on their next `dev-doctor` run.
 2. **`/dev-branch` workflow step lands via CLAUDE-APPEND.md.** Existing projects pick up the new step on next `/hermit-evolve` run after this release.
+3. **`/dev-up`, `/dev-down`, and `/dev-log-watch` are opt-in via `/dev-adapt`.** Re-run `/claude-code-dev-hermit:dev-adapt` to detect and confirm the new `dev_*` config fields (`commands.dev_start`, `commands.dev_stop`, `dev_required_ports`, `dev_expected_listeners`, `dev_health_url`, `dev_health_timeout_secs`, `dev_auth_check`, `dev_log_path_pattern`, `dev_error_pattern`, `dev_noise_pattern`). Skip the dev-environment question for projects without a service-on-port dev workflow (mobile, desktop, libraries). Local Dev Environment subsection lands via CLAUDE-APPEND.md on next `/hermit-evolve`.
+4. **dev-doctor check count: 14 → 17.** New checks #15 (dev_start binary reachable), #16 (dev_log_path_pattern parent exists), #17 (dev_required_ports valid range, expected_listeners ports ⊆ required_ports). Each PASS-with-skip when the underlying field is null — they only kick in once `/dev-adapt` populates the dev-environment block.
 
-No `config.json` schema changes required.
+`config.json` schema additions: `claude-code-dev-hermit.commands.dev_start`, `commands.dev_stop`, `dev_required_ports`, `dev_expected_listeners`, `dev_health_url`, `dev_health_timeout_secs`, `dev_auth_check`, `dev_log_path_pattern`, `dev_error_pattern`, `dev_noise_pattern`. All optional individually; `commands.dev_start` is the minimum for `/dev-up`. Existing configs without any `dev_*` keys are unaffected — the new skills refuse cleanly with an actionable message.
 
 - **CLAUDE.md tightened for contributor audience** — dropped the "This Repo is a Plugin" install block (duplicated in README) and the "Built-in Claude Code Skills Used" section (its actionable delegation guidance folded into Constraints); rewrote Core Contracts as 6 dense load-bearing items (profile values, `/session-close` is operator-only, ambient-rules meta-rule, learning loop, proposal-gate pointer, authoritative session-state path).
 - **plugin.json: native `dependencies` field added** — `dependencies: [{ name: "claude-code-hermit", version: ">=1.0.18" }]` enables Claude Code's native dependency resolver to auto-install core; the hermit-internal `requires` field remains for runtime version gating.
@@ -84,53 +108,6 @@ No `config.json` changes required.
 ### Changed
 - Rewrote `/dev-quality` — deterministic commands, surgical undo, judgment risk assessment
 - Namespaced dev-hermit config keys under `claude-code-dev-hermit`
-
----
-
-## [Unreleased]
-
-### Added
-
-- **`docs/WORKFLOW.md` — end-to-end task lifecycle reference** — lays out what fires in what order across `/hatch`, `/dev-adapt`, implementer, `/dev-quality`, `/dev-cleanup`, `/dev-doctor`, and the core reflect/session-mgr loop, including the state each step writes. Linked from README Documentation section. Skills already cross-reference this path; the file now exists.
-
-- **`create-pr` skill** — fills the gap between `/commit` and `/release`: pushes the current branch if needed, auto-drafts a Conventional Commits title and `## Summary` + `## Test plan` body from the commit range and diff, detects issue references for `Closes #N` links, shows the draft for approval, then runs `gh pr create`. Refuses early if on the default branch, dirty tree, no commits ahead, or a PR already exists.
-
-### Fixed
-
-- **`dev-quality`: lint never ran despite being configured** — Steps 3 and 6 now run `commands.lint` alongside test and typecheck. Lint at baseline (Step 3) is report-only and does not block simplify; lint regression after simplify (Step 6) triggers the same revert path as test regression.
-- **`dev-quality`: pre-simplify snapshot failed on committed code** — replaced `git stash push` (fails silently on a clean working tree) with `PRESIMPLIFY=$(git stash create); [ -z "$PRESIMPLIFY" ] && PRESIMPLIFY=$(git rev-parse HEAD)`. Revert now uses `git checkout $PRESIMPLIFY -- <files>`. Works correctly after the implementer commits, after direct edits, and with concurrent operator changes (with a staged-edits warning).
-- **`CLAUDE-APPEND.md`: main session did not check out the implementer's branch** — Step 3 now instructs the main session to run `git status -s` and, if the tree is clean, `git checkout <branch>` using the branch name from the implementer's `Branch:` line before updating SHELL.md and before running `dev-quality`. Without this, `dev-quality`'s diff detection targeted the wrong HEAD and `git diff merge-base` returned zero changed files on every run.
-- **`agents/implementer.md`: pinned `Branch:` output format** — the `### Branch` return section now specifies the exact format `Branch: <branch-name>` (one token, no trailing prose) so the main session can parse it deterministically.
-- **Worktree isolation hardening** — implementer's worktree is a fresh checkout, so `.claude-code-hermit/` (typically gitignored) is absent inside it. Two gaps closed: (1) branch-handoff collision — `git checkout <branch>` in the main repo failed with "already checked out at .claude/worktrees/<name>" because the subagent worktree persisted; fixed by adding a `Worktree:` return line to the implementer and updating CLAUDE-APPEND step 3 to prune → check → remove → checkout; (2) silent safety-rail degradation — `protected_branches` and `commit_format` fell back to defaults without warning; fixed by prompt-passing these values from the main session's config.json read and adding a scoped Concerns flag when defaults were used on a commit. Also: hatch now unconditionally writes a `.worktreeinclude` block so future implementer runs can fall back to file-read when prompt-passing is absent; dev-doctor gains checks 12 (`.claude/worktrees/` gitignored) and 13 (`.worktreeinclude` covers hermit config).
-
-### Upgrade Instructions
-
-1. Ensure `.worktreeinclude` at the repo root contains the claude-code-dev-hermit marker block. Run `/claude-code-hermit:hermit-evolve` — it will execute this step automatically. Or run `/claude-code-dev-hermit:hatch` manually if you prefer.
-
-   If applying manually: create or append to `.worktreeinclude` at repo root:
-   ```
-   # claude-code-dev-hermit — implementer subagent worktree files
-   .claude-code-hermit/config.json
-   .claude-code-hermit/OPERATOR.md
-   .env
-   .env.local
-   .env.test
-   # end claude-code-dev-hermit
-   ```
-   If the marker is already present, skip — the block is idempotent.
-
-2. No config.json changes required.
-
-### Changed
-
-- **Minimum core version bumped to v1.0.18** — `claude-code-hermit` v1.0.18 renamed `/doctor` to `/hermit-doctor` to avoid collision with Claude Code's built-in `/doctor`. `dev-doctor` manual mode composes this skill, so `required_core_version` in `plugin.json` is bumped and the composition callsites are updated accordingly. Operators on older cores are prompted by hatch's prereq gate to run `/claude-code-hermit:hermit-evolve`.
-- **`dev-doctor`: compose `/claude-code-hermit:hermit-doctor` in manual mode** — Step 1 now runs `/hermit-doctor` in parallel alongside `smoke-test` and `hermit-config-validator`. Adds six new checks (config validity, hook scripts, state file integrity, cost vs idle_budget, open proposals health, file permissions) to the manual health report; scheduled mode is unchanged.
-- **`dev-doctor`: check #5 validates test-command binary** — previously checked only that `commands.test` is non-null; now also strips env-var prefixes, splits compound commands, and runs `command -v` on the first executable token. Handles `npx`/`pnpm dlx`/`bunx` by checking the second token too. FAIL on unresolvable binary.
-- **`dev-doctor`: check #11 — `commit_format` shape** — if `commit_format` is set but `commit_format_pattern` is absent (or vice versa), WARN and direct operator to re-run `/dev-adapt`.
-- **`dev-adapt`: detect commit message format** — scans `git log --no-merges -50` and classifies the project's style as `conventional` / `gitmoji` / `null` (freeform or too few commits). Threshold: ≥70% match AND ≥10 commits. Persists `commit_format` and `commit_format_pattern` (the matched regex) to `config.json`. Surfaces in the `dev-profile` artifact under `## Commit format`.
-- **`agents/implementer`: read `commit_format` from config** — if `commit_format` is set in config, applies it to all commit messages and validates each subject against `commit_format_pattern` before committing.
-- **`agents/implementer`: `ultrathink` at pre-edit planning step** — new step 3 in "Before Starting" instructs the implementer to reason deeply through the task before the first file mutation. Mirrors the pattern core v1.0.17 added to reflect, reflection-judge, and proposal-create. Especially effective for refactors, unfamiliar code paths, and cross-file changes.
-- **`CLAUDE.md`: remove `reviews/` from state dir listing** — the `reviews/` directory was removed from the core in v1.0.17 (weekly reviews now write to `compiled/review-weekly-*`). The state dir contract is updated to match.
 
 ---
 

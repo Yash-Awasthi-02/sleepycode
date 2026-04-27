@@ -46,7 +46,7 @@ For each property below, read the relevant file(s) and emit `PASS`, `WARN`, or `
 | 2 | Dev workflow marker in CLAUDE.md | `grep "claude-code-dev-hermit: Development Workflow" CLAUDE.md` |
 | 3 | always_on + strict profile | If `always_on: true` in config, `env.AGENT_HOOK_PROFILE` must be `strict`; FAIL if not |
 | 4 | Protected branches configured | `claude-code-dev-hermit.protected_branches` in config must be non-empty array — FAIL if missing or empty (required by `/dev-branch` base resolution and used by `/dev-cleanup`) |
-| 5 | Test command reachable | `claude-code-dev-hermit.commands.test` must be non-null AND the binary must resolve. Strip leading `KEY=value` env assignments, split on `&&`/`;` and take the first segment, take the first token. If the token is `npx`/`pnpm dlx`/`bunx`, also check the second token. Run `command -v <token>` (PATH only, no alias lookup). FAIL if not found and not an on-disk file; PASS otherwise. |
+| 5 | Test command reachable | `claude-code-dev-hermit.commands.test` must be non-null AND the binary must resolve. Invoke `node ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve-command.js "<test command>"` — exit 0 PASS, exit 1 FAIL with the helper's reason. The helper strips env assignments, splits on `&&`/`;`/`|`/`||`, identifies `npx`/`bunx`/`pnpm dlx`/`yarn dlx`/`bun x` wrappers, and runs `command -v` on the effective binary. |
 | 6 | Typecheck or lint configured | At least one of `claude-code-dev-hermit.commands.typecheck` / `claude-code-dev-hermit.commands.lint` non-null; WARN only if both absent |
 | 7 | Worktree support | Run `git worktree list` — must exit 0 |
 | 8 | Hook script valid | Run `node --check ${CLAUDE_PLUGIN_ROOT}/scripts/git-push-guard.js` — must exit 0 |
@@ -56,6 +56,9 @@ For each property below, read the relevant file(s) and emit `PASS`, `WARN`, or `
 | 12 | `.claude/worktrees/` gitignored | Check `.gitignore` (and any parent `.gitignore`) for `.claude/worktrees/` or `.claude/`. WARN if absent — untracked worktree dirs will appear in `git status` of the main repo. Suggestion: append `.claude/worktrees/` to `.gitignore`. |
 | 13 | `.worktreeinclude` covers hermit config | If `.claude-code-hermit/config.json` is gitignored (check `.gitignore`), verify `.worktreeinclude` contains `.claude-code-hermit/config.json`. WARN if absent — the implementer agent may silently use default protected_branches and commit_format inside its worktree. Point at `/claude-code-dev-hermit:hatch` to generate the file. |
 | 14 | Auto-loaded env files free of credentials | Read `.env`, `.env.local`, `.env.development`, `.env.development.local` in parallel if they exist (reuse the cached `.gitignore` to note if they are gitignored — check regardless). For each `KEY=value` line, WARN if the key matches case-insensitive `(PASSWORD|SECRET|TOKEN|CREDENTIAL|PRIVATE_KEY|API_KEY)` AND none of these exclusions apply: key starts with `NEXT_PUBLIC_` / `VITE_` / `REACT_APP_` / `EXPO_PUBLIC_` / `PUBLIC_` / `VUE_APP_`; key ends with `_NAME` / `_PREFIX` / `_SUFFIX` / `_LENGTH` / `_ENABLED` / `_URL` / `_HOST` / `_PATH`; value is empty, `true`, `false`, numeric, or matches `change[-_]?me` / `placeholder` / `example` / `your[-_]?key` (case-insensitive). One WARN per match — name the file and key (never the value). Recommend moving to a non-auto-loaded file (e.g. `.env.local.dev-only`). |
+| 15 | Dev start command reachable | If `claude-code-dev-hermit.commands.dev_start` is set, invoke `node ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve-command.js "<dev_start>"` — same helper as check #5. FAIL on exit 1 with the helper's reason; PASS-with-skip if `dev_start` is null (the field is optional — `/dev-up` will refuse without it, but that's not a doctor-level failure). |
+| 16 | Dev log path parent exists | If `claude-code-dev-hermit.dev_log_path_pattern` is set: substitute `$(date ...)` if present (use `date -d 'tomorrow 00:00:00' 2>/dev/null \|\| date -v+1d -v0H -v0M -v0S` GNU/BSD fallback), then check `[ -d "$(dirname "$resolved")" ]`. WARN if missing — log file may not have rotated in yet. PASS-with-skip if `dev_log_path_pattern` is null. |
+| 17 | Dev required ports valid | If `claude-code-dev-hermit.dev_required_ports` is set: each entry must be an integer in 1024–65535. Each `dev_expected_listeners[].port` must appear in `dev_required_ports` (the listener-allowlist only matters for ports we're checking). FAIL on out-of-range or unknown listener port. PASS-with-skip if `dev_required_ports` is null or empty. |
 
 ## Output format
 
@@ -80,6 +83,9 @@ WARN  commit_format set but commit_format_pattern absent — re-run /dev-adapt
 WARN  .gitignore missing .claude/worktrees/ entry — add it to suppress untracked worktree dirs
 WARN  .worktreeinclude missing .claude-code-hermit/config.json — run /hatch to generate
 WARN  .env.local key TEST_USER_PASSWORD looks credential-like — auto-loaded env files end up in process.env, crash reports, ps eww; move to .env.local.dev-only
+PASS  dev_start command resolves: pnpm found in PATH
+WARN  dev_log_path_pattern parent dir 'logs/' does not exist yet — log file will appear when dev server first writes
+PASS  dev_required_ports valid (3000, 4000)
 
 Safe for implementer: no   (3 FAIL)
 Next: set AGENT_HOOK_PROFILE=strict; configure protected_branches via /dev-adapt; fix test command via /dev-adapt

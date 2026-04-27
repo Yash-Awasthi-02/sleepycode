@@ -51,6 +51,20 @@ First session (no prior `S-*-REPORT.md` files): explore the codebase to orient y
 - When unsure: ask the operator
 - After parallel work: run `/simplify` and re-check constraints in main session (workers lack skill and OPERATOR.md access)
 
+### Local Dev Environment
+
+For tasks that need the running app (browser-testing, API integration checks, anything that exercises live behaviour):
+
+- Run `/claude-code-dev-hermit:dev-up` before the task. It boots the dev server in a Monitor-managed subprocess so its stdout/stderr surface as conversation notifications.
+- Run `/claude-code-dev-hermit:dev-down` at task close, or before switching to a task that doesn't need the server.
+- Configure once via `/claude-code-dev-hermit:dev-adapt` — sets `commands.dev_start`, `dev_required_ports`, `dev_health_url`, and (optionally) `dev_auth_check`, `dev_expected_listeners`, `dev_log_path_pattern`.
+
+**Lifetime is session-scoped.** `/dev-up` boots a Monitor that stops on `/session-close` and on the next session-start (per the core `watch` skill — monitors are session-scoped). For a long-lived server that survives across sessions, run it in your own tmux/systemd/foreman and treat the agent as a client.
+
+**Operator-invoked, no auto-trigger.** `/dev-up` does not fire automatically on session-start, browser-testing tasks, or implementer flows — operators run it intentionally. To auto-fire on specific task shapes, add a project memory rule (e.g., "Whenever I start a browser-testing task, invoke /dev-up first"); do not seek a config flag for it.
+
+**Error surfacing:** for projects whose dev server logs to a **file** (Winston/Pino daily, Rails `log/development.log`, structlog), run `/claude-code-dev-hermit:dev-log-watch` once during onboarding. It writes a Monitor entry into `config.monitors[]` that auto-registers each session and surfaces matched log lines as notifications. For stdout/journald/Docker stacks, see `docs/DEV-LOG-WATCH.md` `## Use instead`.
+
 ### Before Archiving a Task
 
 - `/claude-code-dev-hermit:dev-quality` passed (tests + simplify)

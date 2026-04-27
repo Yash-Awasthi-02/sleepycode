@@ -61,8 +61,11 @@ The implementer never touches main. It commits to feature branches, runs tests, 
 | Skill | What it does |
 |-------|-------------|
 | `hatch` | One-time project setup — appends dev workflow to CLAUDE.md, configures git safety, installs companion plugins |
-| `dev-adapt` | Profile the project's test commands, protected branches, and stack; persists findings to config |
+| `dev-adapt` | Profile the project's test commands, protected branches, dev-server setup, and stack; persists findings to config |
 | `dev-branch` | Create a feature branch with gates — clean tree, base from protected_branches, no collisions |
+| `dev-up` | Boot a session-scoped dev server via the Monitor tool — port checks, optional auth probe, optional HTTP health-poll |
+| `dev-down` | Stop the dev server — runs `commands.dev_stop` if configured (compose/supervisord), else Monitor SIGTERM/SIGKILL |
+| `dev-log-watch` | Generate a Monitor entry that tails rotating or fixed dev-server logs for error patterns |
 | `dev-quality` | Post-implementation quality pass — tests, simplify, tests |
 | `dev-cleanup` | Lists stale/merged branches and offers to clean them up safely |
 | `dev-doctor` | Diagnose dev-hermit setup issues; safe for weekly scheduled checks |

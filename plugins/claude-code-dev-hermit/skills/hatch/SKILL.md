@@ -245,11 +245,14 @@ Companion plugins:
   [code-review + feature-dev + context7 / partial / skipped]
 
 Available skills:
-  /claude-code-dev-hermit:dev-adapt     — re-profile project (test commands, branches, stack)
-  /claude-code-dev-hermit:dev-branch    — feature-branch creation with gates
-  /claude-code-dev-hermit:dev-quality   — post-implementation quality pass
-  /claude-code-dev-hermit:dev-cleanup   — branch cleanup
-  /claude-code-dev-hermit:dev-doctor    — check setup is implementer-safe
+  /claude-code-dev-hermit:dev-adapt       — re-profile project (test commands, branches, dev-server setup, stack)
+  /claude-code-dev-hermit:dev-branch      — feature-branch creation with gates
+  /claude-code-dev-hermit:dev-up          — boot a session-scoped dev server (Monitor-managed)
+  /claude-code-dev-hermit:dev-down        — stop the dev server
+  /claude-code-dev-hermit:dev-log-watch   — register an error-tailing monitor for the dev log
+  /claude-code-dev-hermit:dev-quality     — post-implementation quality pass
+  /claude-code-dev-hermit:dev-cleanup     — branch cleanup
+  /claude-code-dev-hermit:dev-doctor      — check setup is implementer-safe
 
 Available agent:
   claude-code-dev-hermit:implementer   — code writing in worktree (Sonnet)
