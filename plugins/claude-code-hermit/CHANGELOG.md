@@ -2,6 +2,11 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`hermit-start.py`: persistent agent worktree setup** — `setup_agent_worktree()` ensures `.claude/worktrees/agent/` exists before the tmux env file is written. Three-way idempotent: creates on first boot, re-registers via `--force` if the git ref was stale-pruned (prune removes the ref but not the directory), and leaves an existing registered worktree untouched so a feature branch from the prior session is preserved. Sets `HERMIT_AGENT_WORKTREE` in the tmux env so dev-hermit skills (`/dev-up`, `/dev-branch`, `/dev-quality`, etc.) operate in the agent worktree rather than the operator's main checkout. All three git calls (`worktree list`, `prune`, `add`) have a 15 s timeout; each fails open with a warning to let `/dev-doctor` diagnose.
+- **`.gitignore` templates**: `.claude/worktrees/` added to both `GITIGNORE-APPEND.txt` and `GITIGNORE-APPEND-PROJECT.txt` so agent worktree directories are excluded from project git history.
+
 ### Changed
 
 - **`auto` permission mode added to `/hatch` and `/hermit-settings permissions`.** `hermit-start.py` now passes `--permission-mode auto` to Claude Code instead of treating it as an unknown mode. Max plan requires Opus 4.7; Team/Enterprise/API plans support Sonnet 4.6 or Opus 4.6/4.7. Replaces the outdated "Teams/Enterprise only" note. Not available on Pro, Haiku, or non-Anthropic providers (Bedrock/Vertex/Foundry).
