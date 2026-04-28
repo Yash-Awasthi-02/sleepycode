@@ -9,9 +9,22 @@ const path = require('path');
 
 const MAX_STDIN = 1024 * 1024;
 
+function findHermitDir(startDir) {
+  let dir = startDir;
+  for (let i = 0; i < 8; i++) {
+    if (fs.existsSync(path.join(dir, '.claude-code-hermit', 'config.json'))) return path.join(dir, '.claude-code-hermit');
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+}
+
 function loadProtectedBranches() {
   try {
-    const raw = fs.readFileSync(path.join(process.cwd(), '.claude-code-hermit', 'config.json'), 'utf-8');
+    const hermitDir = findHermitDir(process.cwd());
+    if (!hermitDir) return ['main', 'master'];
+    const raw = fs.readFileSync(path.join(hermitDir, 'config.json'), 'utf-8');
     const branches = JSON.parse(raw)?.['claude-code-dev-hermit']?.protected_branches;
     if (Array.isArray(branches) && branches.length > 0) return branches;
   } catch (_) {}
@@ -64,8 +77,11 @@ async function main() {
   for (const subcmd of subcmds) {
     if (!/\bgit\b[\s\S]*\bpush\b/.test(subcmd)) continue;
 
-    if (/(?:^|\s)(?:--force\b|-f\b)/.test(subcmd)) {
-      block('Force push is not allowed (--force, -f, --force-with-lease all blocked).');
+    const hasForceWithLease = /(?:^|\s)--force-with-lease\b/.test(subcmd);
+    const hasBareForce = /(?:^|\s)(?:--force(?!-with-lease)\b|-f\b)/.test(subcmd);
+
+    if (hasBareForce) {
+      block('Bare force push is not allowed (--force, -f). Use --force-with-lease on a non-protected branch with an explicit refspec if you must overwrite.');
     }
     if (/(?:^|\s)(?:--mirror\b|--all\b|-a\b)/.test(subcmd)) {
       block('--mirror, --all, and -a are not allowed (would push everything, including protected branches).');
@@ -73,6 +89,13 @@ async function main() {
     for (const { pattern, rx } of branchRegexes) {
       if (rx.test(subcmd)) {
         block(`Direct push to protected branch '${pattern}' is not allowed. Push to a feature branch and open a PR.`);
+      }
+    }
+    if (hasForceWithLease) {
+      const afterPush = subcmd.split(/\bpush\b/)[1] || '';
+      const positionals = afterPush.trim().split(/\s+/).filter(t => t && !t.startsWith('-'));
+      if (positionals.length < 2) {
+        block('--force-with-lease without an explicit refspec is not allowed (ambiguous target).');
       }
     }
   }

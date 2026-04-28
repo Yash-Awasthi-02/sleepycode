@@ -147,7 +147,10 @@ Single atomic config.json write:
 - `claude-code-dev-hermit.commands.pr_create` — from the remote-host detection above (`gh pr create` / `glab pr create`); preserve any existing operator override.
 - `claude-code-dev-hermit.protected_branches` — array. The Round 1 prompt accepts a comma-separated string; split on `,`, trim each entry, drop empties before writing.
 - `claude-code-dev-hermit.pr_template_path` — optional, from Round 2.
-- `env.AGENT_HOOK_PROFILE` — `"strict"` if accepted in Round 2, else preserve the existing value (do not downgrade).
+- `env.AGENT_HOOK_PROFILE`:
+  - If the operator accepted strict in Round 2 → write `"strict"`.
+  - Else if the existing value is already `"strict"` → preserve it (never silently downgrade).
+  - Else → write `"standard"` explicitly. Do not leave the key unset; an explicit value makes the operator's choice durable across `hermit-evolve` runs and prevents silent re-prompting.
 - `_hermit_versions["claude-code-dev-hermit"]` — set to the plugin version cached in step 2.
 
 For each selected companion plugin: `claude plugin install <plugin>@claude-plugins-official --scope project`.

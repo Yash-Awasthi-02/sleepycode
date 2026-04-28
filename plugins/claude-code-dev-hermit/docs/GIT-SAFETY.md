@@ -39,7 +39,11 @@ A `PreToolUse` hook that intercepts Bash commands before they execute. Strict pr
 | `git push --delete` / `:branch` to a protected branch | Prevents remote branch deletion |
 | `git push --mirror`, `--all`, `-a` | Would push everything, including protected |
 | `--no-verify` anywhere on the command line | Prevents bypassing pre-commit hooks |
-| `--force`, `-f`, `--force-with-lease` (any target) | No force-push, period |
+| `--force`, `-f` (bare force) | History rewrite without lease protection |
+| `--force-with-lease` to a protected branch | Mainline protection takes precedence over the lease |
+| `--force-with-lease` without an explicit refspec (e.g. `git push --force-with-lease origin`) | Ambiguous target — blocked to avoid pushing to the wrong branch |
+
+**Allowed:** `--force-with-lease` to a non-protected branch with an explicit refspec (e.g. `git push --force-with-lease origin feature/x`). This is the safe operation `--force-with-lease` was designed for: lease-protected overwrite of your own feature branch after a rebase. The blanket block in earlier v0.3.0 betas was harsher than the safety story warranted — see CHANGELOG `[0.3.0]` for the reasoning.
 
 **Allows:**
 
