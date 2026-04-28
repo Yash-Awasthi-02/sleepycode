@@ -6,6 +6,10 @@
 
 - **`state-templates/CLAUDE-APPEND.md`** — rewritten as the language-agnostic safety layer for v0.3.0. Absorbs the safety posture previously enforced by the `implementer` agent's system prompt: explicit Git Safety rules (no push, no `--no-verify`, no commits to protected, no force-push), Branch Discipline (clean-tree gate, branch from `protected_branches[0]`, prefix detection, verbatim 5-step slug rules), Implementation Flow (run configured test command before declaring done), Tests Before PR (re-run after `/simplify`, revert on regression). Removed the Dev Agent table, the elaborate 7-step Dev Workflow, the Local Dev Environment / dev-up / dev-adapt / dev-log-watch / dev-status sections, the watchdog reference, and the entire Always-on Worktree Topology section. Rules now apply to whatever agent the operator uses (native `Agent` tool, `feature-dev:code-implementer`, custom subagents) — the plugin no longer ships its own implementer.
 
+### Removed
+
+- **Watchdog system** — deleted `scripts/watchdog-health.js`, `scripts/watchdog-errors.js`, `scripts/lib/alerts-store.js`, and their test siblings (~1,033 lines). The health-poll + error-spike + `state/alerts.json` pipeline was babysitter-watching-babysitter for a feature that fired only in always-on mode and only when `dev_health_url` and `dev_log_path_pattern` were configured. Monitor's own stderr-on-exit notification covers "dev server died" without a dedicated watchdog. `/dev-pr`'s `--force`-bypassable alert gate is removed in a later v0.3.0 commit when `/dev-pr` is rewritten. Operator config keys `claude-code-dev-hermit.dev_health_url`, `dev_log_path_pattern`, `dev_error_pattern`, `dev_watchdog.*` become inert (harmless but unused).
+
 ## [0.2.3] - 2026-04-28
 
 ### Added
