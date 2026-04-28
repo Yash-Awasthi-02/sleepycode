@@ -7,9 +7,13 @@
 
 # claude-code-fitness-hermit
 
-Turn Claude Code into a 24/7 personal training assistant.
+Turn Claude Code into a 24/7 personal fitness assistant.
 
-Reads your Strava, spots load anomalies, drafts weekly plans, and flags recovery — and never edits your training without your say-so.
+Reads your Strava, spots load anomalies, drafts weekly plans, and flags recovery.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/gtapps/claude-code-hermit/main/plugins/claude-code-hermit/assets/demo.gif" alt="claude-code-hermit demo — Obsidian dashboard, Discord control, autonomous briefings, remote access" width="720" />
+</p>
 
 This is a [`claude-code-hermit`](https://github.com/gtapps/claude-code-hermit) plugin. The core hermit brings session discipline, memory, and routines to Claude Code. This plugin adds the training layer — connected through the community Strava [MCP Server](https://github.com/r-huijts/strava-mcp-server) and the Strava [REST API](https://developers.strava.com/docs/reference/).
 

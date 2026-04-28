@@ -13,6 +13,10 @@ Understands your house, spots the patterns, drafts automations, and catches thin
 
 This is a [`claude-code-hermit`](https://github.com/gtapps/claude-code-hermit) plugin. The core hermit brings session discipline, memory, and routines to Claude Code. This plugin adds the Home Assistant layer — connected through the official Home Assistant [MCP](https://www.home-assistant.io/integrations/mcp_server/) Server & [API](https://www.home-assistant.io/integrations/api/).
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/gtapps/claude-code-hermit/main/plugins/claude-code-hermit/assets/demo.gif" alt="claude-code-hermit demo — Obsidian dashboard, Discord control, autonomous briefings, remote access" width="720" />
+</p>
+
 Three steps to a running 24/7 Home Assistant hermit:
 > ```
 > # Install

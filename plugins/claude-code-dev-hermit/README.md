@@ -10,6 +10,10 @@
 
 **The dev muscle for your hermit — git safety, quality gates, and a code-writing agent that works on branches so you don't have to worry about main.**
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/gtapps/claude-code-hermit/main/plugins/claude-code-hermit/assets/demo.gif" alt="claude-code-hermit demo — Obsidian dashboard, Discord control, autonomous briefings, remote access" width="720" />
+</p>
+
 Your hermit already knows how to manage sessions, learn from its work, and keep things organized. This plugin adds the ability to actually *build* things — an `implementer` agent that writes code in isolated git worktrees, a quality pipeline that runs tests and `/simplify` (whose parallel review agents cover reuse/quality/efficiency), a session-scoped dev server it can boot and watch, and git-safety rules that keep main clean. Same philosophy as core: leverage what Claude Code offers, don't reinvent.
 
 Three steps to a dev-hermit you can hand a feature to:
