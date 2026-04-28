@@ -1,241 +1,161 @@
 ---
 name: dev-pr
-description: Open a PR from the current feature branch with a body assembled from /dev-quality, commit history, screenshots, and optional work-binding context. Refuses on protected branches, dirty trees, missing/stale /dev-quality runs, or unresolved health-degraded alerts. Run as the final step of a ticket.
+description: Open a PR from the current feature branch with a body assembled inline from commit history, the test command's last output, screenshots, and an optional project PR template. Refuses on protected branches, dirty trees, or zero commits ahead. Run as the final step of a ticket.
 ---
 
 # /dev-pr
 
-Push the current branch and open a PR with a structured body. Reads `/dev-quality`'s last run, commit history, binding context, and screenshots — assembles them into title + body — then calls `gh pr create` (or the configured equivalent).
-
-Accepts one optional flag: `--force`. See Gate 0 for what it bypasses.
+Push the current branch and open a PR with a structured body. Reads commit history, the test results you just ran (per `state-templates/CLAUDE-APPEND.md` §Tests Before PR), any screenshots in `raw/screenshots/`, and an optional project PR template — assembles them into title + body — then calls `gh pr create` (or the configured equivalent).
 
 ## Prerequisites
 
 - Verify `.claude-code-hermit/sessions/` exists. If not: tell the operator to run `/claude-code-hermit:hatch` and `/claude-code-dev-hermit:hatch` first.
-- Read `.claude-code-hermit/config.json` once. Cache `claude-code-dev-hermit.protected_branches`, `commands.pr_create`, `pr_base_branch`, `pr_title_format`, `pr_body_sections`, `pr_template_path`, `dev_watchdog`, and `scope`.
+- Read `.claude-code-hermit/config.json` once. Cache `claude-code-dev-hermit.protected_branches` (defaults to `["main", "master"]`), `commands.pr_create` (defaults to `gh pr create`), `pr_base_branch`, `pr_template_path`.
 
 ## Plan
 
 ### Gate 0 — preconditions
 
-Run all five checks in order. FAIL on the first failure, name it, give the exact command to fix it.
+Run all three checks in order. FAIL on the first failure, name it, give the exact command to fix it.
 
-**1. Protected-branch check** (NEVER skipped by `--force`):
-
-```bash
-# interactive:
-node "${CLAUDE_PLUGIN_ROOT}/scripts/check-protected-branch.js" \
-  --branch "$(git rev-parse --abbrev-ref HEAD)"
-# always-on ($HERMIT_AGENT_WORKTREE set):
-node "${CLAUDE_PLUGIN_ROOT}/scripts/check-protected-branch.js" \
-  --branch "$(git -C "$HERMIT_AGENT_WORKTREE" rev-parse --abbrev-ref HEAD)"
-```
-
-Exit code 1 → FAIL:
-```
-FAIL: cannot open PR from protected branch <branch>
-  recovery: create a feature branch with /dev-branch <description>
-```
-
-**2. Clean-tree check** (NEVER skipped by `--force`):
+**1. Protected-branch check.** Materialize the cached `protected_branches` config value as a bash array, then compare the current branch against each pattern using bash glob semantics:
 
 ```bash
-git status --porcelain
-# always-on:
-git -C "$HERMIT_AGENT_WORKTREE" status --porcelain
+PROTECTED_BRANCHES=(main master)   # from config.claude-code-dev-hermit.protected_branches
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+for pattern in "${PROTECTED_BRANCHES[@]}"; do
+  case "$CURRENT_BRANCH" in
+    $pattern)
+      echo "FAIL: cannot open PR from protected branch $CURRENT_BRANCH"
+      echo "  recovery: create a feature branch (see CLAUDE-APPEND.md §Branch Discipline)"
+      exit 1 ;;
+  esac
+done
 ```
 
-If non-empty: FAIL with `"commit or stash changes before opening a PR"`.
+**2. Clean-tree check.** `git status --porcelain` must return empty. If non-empty: FAIL with `"commit or stash changes before opening a PR"`.
 
-**3. Commits-ahead check** (NEVER skipped):
+**3. Commits-ahead check.** Resolve base branch — assign to `BASE` in this priority order:
+1. `pr_base_branch` from config if set.
+2. First non-glob entry of `protected_branches`.
+3. `origin/HEAD` (`git symbolic-ref refs/remotes/origin/HEAD` → strip `refs/remotes/origin/`).
+4. `main` or `master` if either exists locally or remotely.
 
-Resolve base branch: `pr_base_branch` from config if set, else `protected_branches[0]` (excluding glob entries), else `origin/HEAD`, else `main`/`master` (same resolution as `/dev-branch` Gate 3).
+Then:
 
 ```bash
-git rev-list --count <base>..HEAD
-# always-on:
-git -C "$HERMIT_AGENT_WORKTREE" rev-list --count <base>..HEAD
+git rev-list --count "$BASE..HEAD"
 ```
 
-If count is 0: FAIL with `"nothing to PR — no commits ahead of <base>"`.
-
-**4. Quality check** (skipped by `--force`):
-
-Read `state/quality-last.json`.
-- Missing: FAIL `"quality-last.json not found — run /dev-quality first"`.
-- `commit_sha != current HEAD`: FAIL `"quality report is stale (run on <sha>, now at <head>) — run /dev-quality first"`.
-- `test.status === 'fail'`: FAIL `"tests were failing at last /dev-quality run — fix before opening PR"`.
-
-**5. Alert check** (skipped by `--force`; also skipped if `dev_watchdog.enabled === false`):
-
-Read `state/alerts.json`. Filter to entries where `acknowledged === false` AND `binding === current_branch` AND `kind === 'health-degraded'`. If any:
-```
-FAIL: dev-server is degraded — unresolved health-degraded alert at <HH:MM> (<details>)
-  recovery: investigate with /dev-status, then /dev-down and /dev-up to restart
-  or skip with --force if the alert is a false positive
-```
-
-When `--force` was passed, emit a one-line warning in the output block instead of failing: `force: quality-check and alert-check skipped`.
+If 0: FAIL with `"nothing to PR — no commits ahead of $BASE"`.
 
 ### Gate 1 — push
 
-Determine remote state:
 ```bash
-git ls-remote --exit-code --heads origin <branch> 2>/dev/null
-# always-on:
-git -C "$HERMIT_AGENT_WORKTREE" ls-remote ...
+git ls-remote --exit-code --heads origin "$CURRENT_BRANCH" 2>/dev/null
 ```
 
-**No upstream (ls-remote exits non-zero):**
-```bash
-git push -u origin <branch>
-# always-on:
-git -C "$HERMIT_AGENT_WORKTREE" push -u origin <branch>
-```
+**No upstream (non-zero exit):** `git push -u origin "$CURRENT_BRANCH"`.
 
 **Upstream exists — check divergence:**
 
-Use the SHA already returned by `git ls-remote` — avoids depending on a local tracking ref that may not exist yet:
-
 ```bash
-REMOTE_SHA=$(git ls-remote origin <branch> | cut -f1)
-AHEAD=$(git rev-list --count "$REMOTE_SHA"..HEAD)   # commits we have, remote doesn't
-BEHIND=$(git rev-list --count HEAD.."$REMOTE_SHA")  # commits remote has, we don't
+REMOTE_SHA=$(git ls-remote origin "$CURRENT_BRANCH" | cut -f1)
+AHEAD=$(git rev-list --count "$REMOTE_SHA..HEAD")
+BEHIND=$(git rev-list --count "HEAD..$REMOTE_SHA")
 ```
 
-- `BEHIND > 0`: FAIL `"remote has commits you don't — git pull --rebase first"`.
-- `AHEAD > 0`: push with lease using the same `REMOTE_SHA`:
-  ```bash
-  git push --force-with-lease=<branch>:"$REMOTE_SHA" origin <branch>
-  ```
-- Both 0 (already in sync): skip push, record `push: already up to date`.
-
-Always-on: prepend `git -C "$HERMIT_AGENT_WORKTREE"` to all git operations.
+- `BEHIND > 0`: FAIL `"remote has commits you don't — git pull --rebase first"`. Do NOT force-push (the `git-push-guard` hook blocks it at strict; the rule applies at every profile per CLAUDE-APPEND §Git Safety).
+- `AHEAD > 0`: regular push: `git push origin "$CURRENT_BRANCH"`.
+- Both 0: skip push, record `push: already up to date`.
 
 On push failure: FAIL with stderr tail + recovery hint.
 
 ### Gate 2 — assemble title and body
 
-Run all reads in parallel:
+Build the title and body inline, no helper script.
 
-**Commits:**
-```bash
-git log --first-parent <base>..HEAD --pretty=format:'%H%x00%s%x00%b%x1e'
-# always-on: git -C "$HERMIT_AGENT_WORKTREE" log ...
-```
-Parse: split on `%x1e` (record separator), each record splits on `%x00` → `{sha, subject, body}`.
+**Title.** Try in order:
+1. If `state/bindings.json` has `bindings[branch].external.id` (e.g. `PROJ-123`) and `external.title`, format as `PROJ-123: <first-commit-subject>`.
+2. Else: use the first commit's subject, with any conventional-commit prefix (`feat:`, `fix(scope):`, `chore:`, etc.) stripped.
+3. Else: use the branch name with `/` replaced by `-`.
 
-**Screenshots:**
-Compute `binding_id`:
-- If `state/bindings.json` has an entry for the current branch with `external.id` → use that.
-- Otherwise: `branch.replace(/\//g, '-')`.
+**Body.** Assemble the following sections in order (skip any whose source data is empty):
 
-Read `.claude-code-hermit/raw/screenshots/<binding_id>/manifest.json` if it exists. Parse for `[{criterion, path}]`. Missing manifest → empty list (no screenshots, not an error).
+1. **Summary** — bullet list of commit subjects from `git log --first-parent <BASE>..HEAD --pretty=format:'%s'`. Strip conventional-commit prefixes first (`/^(feat|fix|docs|style|refactor|perf|test|chore|build|ci|revert)(\([^)]+\))?!?:\s*/i`), THEN deduplicate by exact post-strip string preserving first occurrence order. Heading `## Summary`, then `- <subject>` per line.
 
-**Scope warning:** if any screenshot entry has a non-`https://` path AND `config.scope === 'local'`, queue a warning for the output block: `warn: screenshots in raw/ are gitignored under local scope — they will appear as broken images in the PR (use project scope or upload-to-URL).`
+2. **Context** — if `state/bindings.json` has `bindings[branch].external = { source, id, url, title }`, emit a `## Context` heading followed by a single line containing a markdown link. The link text is the bold-wrapped string `<source> <id>` (e.g. `**Linear PROJ-123**`), the link target is `url`, and the line ends with ` — <title>`. Concrete example for `{source: "Linear", id: "PROJ-123", url: "https://linear.app/...", title: "fix login redirect"}` produces a single line beginning with `**` then the bold-bracketed link then ` — fix login redirect`. If `external.title` is missing, drop the ` — <title>` suffix. If `external.url` is missing, skip the section entirely.
 
-**Project PR template:**
-Read `pr_template_path` from config if set; else try `.github/PULL_REQUEST_TEMPLATE.md` then `docs/pull_request_template.md`. Use first found; null if none.
+3. **Verification** — report the test command's last result. The test command is at `claude-code-dev-hermit.commands.test`. **Required**: if you have not run the test command this session (no test result to report), FAIL Gate 2 with `"run tests before /dev-pr (per CLAUDE-APPEND §Tests Before PR)"` — do not invent results. Format:
 
-**Assemble:**
-```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/lib/pr-body-builder.js" '<json>'
-```
+   ```
+   ## Verification
 
-JSON input:
-```json
-{
-  "commits": [...],
-  "qualityReport": { ...parsed quality-last.json... },
-  "binding": { "external": {...} },
-  "screenshots": [...],
-  "config": {
-    "pr_body_sections": [...],
-    "pr_title_format": "...",
-    "pr_base_branch": "..."
-  },
-  "projectTemplate": "...",
-  "branch": "<current-branch>"
-}
-```
+   - Tests: **pass** (12.3s)
+   - Lint: **pass**
+   - Typecheck: **pass**
+   ```
 
-Parse `{ title, body, sectionsCount, screenshotsCount, templateUsed }` from stdout.
+   Use `**fail**` with a 1-line summary if any check failed (and the operator should not normally reach this gate with a failing test — CLAUDE-APPEND requires fixing or reverting first).
+
+4. **Screenshots** — if `.claude-code-hermit/raw/screenshots/<binding-id>/manifest.json` exists, emit a `## Screenshots` heading followed by one bullet per manifest entry. Each bullet is a markdown image: a leading `- ` then `!`, then the alt text in square brackets (the `criterion` field), then the source in parentheses (the `path` field). The `binding-id` is `bindings[branch].external.id` if present, else `branch.replace(/\//g, '-')`. If `config.scope === 'local'` and any path isn't a `https://` URL, add a note line below the bullets: `_Note: screenshots in raw/ are gitignored under local scope — they will appear as broken images in the PR._`
+
+5. **Notes** — optional. Skip unless the operator passed in qualitative concerns through Gate 2 (out-of-scope follow-ups, known limitations) — there is no automatic source for this section.
+
+**Project PR template.** If `pr_template_path` is set in config, OR `.github/PULL_REQUEST_TEMPLATE.md` exists, OR `docs/pull_request_template.md` exists — load the first one found and append it after the assembled body, separated by `\n\n---\n\n`. Do not attempt to merge headings or substitute sections — the project's template appears verbatim below ours.
 
 ### Gate 3 — create the PR
 
-Write the body to a temp file to avoid shell-quoting issues with multi-line Markdown:
+Write the body to a temp file (avoids shell-quoting issues with multi-line markdown). Use the `Write` tool with `file_path: $PR_BODY_TMP` (capture the path from `mktemp` via Bash first) and `content: <assembled body>`. Then:
+
 ```bash
 PR_BODY_TMP=$(mktemp)
-# write body to $PR_BODY_TMP
-```
-
-Run:
-```bash
-<commands.pr_create> --title "<title>" --body-file "$PR_BODY_TMP" --base <base>
-# e.g.: gh pr create --title "PROJ-123: fix login redirect" --body-file /tmp/pr-body-XXXX --base main
+# (Write tool wrote the body to $PR_BODY_TMP)
+gh pr create --title "$TITLE" --body-file "$PR_BODY_TMP" --base "$BASE"
+# or the configured commands.pr_create
+rm -f "$PR_BODY_TMP"
 ```
 
 - Capture stdout; extract the first line matching `^https?://` as the PR URL.
-- On stdout containing `"pull request already exists"` or similar: offer to update the existing PR.
-  - Use `AskUserQuestion` with options: `Update existing PR body` / `Cancel`.
-  - If Update: run `gh pr edit --body-file "$PR_BODY_TMP"` (or the platform equivalent) targeting the existing PR number (parse from stderr or `gh pr view --json number`).
+- If stdout/stderr contains `pull request already exists`: ask the operator (`AskUserQuestion`: `Update existing PR body` / `Cancel`). On Update, run `gh pr edit <number> --body-file "$PR_BODY_TMP"`.
 - On `gh auth` error in stderr: FAIL `"not authenticated — run: gh auth login"`.
 - On any non-zero exit: FAIL with stderr tail + exit code.
 
-Clean up `$PR_BODY_TMP` after use.
-
 ### Gate 4 — record
 
-**Write `state/bindings.json`:**
-Read the file (create `{}` if missing), set `bindings[branch].pr_url = url`, atomic-write (temp+rename):
-```bash
-# example shape after write:
-{
-  "feature/PROJ-123-fix-login": { "pr_url": "https://github.com/org/repo/pull/456" }
-}
-```
+**Write `state/bindings.json`** (atomic temp+rename): set `bindings[branch].pr_url = url`.
 
-**Append to SHELL.md Progress Log:**
-```
-[HH:MM] PR opened: <url>
-```
+**Append to SHELL.md Progress Log:** `[HH:MM] PR opened: <url>`.
 
 ## Output
 
 ```
 dev-pr
-  branch:   feature/PROJ-123-fix-login
+  branch:   feature/proj-123-fix-login
   base:     main
   push:     pushed (3 commits)
   title:    PROJ-123: fix login redirect on expired session
   url:      https://github.com/org/repo/pull/456
-  body:     4 sections, 2 screenshots attached
-  template: builtin
+  body:     4 sections, 2 screenshots embedded
+  template: project (.github/PULL_REQUEST_TEMPLATE.md appended)
   status:   created
 ```
 
-On `--force`:
-```
-dev-pr
-  force:    quality-check and alert-check skipped
-  branch:   feature/PROJ-123-fix-login
-  ...
-```
-
 On Gate 0 FAIL: name the failed check and give the exact command to satisfy it. Example:
+
 ```
 dev-pr
-  FAIL (Gate 0 — quality check): quality report is stale (run on abc1234, now at def5678)
-  recovery: /claude-code-dev-hermit:dev-quality
+  FAIL (Gate 0 — protected branch): cannot open PR from main
+  recovery: create a feature branch (see CLAUDE-APPEND.md §Branch Discipline)
 ```
 
 On Gate 3 FAIL: show the host-tool exit message + a one-line recovery hint.
 
 ## Rules
 
-- **Never skips clean-tree or protected-branch checks** regardless of `--force`.
-- **No code edits, no test runs.** Those belong to `/dev-quality` and the implementer. `/dev-pr` is a push-and-create operation only.
+- **Never skips clean-tree or protected-branch checks.** No `--force` flag exists; the only escape is to fix the underlying condition.
+- **No code edits, no test runs.** Run tests yourself (per CLAUDE-APPEND §Tests Before PR) before invoking `/dev-pr`. This skill is a push-and-create operation only.
 - **No screenshot creation.** Reads from `raw/screenshots/<binding-id>/manifest.json`. Producing screenshots is a stack-specific plugin's job.
 - **No merge.** Opening the PR is the terminal step; merging is a separate operator decision.
+- **Never force-push.** Even on divergence — surface the conflict, let the operator resolve. The `git-push-guard` hook blocks force-push at strict profile; this skill respects the same rule unconditionally.
 - **Session→PR auto-link.** Calling `gh pr create` via Bash preserves Claude Code's native session→PR linking. The operator can resume this session later with `claude --from-pr <number>`.
-- **Always-on mode.** All git operations that read branch state or push use `git -C "$HERMIT_AGENT_WORKTREE"` when `$HERMIT_AGENT_WORKTREE` is set. The state files (`quality-last.json`, `alerts.json`, `bindings.json`) are in `.claude-code-hermit/state/` in the main checkout (CWD-relative) — no worktree prefix needed for those.
