@@ -143,7 +143,7 @@ Extension points: Garmin, Apple Health, Polar, and other fitness integrations ar
 ## Credits
 
 - Built on [`claude-code-hermit`](https://github.com/gtapps/claude-code-hermit) — session discipline, routines, channels, memory, cost tracking.
-- Uses the community [Strava MCP Server](https://github.com/r-huijts/strava-mcp-server) (`@r-huijts/strava-mcp-server`) and the official Strava [REST API](https://developers.strava.com/docs/reference/).
+- Uses the community [Strava MCP Server](https://github.com/r-huijts/strava-mcp) (`@r-huijts/strava-mcp-server`) and the official Strava [REST API](https://developers.strava.com/docs/reference/).
 
 ## License
 
