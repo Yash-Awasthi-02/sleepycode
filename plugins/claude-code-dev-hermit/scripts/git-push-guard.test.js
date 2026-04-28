@@ -87,9 +87,11 @@ assert('--force-with-lease to master is blocked', run('git push --force-with-lea
 // --- Strict profile: allowed commands ---
 console.log('\nStrict profile — allowed:');
 assert('push to feature branch is allowed', run('git push origin feature/my-feature', { AGENT_HOOK_PROFILE: 'strict' }), 0);
-assert('--force-with-lease to feature branch is allowed', run('git push --force-with-lease origin feature/x', { AGENT_HOOK_PROFILE: 'strict' }), 0);
 assert('non-git command is allowed', run('npm test', { AGENT_HOOK_PROFILE: 'strict' }), 0);
 assert('"main" in branch name like main-staging is allowed', run('git push origin main-staging', { AGENT_HOOK_PROFILE: 'strict' }), 0);
+
+// v0.3.0 policy: ALL force pushes blocked (including --force-with-lease to feature branches).
+assert('--force-with-lease to feature branch is now blocked', run('git push --force-with-lease origin feature/x', { AGENT_HOOK_PROFILE: 'strict' }), 2);
 
 // --- Edge cases (existing) ---
 console.log('\nEdge cases:');
@@ -128,11 +130,6 @@ assert('-d main is blocked', run('git push origin -d main', { AGENT_HOOK_PROFILE
 assert('--mirror is blocked', run('git push --mirror origin', { AGENT_HOOK_PROFILE: 'strict' }), 2);
 assert('--all is blocked', run('git push --all origin', { AGENT_HOOK_PROFILE: 'strict' }), 2);
 assert('-a is blocked', run('git push -a origin', { AGENT_HOOK_PROFILE: 'strict' }), 2);
-
-// --- force-with-lease edge cases ---
-console.log('\nForce-with-lease edge cases:');
-assert('--force-with-lease with no refspec is blocked (ambiguous)', run('git push --force-with-lease origin', { AGENT_HOOK_PROFILE: 'strict' }), 2);
-assert('--force-with-lease to feature branch is allowed', run('git push --force-with-lease origin feature/my-branch', { AGENT_HOOK_PROFILE: 'strict' }), 0);
 
 // --- Plain push (no refspec) ---
 console.log('\nPlain push:');
