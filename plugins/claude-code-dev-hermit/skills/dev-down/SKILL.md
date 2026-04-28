@@ -28,6 +28,16 @@ PASS-with-noop, exit.
 
 ### Gate 1 — stop
 
+Before stopping `dev-server`, stop any watchdog monitors so they don't fire a spurious `health-degraded` alert as the dev server tears down. Iterate `monitors.runtime.json` and find all entries where `id.startsWith("dev-watchdog-")`. For each:
+
+1. Call `TaskStop` with the entry's `task_id`.
+2. Remove the entry from `monitors.runtime.json`.
+3. Update SHELL.md `## Monitoring`: change `[ACTIVE] <id>` → `[STOPPED] <id> (HH:MM)`.
+
+If no `dev-watchdog-*` entries exist, skip silently. If `TaskStop` errors (watchdog already exited), remove the entry anyway.
+
+After watchdog teardown, stop `dev-server`:
+
 If `commands.dev_stop` is set (e.g., `docker compose down`, `bin/dev stop`, `supervisorctl stop devstack`):
 
 1. Run via `bash -c "$dev_stop"` and capture exit code.
@@ -73,10 +83,13 @@ For each port:
 
 ```
 dev-down
+  watchdog: stopped (health, errors)
   monitor:  dev-server stopped (after 1850ms)
   ports:    3000 free, 4000 held by encore (allowed)
   status:   down
 ```
+
+`watchdog:` values: `stopped (health, errors)` / `stopped (health)` / `stopped (errors)` / `not registered`.
 
 On Gate 0 short-circuit:
 

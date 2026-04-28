@@ -28,7 +28,7 @@ const DEFAULT_ERROR_PATTERN = [
   '\\bexception\\b',
 ].join('|');
 
-function buildDevServerCommand({ devStart, logPath, errorPattern }) {
+function buildDevServerCommand({ devStart, logPath, errorPattern, cwd }) {
   if (typeof devStart !== 'string' || !devStart.trim()) {
     throw new Error('devStart is required');
   }
@@ -41,13 +41,35 @@ function buildDevServerCommand({ devStart, logPath, errorPattern }) {
       : DEFAULT_ERROR_PATTERN;
   const usedDefault = pattern === DEFAULT_ERROR_PATTERN;
 
+  // When cwd is set, cd into it before launching the dev server so the process
+  // reflects the agent's worktree branch rather than the operator's main checkout.
+  //
+  // The error-echo shape matters: bare `exit 1` would silently succeed because
+  // tee and grep keep running over an empty stream and the pipeline exits 0 via
+  // `|| true`. The `echo >&2` lands in the merged stdout (via 2>&1) so grep
+  // catches the message and Monitor surfaces a visible failure notification.
+  const hasCwd = typeof cwd === 'string' && cwd.trim();
+  const cwdPart = hasCwd
+    ? `cd ${shellQuote(cwd)} || { echo ${shellQuote(`[dev-up] Fatal: cd ${cwd} failed — worktree not found or inaccessible`)} >&2 ; exit 1 ; } ; `
+    : '';
+
+  // The cd-failed echo only surfaces if the operator's error pattern matches it.
+  // DEFAULT_ERROR_PATTERN matches via \b[Ff]atal\b, but a custom pattern (e.g.
+  // "EADDRINUSE|Build failed") might not. When cwd is set, OR an internal
+  // sentinel onto the pattern so cd failures are always grep'd regardless of
+  // the operator's choice. Otherwise the silent-failure mode this fix exists
+  // to prevent reappears for anyone with a custom pattern.
+  const effectivePattern = hasCwd
+    ? `(${pattern})|\\[dev-up\\] Fatal: cd`
+    : pattern;
+
   // dev_start runs inside `bash -c` so we don't quote it — operators write
   // shell there (e.g. `cd app && npm run dev`). We wrap it in `{ ...; }` so
   // 2>&1 redirects the whole compound, not just the last command.
   const inner =
-    `{ ${devStart}; } 2>&1` +
+    `{ ${cwdPart}${devStart}; } 2>&1` +
     ` | tee ${shellQuote(logPath)}` +
-    ` | grep --line-buffered -E ${shellQuote(pattern)} || true`;
+    ` | grep --line-buffered -E ${shellQuote(effectivePattern)} || true`;
 
   // Wrap in `bash -c` so callers can pass `command` as a single argument
   // without re-escaping the pipeline.

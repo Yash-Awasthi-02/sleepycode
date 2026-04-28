@@ -1,7 +1,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.2.1-green.svg" alt="Version 0.2.1" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.2.2-green.svg" alt="Version 0.2.2" /></a>
   <img src="https://img.shields.io/badge/Claude-Pro%20%7C%20Max-blueviolet.svg" alt="Claude Pro/Max Compatible" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
 </p>
@@ -48,7 +48,7 @@ Three steps to a dev-hermit you can hand a feature to:
 
 ## Quick Start
 
-> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.110+, a Claude plan (Pro, Max, Teams, or Enterprise), [`claude-code-hermit`](https://github.com/gtapps/claude-code-hermit) v1.0.21+ (installed and hatched), Node.js 24+ (for the `git-push-guard` hook at strict profile). For browser verification: the [Claude in Chrome extension](https://chromewebstore.google.com/detail/claude/fcoeoabgfenejglbffodgkkbkcdhcgfn).
+> **Prerequisites:** [Claude Code](https://code.claude.com) v2.1.110+, a Claude plan (Pro, Max, Teams, or Enterprise), [`claude-code-hermit`](https://github.com/gtapps/claude-code-hermit) v1.0.22+ (installed and hatched), Node.js 24+ (for the `git-push-guard` hook at strict profile). For browser verification: the [Claude in Chrome extension](https://chromewebstore.google.com/detail/claude/fcoeoabgfenejglbffodgkkbkcdhcgfn).
 
 ### 1. Install
 
@@ -147,7 +147,6 @@ These are Claude Code built-ins — no installation needed:
 |----------|-------------------|
 | [How to Use](docs/HOW-TO-USE.md) | You want a walkthrough of day-to-day workflow and tips |
 | [Task Workflow](docs/WORKFLOW.md) | You need the end-to-end mechanics — what fires, in what order, what state it writes |
-| [Skills Reference](docs/SKILLS.md) | You need exact syntax, gates, or config keys for a specific skill |
 | [Git Safety](docs/GIT-SAFETY.md) | You're tuning protected branches, hook profile, or want the full safety model |
 | [Dev Log Watch](docs/DEV-LOG-WATCH.md) | You're tailing rotating dev logs (Winston, Pino, Rails, structlog) into a Monitor |
 | [Recommended Plugins](docs/RECOMMENDED-PLUGINS.md) | You want context on companion plugins offered during setup |

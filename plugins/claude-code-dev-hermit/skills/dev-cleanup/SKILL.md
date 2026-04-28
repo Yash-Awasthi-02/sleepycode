@@ -15,8 +15,8 @@ List local branches and identify cleanup candidates.
 
 ## Plan
 
-1. Read `claude-code-dev-hermit.protected_branches` from `.claude-code-hermit/config.json` (default: `["main", "master"]` if absent). Run `git branch --merged <first-protected-branch>` to find fully merged branches.
-2. Run `git branch -v` to find branches with no recent commits
+1. Read `claude-code-dev-hermit.protected_branches` from `.claude-code-hermit/config.json` (default: `["main", "master"]` if absent). Run `git branch --merged <first-protected-branch>` to find fully merged branches. In always-on mode (`$HERMIT_AGENT_WORKTREE` set), run `git -C $HERMIT_AGENT_WORKTREE branch --merged <base>` so branch state reflects the agent's worktree.
+2. Run `git branch -v` (or `git -C $HERMIT_AGENT_WORKTREE branch -v` in always-on mode) to find branches with no recent commits.
 3. Cross-reference with `.claude-code-hermit/sessions/SHELL.md`
    **and** all `S-*-REPORT.md` files in the sessions directory to
    identify the current working branch and recently active branches

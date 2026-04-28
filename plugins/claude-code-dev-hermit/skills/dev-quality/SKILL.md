@@ -26,22 +26,31 @@ Get the set of changed files using, in order of preference:
 
 Run `claude-code-dev-hermit.commands.test`, plus `claude-code-dev-hermit.commands.typecheck` and `claude-code-dev-hermit.commands.lint` if configured. Capture exit code and last 30 lines of output for each.
 
+**Always-on worktree mode:** when `$HERMIT_AGENT_WORKTREE` is set, run the test/typecheck/lint commands via `cd $HERMIT_AGENT_WORKTREE && <command>` so the runner finds the correct `package.json`, lockfile, `Cargo.toml`, etc. in the agent's branch. Do NOT use `git -C` for the runner — that flag is for git operations, not shell commands.
+
 If tests fail: **stop and report** — there is a pre-existing failure to fix before running quality. Do not proceed to simplify.
 
 Lint failure at this stage is **report-only** — do not block simplify. Style nits are exactly what simplify may clean up. Record the result for the regression comparison in step 6.
 
 ### 4. Snapshot pre-simplify state
 
-Before running `/simplify`, record a snapshot SHA that works regardless of dirty/clean working tree:
+Before running `/simplify`, record a snapshot SHA that works regardless of dirty/clean working tree.
+
+**Always-on worktree mode:** git stash operations target the agent worktree via `git -C $HERMIT_AGENT_WORKTREE`. The stash is scoped to that worktree's tree. Do NOT use `git stash` on the main checkout — changes live in the worktree.
 
 ```bash
+# interactive mode:
 PRESIMPLIFY=$(git stash create)
 [ -z "$PRESIMPLIFY" ] && PRESIMPLIFY=$(git rev-parse HEAD)
+
+# always-on mode ($HERMIT_AGENT_WORKTREE set):
+PRESIMPLIFY=$(git -C $HERMIT_AGENT_WORKTREE stash create)
+[ -z "$PRESIMPLIFY" ] && PRESIMPLIFY=$(git -C $HERMIT_AGENT_WORKTREE rev-parse HEAD)
 ```
 
 `git stash create` writes a stash commit object without touching the index, working tree, or stash stack. It returns an empty string (exit 0) when the tree is already clean — the fallback to `HEAD` handles that case. **Do not use `git stash push`** — it fails silently when the tree is clean, which is the normal state after the implementer commits.
 
-**Staged-edits warning:** if `git diff --cached --quiet` exits non-zero, warn the operator: "staged edits exist at snapshot time — revert via PRESIMPLIFY will overwrite them."
+**Staged-edits warning:** if `git diff --cached --quiet` (or `git -C $HERMIT_AGENT_WORKTREE diff --cached --quiet` in always-on mode) exits non-zero, warn the operator: "staged edits exist at snapshot time — revert via PRESIMPLIFY will overwrite them."
 
 Note: `git stash create` does not include untracked files. For the standard implementer flow (all changes committed), this is fine. If the operator has untracked files in the changed-files set, surface a warning rather than silently losing them.
 
@@ -62,6 +71,8 @@ Run the same commands as step 3.
 1. Restore the changed files to their pre-simplify state using the file list from Step 2:
    ```bash
    git checkout $PRESIMPLIFY -- <file1> <file2> ...
+   # always-on mode:
+   git -C $HERMIT_AGENT_WORKTREE checkout $PRESIMPLIFY -- <file1> <file2> ...
    ```
 2. If the checkout applies cleanly: proceed with the pre-simplify code. Log to SHELL.md: `simplify caused regression — reverted to pre-simplify snapshot`.
 3. If the checkout fails (e.g. merge conflict, missing path): **stop and ask the operator** — do not silently overwrite their edits. Log the conflict to SHELL.md.
@@ -100,3 +111,43 @@ dev-quality report
   review:    <not needed|recommended — /code-review:code-review>
   concerns:  <none or specific notes>
 ```
+
+After emitting the report, write `.claude-code-hermit/state/quality-last.json` so `/dev-pr` can read the results without re-parsing prose.
+
+Get the current HEAD SHA:
+
+```bash
+# interactive mode:
+QUALITY_SHA=$(git rev-parse HEAD)
+# always-on mode ($HERMIT_AGENT_WORKTREE set):
+QUALITY_SHA=$(git -C "$HERMIT_AGENT_WORKTREE" rev-parse HEAD)
+```
+
+Write a temp file then atomically rename it (prevents `/dev-pr` reading a partial write):
+
+```bash
+cat > .claude-code-hermit/state/quality-last.json.tmp <<'EOF'
+{
+  "commit_sha": "<QUALITY_SHA>",
+  "branch": "<current-branch>",
+  "timestamp": "<ISO 8601 timestamp>",
+  "test":      { "status": "<pass|fail>", "duration_secs": <N>, "command": "<command or null>" },
+  "typecheck": { "status": "<pass|fail|skipped>", "command": "<command or null>" },
+  "lint":      { "status": "<pass|fail|skipped>", "command": "<command or null>" },
+  "simplify":  "<applied|reverted|conflict>",
+  "risk":      { "level": "<low|medium|high>", "reason": "<one sentence>" },
+  "review":    "<not needed|recommended>",
+  "concerns":  "<empty string or notes>"
+}
+EOF
+mv .claude-code-hermit/state/quality-last.json.tmp \
+   .claude-code-hermit/state/quality-last.json
+```
+
+Field notes:
+- `commit_sha` — current HEAD in the relevant worktree; used by `/dev-pr` Gate 0 to detect stale reports
+- `duration_secs` — wall-clock seconds for the `test` command (measure around Step 3's run); `null` if test not configured
+- `status` values for typecheck and lint: `"skipped"` when the command is not configured (not `"not configured"` — keep it machine-readable)
+- `concerns` — empty string `""` when none; never `null` (keeps consumer logic simple)
+
+Do not write this file if the test command was not configured at all (Step 1 early-exit path) — the advisory-only path does not constitute a completed quality run.

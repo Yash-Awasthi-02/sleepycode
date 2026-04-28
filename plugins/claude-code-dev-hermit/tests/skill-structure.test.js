@@ -1,7 +1,7 @@
 'use strict';
 
 // Structural invariants for the new SKILL.md files.
-// Run with: node scripts/lib/skill-structure.test.js
+// Run with: node tests/skill-structure.test.js
 //
 // What this checks (and what it does NOT):
 //   ✓ Frontmatter present and parseable; `name` and `description` set.
@@ -14,7 +14,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const SKILL_DIR = path.join(__dirname, '..', '..', 'skills');
+const SKILL_DIR = path.join(__dirname, '..', 'skills');
 
 // Per-skill expectations. Update if a skill's gate count changes.
 // gates: 0 → skill has no Gate N — section structure (e.g., read-only status skills).
@@ -23,6 +23,7 @@ const SKILLS = [
   { name: 'dev-down', gates: 3 },       // Gate 0..2
   { name: 'dev-log-watch', gates: 4 },  // Gate 0..3
   { name: 'dev-status', gates: 0 },     // read-only status, no gates
+  { name: 'dev-pr', gates: 5 },         // Gate 0..4
 ];
 
 let passed = 0;
