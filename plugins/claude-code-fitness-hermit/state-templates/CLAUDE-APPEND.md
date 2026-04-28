@@ -49,14 +49,14 @@ MCP server `strava` is configured in `.mcp.json` (written by `hatch`). Tool IDs 
 
 ### Routines
 
-These run automatically on their cron schedule (activate per session with `/claude-code-hermit:hermit-routines load`):
+These run automatically on their cron schedule. Schedules and `enabled` state live in `config.json` → `routines[]` (edit via `/claude-code-hermit:hermit-settings`).
 
-| Routine | Schedule | Purpose |
-|---------|----------|---------|
-| `strava-sync` | Daily 21:30 | Detect new activities, log them, flag anomalies |
-| `strava-health-check` | Daily 08:05 | Check Strava connectivity; alert if lost |
-| `weekly-load-review` | Sunday 18:00 | Week-over-week load summary + trend flag |
-| `monday-planning` | Monday 09:30 | Weekly training structure suggestion |
+| Routine | Purpose |
+|---------|---------|
+| `strava-sync` | Detect new activities, log them, flag anomalies |
+| `strava-health-check` | Check Strava connectivity; alert if lost |
+| `weekly-load-review` | Week-over-week load summary + trend flag |
+| `monday-planning` | Weekly training structure suggestion |
 
 Routine prompts are at `.claude-code-hermit/compiled/routine-*.md`.
 

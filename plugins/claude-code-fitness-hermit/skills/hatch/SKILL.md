@@ -247,12 +247,25 @@ Installation summary:
   ✓ knowledge-schema.md: fitness types added (or were already present)
   ✓ config.json: _hermit_versions stamped, {K}/4 routines added
 
-Manual steps required before first use:
-  1. Restart Claude Code (or reload the MCP session) — required for the `strava` MCP server to be picked up from .mcp.json.
-  2. Approve the `strava` MCP server when Claude Code prompts on first use.
-  3. Run `/mcp` to confirm the server appears.
-  4. Verify connectivity: call `mcp__strava__check-strava-connection`.
-  5. Activate routines each session: /claude-code-hermit:hermit-routines load
+Manual steps remaining:
+  - Restart Claude Code so the `strava` MCP server loads from .mcp.json
+  - Approve the `strava` server when prompted on first use
+  - Run /mcp to confirm `strava` is connected
+  - Verify connectivity: call mcp__strava__check-strava-connection
+
+Go always-on (recommended):
+  - Docker:     /claude-code-hermit:docker-setup
+      Builds the container and walks you through channel pairing in one go.
+  - Bare tmux:  .claude-code-hermit/bin/hermit-start
+      For channels (Discord/Telegram) with tmux, run
+      /claude-code-hermit:channel-setup first.
+
+Prefer to test interactively first? After restarting, run:
+  /claude-code-hermit:hermit-routines load
+    — activates the four fitness routines in the current Claude session.
+
+The always-on runtime activates routines automatically — the interactive
+steps are only for a test drive before handing over to the runtime.
 
 Installed skills:
   /claude-code-fitness-hermit:activity-deep-dive   — per-activity coaching analysis
