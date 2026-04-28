@@ -23,6 +23,7 @@ const SKILLS = [
   { name: 'dev-down', gates: 3 },       // Gate 0..2
   { name: 'dev-log-watch', gates: 4 },  // Gate 0..3
   { name: 'dev-status', gates: 0 },     // read-only status, no gates
+  { name: 'dev-pr', gates: 5 },         // Gate 0..4
 ];
 
 let passed = 0;

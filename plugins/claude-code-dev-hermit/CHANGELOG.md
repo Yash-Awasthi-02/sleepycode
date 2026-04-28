@@ -2,8 +2,21 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`/dev-pr` skill** — opens a PR from the current feature branch. Assembles title + body from `/dev-quality` output, commit history, work-binding context, screenshots, and an optional project PR template (`.github/PULL_REQUEST_TEMPLATE.md` or `pr_template_path`). Gates: protected-branch check, clean tree, commits-ahead, fresh quality report, no unresolved health-degraded alerts. Accepts `--force` to skip quality and alert gates. Writes PR URL to `state/bindings.json`. Backed by `scripts/lib/pr-body-builder.js`.
+- **Watchdog infrastructure** — `watchdog-health.js` polls `dev_health_url` on a configurable interval and emits `health-degraded`/`health-recovered` events; `watchdog-errors.js` tails the dev-server log and emits `error-spike`/`error-cleared` events when the rolling error count crosses `dev_watchdog.log_error_alert_threshold`. Both write atomically to `state/alerts.json` via `alerts-store.js`. Registered by `/dev-up` Gate 5b in always-on mode (`runtime_mode ∈ {tmux,docker}`); skipped in interactive mode and when `dev_watchdog.enabled === false`.
+- **`scripts/lib/alerts-store.js`** — atomic read/write helpers for `state/alerts.json` with MAX_ALERTS=50 pruning and deduplication. Exports `readAlerts`, `atomicAppendAlert`, `markAcknowledged`, `isDuped`, `emitAlert`. Used by both watchdog processes and `/dev-status`.
+- **`scripts/lib/pr-body-builder.js`** — pure function that assembles PR title and body from commits, quality report, binding, screenshots, config, and project template. Supports template heading fill with fallback to built-in sections.
+
 ### Changed
 
+- **`/dev-up` Gate 5: worktree `cwd` support** — `dev-server-command.js` now accepts a `cwd` parameter; when `$HERMIT_AGENT_WORKTREE` is set, it prepends `cd <worktree>` to the Monitor pipeline so the dev server reflects the agent's branch. A `cd` failure emits a `[dev-up] Fatal:` sentinel that surfaces through the `grep` filter as a Monitor notification rather than silently running in the main checkout.
+- **`/dev-up` Gate 5b: watchdog registration** — after the dev-server Monitor entry starts in always-on mode, registers `dev-watchdog-health` (if `dev_health_url` is set) and `dev-watchdog-errors` as persistent background Monitor entries. Both are shut down by `/dev-down`.
+- **`/dev-up` port resolution** — reads `dev_port_agent` from config; when `$HERMIT_AGENT_WORKTREE` is set, exports that as the resolved port (`PORT` + `HERMIT_DEV_PORT`) rather than `dev_required_ports[0]`.
+- **`/dev-adapt`** — reads `.github/PULL_REQUEST_TEMPLATE.md` / `docs/pull_request_template.md` during discovery and detects `.gitlab-ci.yml` to set `commands.pr_create` default for GitLab remotes.
+- **`/dev-quality`, `/dev-status`, `/dev-branch`, `/dev-down`, `/dev-cleanup`, `/dev-doctor`** — updated to surface watchdog alerts in status output, shut down watchdog entries in `/dev-down`, and reflect the new state file layout.
+- **`state-templates/CLAUDE-APPEND.md`** — updated operator rules to cover `/dev-pr` usage and watchdog alert acknowledgement flow.
 - **README rewrite for fleet marketing launch** — restructure to match the hermit family voice: hero + 3-step install callout above the fold, narrative `How It Works` (folds in v0.2.0 `/dev-up` family + Chrome-extension verification pairing), Quick Start with Prerequisites, narrative preamble on Git Safety, trimmed three component tables to one, and Documentation list switched to "Read this when..." annotated style. No code or behaviour changes.
 
 ## [0.2.1] - 2026-04-27

@@ -30,11 +30,27 @@ If the operator skips the prefix question, default to `feature`.
 
 `/` is preserved only as the prefix separator. If the input contains `/` mid-description (`feature/foo/bar`), only the first `/` is kept as prefix-boundary; subsequent `/` is replaced with `-` (`feature/foo-bar`).
 
+## Always-on worktree mode
+
+When `$HERMIT_AGENT_WORKTREE` is set (always-on tmux/docker mode), git operations that check or modify the **working tree** target the agent worktree, not the main checkout. This keeps the operator's main checkout untouched while the agent creates its branch.
+
+Affected gates:
+- **Gate 0** — checks the worktree's current branch
+- **Gate 1** — checks the worktree's cleanliness
+- **Gate 4** — filters the agent's own worktree entry from the porcelain output (see below)
+- **Gate 6** — creates the branch in the worktree
+
+Repo-level operations (Gate 2 fetch, Gate 3 base resolution, Gate 5 collision check) share the same `.git` and need no change.
+
 ## Plan
 
 ### Gate 0 — already on a feature branch
 
-Read `claude-code-dev-hermit.protected_branches` from `.claude-code-hermit/config.json` and run `git rev-parse --abbrev-ref HEAD` in parallel. Cache the config for Gate 3. If the current branch is NOT in the resolved protected-branches set, short-circuit. Glob matching: treat `*` as zero-or-more chars within a branch segment — `release/*` matches `release/v1` but not `release`; `*` alone matches anything.
+Read `claude-code-dev-hermit.protected_branches` from `.claude-code-hermit/config.json` and run `git rev-parse --abbrev-ref HEAD` (or `git -C $HERMIT_AGENT_WORKTREE rev-parse --abbrev-ref HEAD` in always-on mode) in parallel. Cache the config for Gate 3.
+
+**Detached HEAD** (output is the literal string `HEAD`) is **not** treated as "already on a feature branch." Proceed to the gates — do not short-circuit. This handles the always-on boot state where the agent worktree starts detached until the first `/dev-branch` creates a real branch.
+
+Otherwise: if the current branch is NOT in the resolved protected-branches set, short-circuit. Glob matching: treat `*` as zero-or-more chars within a branch segment — `release/*` matches `release/v1` but not `release`; `*` alone matches anything.
 
 ```
 already on feature/PROJ-123-add-auth — nothing to do
@@ -44,7 +60,7 @@ Do NOT append to SHELL.md (no work happened).
 
 ### Gate 1 — clean working tree
 
-Run `git status --porcelain`. If non-empty, stop and surface the diff summary:
+Run `git status --porcelain` (or `git -C $HERMIT_AGENT_WORKTREE status --porcelain` in always-on mode). If non-empty, stop and surface the diff summary:
 
 ```
 working tree is dirty — /commit or stash before creating a branch
@@ -68,7 +84,9 @@ Surface the resolved base in the output. Emit no intermediate "fell back" lines.
 
 ### Gate 4 — worktree collision
 
-Run `git worktree prune`, then `git worktree list --porcelain | grep -F "branch refs/heads/<name>"`. If matched:
+Run `git worktree prune`, then `git worktree list --porcelain`. In always-on mode, **filter out the entry whose path equals `$HERMIT_AGENT_WORKTREE`** before scanning for collisions — the agent worktree is permanent infrastructure and its presence is never a collision.
+
+Scan the remaining entries for `branch refs/heads/<name>`. If matched:
 
 ```
 worktree exists at <path> — finish or remove it before recreating the branch
@@ -93,9 +111,11 @@ branch <name> already exists (local / remote) — choose a different name
 
 ```bash
 git checkout -b <name> origin/<base>
+# in always-on mode:
+git -C $HERMIT_AGENT_WORKTREE checkout -b <name> origin/<base>
 ```
 
-Use the remote-tracking ref so the new branch is not stale relative to origin.
+Use the remote-tracking ref so the new branch is not stale relative to origin. In always-on mode the branch is created in the agent worktree; the main checkout's HEAD is not touched.
 
 ### Gate 7 — log
 

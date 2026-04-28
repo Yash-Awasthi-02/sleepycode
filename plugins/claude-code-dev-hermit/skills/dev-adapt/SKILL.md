@@ -23,6 +23,8 @@ In parallel, read:
 - `package.json` `scripts.dev` / `scripts.start:dev` / `scripts.start`, `composer.json` `scripts.serve` / `scripts.start` / `scripts.dev`, `Procfile.dev` / `bin/dev` / `artisan` (Laravel) / `bin/console` (Symfony) — dev-server start command signals
 - `.infisical.json`, `.envrc`, `.op-secrets.json`, `.envrc.example` — auth/secrets tooling presence
 - `logs/`, `log/`, `var/log/`, `storage/logs/` directory listings — dev log file locations (date-suffixed Winston/Pino/structlog/Laravel-daily vs fixed Rails/Laravel-single/Symfony-Monolog)
+- `.github/PULL_REQUEST_TEMPLATE.md`, `docs/pull_request_template.md` — PR body template presence
+- `.gitlab-ci.yml` — signals GitLab remote (affects `commands.pr_create` default)
 
 Also run:
 
@@ -59,6 +61,7 @@ Using everything read in step 1, propose:
 - **`commands.dev_start`** — scan `package.json#scripts` (priority order: `dev`, `start:dev`, `start`); also check `composer.json#scripts` for `serve`/`start`/`dev`. Fall back to language defaults: `cargo run`, `bundle exec rails s`, `mvn spring-boot:run`, `python manage.py runserver`, `flask run`, `uvicorn main:app --reload`, `php artisan serve` (Laravel), `symfony serve --no-tls` (Symfony with the `symfony` CLI), `php -S localhost:8000 -t public` (vanilla PHP), `go run ./cmd/...`.
 - **`commands.dev_stop`** — leave null by default. Set to `docker compose down` if `docker-compose.yml` is the dev entry, `bin/dev stop` if `bin/dev` exists, or operator-supplied for supervisord/foreman.
 - **`dev_required_ports`** — parse the start command for `--port`/`-p N`/`PORT=N`; otherwise use language conventions: Next/Vite 3000, Nuxt 3000, Rails 3000, Django 8000, Flask 5000, FastAPI 8000, Spring 8080, Go conventional 8080, Laravel `artisan serve` 8000, Symfony 8000, vanilla PHP `-S` whatever the command pins (commonly 8000). Multi-port stacks (e.g., separate websocket): list all detected.
+- **`dev_port_agent`** — the port the agent's dev server uses in always-on mode (when `$HERMIT_AGENT_WORKTREE` is set). Default: `dev_required_ports[0] + 1` (e.g., if the project runs on 3000, set this to 3001). This lets the operator run their own dev server on the standard port while the agent uses an adjacent port in its worktree. Propose the default; operator can accept or override. Write `null` if no dev_required_ports were detected (skip the question).
 - **`dev_health_url`** — leave null. We cannot probe candidate endpoints without booting the server, and a "low confidence proposal" forces an unproductive AskUserQuestion ("is /api/health the right URL?" — operator doesn't know without running it). `/dev-up` Gate 6 PASS-with-skips when this is null. The operator can fill it in later by editing `config.json` directly or re-running `/dev-adapt` after they've verified the endpoint manually. Do NOT include `dev_health_url` in the AskUserQuestion proposal — surface the recommendation in the report instead: "tip: once your dev server is running, set `dev_health_url` to the readiness endpoint (e.g. `/api/health`, `/healthz`, `/actuator/health`) so `/dev-up` can verify boot before returning."
 - **`dev_health_timeout_secs`** — default 30. Bump to 120 if Spring/Quarkus detected (JVM cold start), 90 if Rust (compilation), 60 if monorepo with many packages. Surface the recommendation in the report and let the operator override.
 - **`dev_auth_check`** — if `.infisical.json` present, propose `infisical secrets >/dev/null 2>&1`. If `.envrc` present, propose `direnv status | grep -q "Loaded RC"`. If `.op-secrets.json` present, propose `op signin --account <account> 2>/dev/null`. Otherwise null. **Surface the proposal as a starter, not a guaranteed-correct command:** the operator must verify the suggestion exits non-zero when unauthenticated AND zero when authenticated. S-006 hit this exact bug — `infisical user` exits 0 unconditionally because it's a help page; a poorly-chosen check is worse than no check at all (false-green on Gate 2). Recommend the operator run the proposed command twice — once with creds loaded, once without — and confirm both exit codes before persisting. Also note: a passing auth probe is a positive signal, not a guarantee that the spawned dev-server inherits the same env (separate processes can pick up different cached tokens).
@@ -115,6 +118,24 @@ Skip the "Dev environment" question entirely if Step 2 detected no dev signals (
 
 If confidence is `high` for a command, inline-confirm without asking ("Detected: `npm test` from `package.json scripts.test` — confirmed") and skip the AskUserQuestion for that slot.
 
+### 3b. Propose watchdog config (always-on mode only)
+
+Read `.claude-code-hermit/state/runtime.json → runtime_mode`. If `runtime_mode ∈ {'tmux', 'docker'}`, propose default `dev_watchdog` block:
+
+```json
+{
+  "enabled": true,
+  "health_interval_secs": 30,
+  "consecutive_failures_to_alert": 3,
+  "log_error_window_secs": 60,
+  "log_error_alert_threshold": 5
+}
+```
+
+If `runtime.json` is missing or `runtime_mode` is not set: skip. Do not propose watchdog config for interactive mode projects — the operator sees the terminal directly.
+
+Do NOT add a watchdog question to `AskUserQuestion` — defaults are sensible, and asking "do you want health monitoring?" adds noise to the wizard. Operator tunes thresholds by editing `config.json` directly if needed.
+
 ### 4. Persist to config
 
 Write confirmed values to `.claude-code-hermit/config.json` under `claude-code-dev-hermit`:
@@ -133,16 +154,49 @@ Write confirmed values to `.claude-code-hermit/config.json` under `claude-code-d
     "commit_format": "conventional" | "gitmoji" | null,
     "commit_format_pattern": "<the matched regex string, or null>",
     "dev_required_ports": [3000, 4000],
+    "dev_port_agent": 3001,
     "dev_expected_listeners": [],
     "dev_health_url": "<url or null>",
     "dev_health_timeout_secs": 30,
     "dev_auth_check": "<bash one-liner or null>",
     "dev_log_path_pattern": "<path with optional $(date ...) or null>",
     "dev_error_pattern": "<grep -E regex or null>",
-    "dev_noise_pattern": null
+    "dev_noise_pattern": null,
+    "dev_watchdog": {
+      "enabled": true,
+      "health_interval_secs": 30,
+      "consecutive_failures_to_alert": 3,
+      "log_error_window_secs": 60,
+      "log_error_alert_threshold": 5
+    }
   }
 }
 ```
+
+`dev_watchdog` is only written when Step 3b proposed it (always-on mode detected). Omit entirely for interactive projects — do not write a null or disabled block.
+
+**PR config keys** — write regardless of mode (all projects can open PRs):
+
+```json
+{
+  "commands": {
+    "pr_create": "gh pr create"
+  },
+  "pr_template_path": ".github/PULL_REQUEST_TEMPLATE.md",
+  "pr_base_branch": null,
+  "pr_title_format": null,
+  "pr_body_sections": ["summary", "context", "risk", "verification", "notes"]
+}
+```
+
+Defaults:
+- `commands.pr_create`: `"gh pr create"` unless `.gitlab-ci.yml` was found → `"glab mr create"`. Do NOT ask the operator — just default and surface a tip in the report for other platforms.
+- `pr_template_path`: write only if the template file was found in Step 1; otherwise omit the key.
+- `pr_base_branch`: always `null` (resolved at runtime by `/dev-pr` via `protected_branches[0]`).
+- `pr_title_format`: always `null` (built-in default is `"{ticket}: {first_commit}"` or `"{first_commit}"`).
+- `pr_body_sections`: write the default order so operators can see and reorder; do not ask.
+
+Do NOT add any PR config fields to the `AskUserQuestion` wizard — they are power-user overrides with sensible defaults. Operators edit `config.json` directly to customize.
 
 `commit_format` is auto-detected — no operator confirmation needed (it's derived from existing history, not a choice). If the repo has fewer than 10 commits or mixed style, write `null` and omit `commit_format_pattern`.
 
@@ -232,9 +286,16 @@ dev-adapt complete
   dev_health:    /api/health           (low — operator confirm if endpoint exists)
   dev_log:       logs/app-$(date +%Y-%m-%d).log  (Winston daily transport)
   dev_auth:      direnv status | grep -q "Loaded RC"
+  watchdog:      defaults written (always-on mode detected)
+
+  pr_template:  .github/PULL_REQUEST_TEMPLATE.md (detected)
+  pr_create:    gh pr create (GitHub default)
+  watchdog:     defaults written (always-on mode detected)
 
   Written: .claude-code-hermit/compiled/dev-profile-2026-04-24.md
   Config:  .claude-code-hermit/config.json → claude-code-dev-hermit.* updated
 ```
+
+`pr_template:` shows `<path> (detected)` or `not found`. `pr_create:` shows the resolved default. `watchdog:` shows `defaults written (always-on mode detected)` or `not configured (interactive mode)`. Omit lines where nothing was detected or changed.
 
 Omit the dev block if the operator skipped or no dev signals were detected.

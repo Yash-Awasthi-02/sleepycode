@@ -165,6 +165,81 @@ console.log('\nbuildDevServerCommand — runtime smoke:');
   fs.unlinkSync(tmpLog);
 }
 
+console.log('\nbuildDevServerCommand — cwd parameter:');
+{
+  const r = buildDevServerCommand({
+    devStart: 'npm run dev',
+    logPath: 'log',
+    errorPattern: 'PAT',
+    cwd: '/path/to/worktree',
+  });
+  // The command string has shellQuote escaping throughout; check for substrings
+  // that survive the escaping rather than matching the raw form.
+  ok('cwd: command contains worktree path', r.command.includes('/path/to/worktree'));
+  ok('cwd: cd failure emits Fatal echo', r.command.includes('Fatal'));
+  ok('cwd: uses stderr redirect >&2', />&2/.test(r.command));
+  ok('cwd: devStart still present after cd', /npm run dev/.test(r.command));
+  ok('cwd: output shape still starts with bash -c', r.command.startsWith('bash -c '));
+}
+{
+  // No cwd — existing shape is unchanged
+  const r = buildDevServerCommand({
+    devStart: 'npm run dev',
+    logPath: 'log',
+    errorPattern: 'PAT',
+  });
+  ok('no cwd: no cd prefix', !/cd /.test(r.command));
+  ok('no cwd: still starts with bash -c', r.command.startsWith('bash -c '));
+}
+{
+  // cwd with spaces — must survive shellQuote round-trip
+  const r = buildDevServerCommand({
+    devStart: 'pnpm dev',
+    logPath: 'log',
+    errorPattern: 'ERR',
+    cwd: '/path/to/my project/worktrees/agent',
+  });
+  execFileSync('bash', ['-n', '-c', stripBashC(r.command)], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  ok('cwd with spaces → bash -n parses', true);
+}
+{
+  // The Fatal echo message must match DEFAULT_ERROR_PATTERN so Monitor surfaces it.
+  // We test against the pre-shellQuote message string directly since the pattern
+  // check is about content semantics, not the serialized command.
+  const msg = `[dev-up] Fatal: cd /missing/path failed — worktree not found or inaccessible`;
+  const re = new RegExp(DEFAULT_ERROR_PATTERN);
+  ok('cwd failure echo matches DEFAULT_ERROR_PATTERN (\\bFatal\\b)', re.test(msg));
+}
+{
+  // Custom error patterns must not silently swallow the cd failure. The helper
+  // OR's an internal sentinel onto the operator's pattern when cwd is set, so
+  // the Fatal echo is always grep'd regardless of the operator's choice.
+  const r = buildDevServerCommand({
+    devStart: 'npm run dev',
+    logPath: 'log',
+    errorPattern: 'EADDRINUSE|Build failed',  // narrow custom pattern that excludes Fatal
+    cwd: '/missing/path',
+  });
+  ok('custom pattern: command contains cd-failed sentinel', /\\\[dev-up\\\] Fatal: cd/.test(r.command));
+  // Verify the inner pattern would catch the actual echo message at runtime:
+  // extract the effective pattern by simulating what grep would receive.
+  const effective = `(EADDRINUSE|Build failed)|\\[dev-up\\] Fatal: cd`;
+  const echoMsg = `[dev-up] Fatal: cd /missing/path failed — worktree not found`;
+  ok('custom pattern: effective pattern matches the Fatal echo', new RegExp(effective).test(echoMsg));
+  ok('custom pattern: custom signals still match', new RegExp(effective).test('EADDRINUSE: port 3000 in use'));
+}
+{
+  // No cwd — pattern is unmodified (no sentinel appended)
+  const r = buildDevServerCommand({
+    devStart: 'npm run dev',
+    logPath: 'log',
+    errorPattern: 'CUSTOM',
+  });
+  ok('no cwd: no Fatal sentinel injected into pattern', !/\\\[dev-up\\\] Fatal: cd/.test(r.command));
+}
+
 console.log(`\nResults: ${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);
 

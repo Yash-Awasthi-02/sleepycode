@@ -12,7 +12,8 @@ Operator-invoked. Not auto-triggered. If you want it to fire on browser-testing 
 ## Prerequisites
 
 - Verify `.claude-code-hermit/sessions/` exists. If not: tell the operator to run `/claude-code-hermit:hatch` and `/claude-code-dev-hermit:hatch`, then exit.
-- Read `.claude-code-hermit/config.json` once at start. Cache `claude-code-dev-hermit.commands.dev_start`, `commands.dev_stop`, `dev_required_ports`, `dev_expected_listeners`, `dev_health_url`, `dev_health_timeout_secs`, `dev_auth_check`, `dev_log_path_pattern`, and `dev_error_pattern` for use across gates.
+- Read `.claude-code-hermit/config.json` once at start. Cache `claude-code-dev-hermit.commands.dev_start`, `commands.dev_stop`, `dev_required_ports`, `dev_port_agent`, `dev_expected_listeners`, `dev_health_url`, `dev_health_timeout_secs`, `dev_auth_check`, `dev_log_path_pattern`, and `dev_error_pattern` for use across gates.
+- **Resolve dev port:** if `$HERMIT_AGENT_WORKTREE` is set AND `dev_port_agent` is configured, use `dev_port_agent` as the resolved port; otherwise use `dev_required_ports[0]`. Cache as `RESOLVED_PORT` for Gates 3 and 5. Export as `PORT=<resolved>` and `HERMIT_DEV_PORT=<resolved>` in the Gate 5 dev_start subshell.
 
 ## Plan
 
@@ -50,6 +51,14 @@ Read `.claude-code-hermit/state/monitors.runtime.json`. If an entry with `id: "d
      monitor:  dev-server already registered (pid <pid> alive)
      status:   already up (no health probe — process exists, application readiness not verified)
    ```
+
+   In always-on mode (`runtime.json.runtime_mode` is `tmux` or `docker`), append an advisory to this output:
+
+   ```
+     warn: no dev_health_url — pid-only check; configure for reliable always-on idempotency (/dev-adapt)
+   ```
+
+   This is advisory only — PASS-with-noop still stands. Operators who need reliable readiness checks in always-on should add `dev_health_url` via `/dev-adapt`.
 
 4. **Health probe failed but pid is alive** — registry has the entry, process is up, but the URL is not 2xx. Surface and stop:
 
@@ -115,10 +124,13 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/lib/dev-server-command.js" "$(jq -nc \
   --arg start "$dev_start" \
   --arg log ".claude-code-hermit/state/dev-server.log" \
   --arg pat "$dev_error_pattern" \
-  '{devStart:$start, logPath:$log, errorPattern:$pat}')"
+  --arg cwd "${HERMIT_AGENT_WORKTREE:-}" \
+  '{devStart:$start, logPath:$log, errorPattern:$pat} + (if $cwd != "" then {cwd:$cwd} else {} end)')"
 ```
 
-(Omit the `errorPattern` field if `dev_error_pattern` is unset — the helper falls back to its built-in default, which is anchored on common Node/Vite/Next.js error signals and avoids false-positives on the bare lowercase word "error" that Next.js writes during normal compile feedback.) The helper returns `{ command, pattern, usedDefault }`.
+(Omit the `errorPattern` field if `dev_error_pattern` is unset — the helper falls back to its built-in default, which is anchored on common Node/Vite/Next.js error signals and avoids false-positives on the bare lowercase word "error" that Next.js writes during normal compile feedback.)
+
+When `$HERMIT_AGENT_WORKTREE` is set, the helper prepends `cd <worktree>` to the pipeline so the dev server reflects the agent's branch state. If `cd` fails (e.g., the worktree dir was manually deleted), the helper emits a `Fatal:` message to stderr — which the `2>&1 | grep` pipeline surfaces as a Monitor notification — instead of silently falling back to the main checkout. The helper returns `{ command, pattern, usedDefault }`.
 
 We need a stable id `dev-server` so `/dev-down` can find this entry. The `/watch` skill's ad-hoc form auto-generates `adhoc-<epoch>-...` ids (see `claude-code-hermit:watch` SKILL.md "Starting an ad-hoc watch"), so we invoke the Monitor tool directly and append the registry entry ourselves with the chosen id — same recipe as `/watch`'s ad-hoc steps 5–8, but with our id.
 
@@ -147,6 +159,59 @@ Steps:
 7. Append to SHELL.md `## Monitoring`: `- [ACTIVE] dev-server (started HH:MM)`.
 
 If the Monitor invocation errors, FAIL and surface the error. Do not partially append to the registry.
+
+### Gate 5b — watchdog registration (always-on only)
+
+After the `dev-server` Monitor entry is registered, read `runtime.json → runtime_mode`. If `runtime_mode ∉ {'tmux','docker'}`: skip Gate 5b entirely (operator sees the terminal directly; alerts add noise without value in interactive mode).
+
+Also skip if `claude-code-dev-hermit.dev_watchdog.enabled === false`.
+
+Otherwise register up to two background Monitor entries:
+
+**Health-degradation monitor** — if `dev_health_url` is set:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/lib/watchdog-health.js" \
+  --config ".claude-code-hermit/config.json" \
+  --state-dir ".claude-code-hermit/state" \
+  --binding "<current-branch>"
+```
+
+Invoke Monitor with:
+- `description`: `"watchdog-health: <dev_health_url>"`
+- `command`: the composed command
+- `timeout_ms`: 300000
+- `persistent`: true
+
+Append to `monitors.runtime.json`:
+```json
+{
+  "id": "dev-watchdog-health",
+  "task_id": "<returned by Monitor>",
+  "description": "watchdog-health: <dev_health_url>",
+  "started_at": "<ISO 8601>",
+  "source": "dev-up",
+  "class": "interval"
+}
+```
+
+Append to SHELL.md `## Monitoring`: `- [ACTIVE] dev-watchdog-health (started HH:MM)`.
+
+**Error-spike monitor** — if `dev_log_path_pattern` is set:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/scripts/lib/watchdog-errors.js" \
+  --config ".claude-code-hermit/config.json" \
+  --state-dir ".claude-code-hermit/state" \
+  --binding "<current-branch>" \
+  --log ".claude-code-hermit/state/dev-server.log"
+```
+
+Invoke Monitor with `id: "dev-watchdog-errors"`, `class: "stream"`. Same registry + SHELL.md pattern.
+
+If neither `dev_health_url` nor `dev_log_path_pattern` is set, record `watchdog: skipped (no dev_health_url or dev_log_path_pattern)` in the output but do not FAIL — partial monitoring is acceptable.
+
+If a watchdog Monitor invocation errors, log a warning to SHELL.md and continue — do not FAIL `/dev-up` for a failed watchdog registration. The dev-server is still up.
 
 > Lifecycle notes:
 > - The helper appends `|| true` to the grep stage so a healthy server (zero error matches) doesn't return exit 1 and kill the pipeline.
@@ -184,8 +249,17 @@ dev-up
   log:      .claude-code-hermit/state/dev-server.log (full stdout, session-scoped)
   monitor:  dev-server registered (session-scoped)
   health:   200 OK at http://localhost:3000/api/health (after 4123ms)
+  watchdog: health (30s probe) + errors (5/60s threshold)
   status:   up
 ```
+
+Possible `watchdog:` values:
+- `health (30s probe) + errors (5/60s threshold)` — both monitors active
+- `health only (no dev_log_path_pattern)` — only health monitor
+- `errors only (no dev_health_url)` — only error-spike monitor
+- `skipped (interactive mode)` — runtime_mode is not tmux/docker
+- `skipped (disabled in config)` — dev_watchdog.enabled: false
+- `skipped (no dev_health_url or dev_log_path_pattern)` — nothing to monitor
 
 On Gate 1 short-circuit:
 
