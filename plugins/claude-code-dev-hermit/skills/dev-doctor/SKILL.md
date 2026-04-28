@@ -59,6 +59,8 @@ For each property below, read the relevant file(s) and emit `PASS`, `WARN`, or `
 | 15 | Dev start command reachable | If `claude-code-dev-hermit.commands.dev_start` is set, invoke `node ${CLAUDE_PLUGIN_ROOT}/scripts/lib/resolve-command.js "<dev_start>"` — same helper as check #5. FAIL on exit 1 with the helper's reason; PASS-with-skip if `dev_start` is null (the field is optional — `/dev-up` will refuse without it, but that's not a doctor-level failure). |
 | 16 | Dev log path parent exists | If `claude-code-dev-hermit.dev_log_path_pattern` is set: substitute `$(date ...)` if present (use `date -d 'tomorrow 00:00:00' 2>/dev/null \|\| date -v+1d -v0H -v0M -v0S` GNU/BSD fallback), then check `[ -d "$(dirname "$resolved")" ]`. WARN if missing — log file may not have rotated in yet. PASS-with-skip if `dev_log_path_pattern` is null. |
 | 17 | Dev required ports valid | If `claude-code-dev-hermit.dev_required_ports` is set: each entry must be an integer in 1024–65535. Each `dev_expected_listeners[].port` must appear in `dev_required_ports` (the listener-allowlist only matters for ports we're checking). FAIL on out-of-range or unknown listener port. PASS-with-skip if `dev_required_ports` is null or empty. |
+| 18 | Agent worktree exists (always-on only) | Only when `runtime.json.runtime_mode` is `tmux` or `docker`. Run `git worktree list --porcelain` and verify an entry with path matching `<project_root>/.claude/worktrees/agent` is listed AND the directory exists on disk. FAIL if either condition is missing — run `bin/hermit-start` to recreate. PASS-with-skip if not in always-on mode. |
+| 19 | Agent worktree HEAD state (always-on only) | Only when always-on mode (check 18). Run `git -C .claude/worktrees/agent branch --show-current`. Three-way classification: (a) non-empty branch name that exists in `git branch --list` → PASS; (b) empty output but `git -C .claude/worktrees/agent rev-parse HEAD` succeeds → WARN `(detached HEAD — normal before first /dev-branch, expected if worktree was just created)`; (c) `rev-parse HEAD` fails → FAIL `(dangling ref — branch was deleted while worktree was on it; run /dev-branch <name> to switch off the dead ref)`. |
 
 ## Output format
 
@@ -86,6 +88,8 @@ WARN  .env.local key TEST_USER_PASSWORD looks credential-like — auto-loaded en
 PASS  dev_start command resolves: pnpm found in PATH
 WARN  dev_log_path_pattern parent dir 'logs/' does not exist yet — log file will appear when dev server first writes
 PASS  dev_required_ports valid (3000, 4000)
+PASS  agent worktree exists at .claude/worktrees/agent
+WARN  agent worktree HEAD is detached — normal before first /dev-branch
 
 Safe for implementer: no   (3 FAIL)
 Next: set AGENT_HOOK_PROFILE=strict; configure protected_branches via /dev-adapt; fix test command via /dev-adapt

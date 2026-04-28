@@ -5,3 +5,4 @@
 .env
 .env.*
 .claude-code-hermit/.baseline-pending
+.claude/worktrees/
