@@ -46,11 +46,11 @@ After making code changes:
 
 After implementation and after `/simplify`:
 
-1. Re-run the test command.
+1. Re-run the test command via Bash. The `record-test-result` hook (`PostToolUse` Bash hook, ships with this plugin) captures the exit code, duration, and current HEAD sha into `.claude-code-hermit/state/last-test.json`. You don't write the file — the hook does, automatically, every time you run a command containing `commands.test` as a substring.
 2. If tests pass, proceed.
 3. If tests fail, run `git checkout -- <changed-files>` to revert the simplify pass and stop. Surface the regression to the operator.
 
-Then run `/claude-code-dev-hermit:dev-pr` to push the branch and open the PR.
+Then run `/claude-code-dev-hermit:dev-pr`. Its Gate 0 reads `last-test.json` and refuses if missing, on a stale sha, or with a non-pass status — closing the loop without trusting the agent's self-report.
 
 ## Technical Constraints
 

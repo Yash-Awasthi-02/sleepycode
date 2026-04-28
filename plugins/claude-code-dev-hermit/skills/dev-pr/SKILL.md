@@ -16,7 +16,7 @@ Push the current branch and open a PR with a structured body. Reads commit histo
 
 ### Gate 0 — preconditions
 
-Run all three checks in order. FAIL on the first failure, name it, give the exact command to fix it.
+Run all four checks in order. FAIL on the first failure, name it, give the exact command to fix it.
 
 **1. Protected-branch check.** Materialize the cached `protected_branches` config value as a bash array, then compare the current branch against each pattern using bash glob semantics:
 
@@ -35,7 +35,15 @@ done
 
 **2. Clean-tree check.** `git status --porcelain` must return empty. If non-empty: FAIL with `"commit or stash changes before opening a PR"`.
 
-**3. Commits-ahead check.** Resolve base branch — assign to `BASE` in this priority order:
+**3. Tests-ran check.** Read `.claude-code-hermit/state/last-test.json` (written by the `record-test-result` `PostToolUse` hook whenever the configured `commands.test` runs via Bash). Three failure modes:
+
+- File missing: FAIL `"no test result recorded — run \`<config.commands.test>\` before /dev-pr"`.
+- `sha != current HEAD`: FAIL `"last test run was on <sha>, now at <head> — re-run \`<config.commands.test>\`"`.
+- `status !== 'pass'`: FAIL `"last test run failed (exit <exit_code>) — fix and re-run \`<config.commands.test>\`"`.
+
+This is the gate that enforces CLAUDE-APPEND §Tests Before PR mechanically rather than relying on the agent's self-report. If `commands.test` is not configured, the hook never writes the file and this check FAILs with the "no test result recorded" message — operators must configure a test command before opening PRs.
+
+**4. Commits-ahead check.** Resolve base branch — assign to `BASE` in this priority order:
 1. `pr_base_branch` from config if set.
 2. First non-glob entry of `protected_branches`.
 3. `origin/HEAD` (`git symbolic-ref refs/remotes/origin/HEAD` → strip `refs/remotes/origin/`).
@@ -86,17 +94,15 @@ Build the title and body inline, no helper script.
 
 2. **Context** — if `state/bindings.json` has `bindings[branch].external = { source, id, url, title }`, emit a `## Context` heading followed by a single line containing a markdown link. The link text is the bold-wrapped string `<source> <id>` (e.g. `**Linear PROJ-123**`), the link target is `url`, and the line ends with ` — <title>`. Concrete example for `{source: "Linear", id: "PROJ-123", url: "https://linear.app/...", title: "fix login redirect"}` produces a single line beginning with `**` then the bold-bracketed link then ` — fix login redirect`. If `external.title` is missing, drop the ` — <title>` suffix. If `external.url` is missing, skip the section entirely.
 
-3. **Verification** — report the test command's last result. The test command is at `claude-code-dev-hermit.commands.test`. **Required**: if you have not run the test command this session (no test result to report), FAIL Gate 2 with `"run tests before /dev-pr (per CLAUDE-APPEND §Tests Before PR)"` — do not invent results. Format:
+3. **Verification** — read `state/last-test.json` (written by the `record-test-result` hook; Gate 0 step 3 already verified it exists, matches HEAD, and passed). Format:
 
    ```
    ## Verification
 
    - Tests: **pass** (12.3s)
-   - Lint: **pass**
-   - Typecheck: **pass**
    ```
 
-   Use `**fail**` with a 1-line summary if any check failed (and the operator should not normally reach this gate with a failing test — CLAUDE-APPEND requires fixing or reverting first).
+   The duration is `last-test.json.duration_ms / 1000` rounded to one decimal (or `(unrecorded)` if `duration_ms` is null). Lint / typecheck / format runs may be added if `state/last-test.json` is later extended to record those (current implementation tracks only the test command). Never invent results.
 
 4. **Screenshots** — if `.claude-code-hermit/raw/screenshots/<binding-id>/manifest.json` exists, emit a `## Screenshots` heading followed by one bullet per manifest entry. Each bullet is a markdown image: a leading `- ` then `!`, then the alt text in square brackets (the `criterion` field), then the source in parentheses (the `path` field). The `binding-id` is `bindings[branch].external.id` if present, else `branch.replace(/\//g, '-')`. If `config.scope === 'local'` and any path isn't a `https://` URL, add a note line below the bullets: `_Note: screenshots in raw/ are gitignored under local scope — they will appear as broken images in the PR._`
 
