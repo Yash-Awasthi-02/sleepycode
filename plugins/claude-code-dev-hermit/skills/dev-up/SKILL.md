@@ -171,7 +171,7 @@ Otherwise register up to two background Monitor entries:
 **Health-degradation monitor** — if `dev_health_url` is set:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/lib/watchdog-health.js" \
+node "${CLAUDE_PLUGIN_ROOT}/scripts/watchdog-health.js" \
   --config ".claude-code-hermit/config.json" \
   --state-dir ".claude-code-hermit/state" \
   --binding "<current-branch>"
@@ -200,7 +200,7 @@ Append to SHELL.md `## Monitoring`: `- [ACTIVE] dev-watchdog-health (started HH:
 **Error-spike monitor** — if `dev_log_path_pattern` is set:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/lib/watchdog-errors.js" \
+node "${CLAUDE_PLUGIN_ROOT}/scripts/watchdog-errors.js" \
   --config ".claude-code-hermit/config.json" \
   --state-dir ".claude-code-hermit/state" \
   --binding "<current-branch>" \

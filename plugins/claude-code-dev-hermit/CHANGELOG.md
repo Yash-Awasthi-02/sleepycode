@@ -52,6 +52,10 @@ No `config.json` changes required.
 
 **Note:** Two new optional config keys: `dev_port_agent` (integer, port for the agent-worktree dev server) and `dev_watchdog` (object with `enabled`, `log_error_alert_threshold`, `poll_interval_ms`). Watchdog is enabled by default when `dev_health_url` is set.
 
+### Internal
+
+- **Structure cleanup** — promoted watchdog scripts to `scripts/` (entrypoints), added `tests/run-all.sh` central runner, moved `skill-structure.test.js` to `tests/`, removed empty `.claude/` artifact and `.vscode/` personal-pref file. Added `scripts/lib/ must be pure` rule to CONTRIBUTING.md.
+
 ## [0.2.1] - 2026-04-27
 
 ### Fixed

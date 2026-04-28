@@ -13,6 +13,7 @@ These are non-negotiable. Read them before making any changes.
 - **No test framework.** Tests are plain Node.js scripts. Don't add Jest, Vitest, or anything else.
 - **Don't reinvent.** Before building something, check if Claude Code already has it natively (built-in skills, Explore subagent, Task API, etc.). If it does, delegate — don't build.
 - **Profile-gate hooks.** Safety hooks go at `strict` only. Quality hooks at `standard,strict`. Never block at `minimal`.
+- **`scripts/lib/` must be pure.** Helpers in `scripts/lib/` must be importable with no side effects — no top-level `process.exit`, no Monitor entrypoint behavior, no I/O at load time. Process entrypoints (scripts spawned by the Monitor or hooks.json) belong in `scripts/`.
 
 ## Local Development
 
