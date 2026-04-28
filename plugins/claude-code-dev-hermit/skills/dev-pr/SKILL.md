@@ -37,11 +37,11 @@ done
 
 **3. Tests-ran check.** Read `.claude-code-hermit/state/last-test.json` (written by the `record-test-result` `PostToolUse` hook whenever the configured `commands.test` runs via Bash). Three failure modes:
 
-- File missing: FAIL `"no test result recorded — run \`<config.commands.test>\` before /dev-pr"`.
-- `sha != current HEAD`: FAIL `"last test run was on <sha>, now at <head> — re-run \`<config.commands.test>\`"`.
-- `status !== 'pass'`: FAIL `"last test run failed (exit <exit_code>) — fix and re-run \`<config.commands.test>\`"`.
+- File missing: FAIL `"no test result recorded — run the configured test command (commands.test) before /dev-pr; if commands.test is unset, run /claude-code-dev-hermit:hatch to configure it"`.
+- `sha !== current HEAD`: FAIL `"last test run was on <sha>, now at <head> — re-run commands.test"`.
+- `status !== 'pass'`: FAIL `"last test run failed (exit <exit_code>) — fix and re-run commands.test"`.
 
-This is the gate that enforces CLAUDE-APPEND §Tests Before PR mechanically rather than relying on the agent's self-report. If `commands.test` is not configured, the hook never writes the file and this check FAILs with the "no test result recorded" message — operators must configure a test command before opening PRs.
+This is the gate that enforces CLAUDE-APPEND §Tests Before PR mechanically rather than relying on the agent's self-report.
 
 **4. Commits-ahead check.** Resolve base branch — assign to `BASE` in this priority order:
 1. `pr_base_branch` from config if set.

@@ -62,7 +62,7 @@ async function main() {
   let data;
   try { data = JSON.parse(raw); } catch { process.exit(0); }
 
-  const command = data.tool_input?.command || data.input?.command || '';
+  const command = data.tool_input?.command || '';
   if (!command) process.exit(0);
 
   const hermitDir = findHermitDir(process.cwd());
@@ -73,19 +73,21 @@ async function main() {
 
   if (!command.includes(testCmd)) process.exit(0);
 
-  const tr = data.tool_response || data.tool_result || {};
+  const tr = data.tool_response || {};
   const exitCode = typeof tr.exit_code === 'number' ? tr.exit_code
-                 : typeof tr.exitCode === 'number' ? tr.exitCode
-                 : (tr.success === false ? 1 : tr.success === true ? 0 : null);
+                 : typeof tr.exitCode === 'number' ? tr.exitCode : null;
   const durationMs = typeof tr.duration_ms === 'number' ? tr.duration_ms
                    : typeof tr.durationMs === 'number' ? tr.durationMs : null;
+
+  const sha = gitHead(process.cwd());
+  if (!sha) process.exit(0);
 
   const record = {
     command,
     exit_code: exitCode,
     duration_ms: durationMs,
     status: exitCode === 0 ? 'pass' : exitCode === null ? 'unknown' : 'fail',
-    sha: gitHead(process.cwd()),
+    sha,
     ts: new Date().toISOString(),
   };
 

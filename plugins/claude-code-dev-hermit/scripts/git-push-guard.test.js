@@ -142,6 +142,7 @@ assert('--force-with-lease to main is blocked', run('git push --force-with-lease
 assert('--force-with-lease to master is blocked', run('git push --force-with-lease origin master', { AGENT_HOOK_PROFILE: 'strict' }), 2);
 assert('--force-with-lease without refspec is blocked', run('git push --force-with-lease origin', { AGENT_HOOK_PROFILE: 'strict' }), 2);
 assert('--force-with-lease alone (no remote) is blocked', run('git push --force-with-lease', { AGENT_HOOK_PROFILE: 'strict' }), 2);
+assert('--force-with-lease to branch named with literal "push" word is allowed', run('git push --force-with-lease origin feature/push-button-fix', { AGENT_HOOK_PROFILE: 'strict' }), 0);
 
 // --- Config-driven protected branches ---
 console.log('\nConfig-driven protected branches:');

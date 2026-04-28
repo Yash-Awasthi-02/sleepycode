@@ -92,7 +92,7 @@ async function main() {
       }
     }
     if (hasForceWithLease) {
-      const afterPush = subcmd.split(/\bpush\b/)[1] || '';
+      const afterPush = subcmd.replace(/^[\s\S]*?\bpush\b/, '');
       const positionals = afterPush.trim().split(/\s+/).filter(t => t && !t.startsWith('-'));
       if (positionals.length < 2) {
         block('--force-with-lease without an explicit refspec is not allowed (ambiguous target).');

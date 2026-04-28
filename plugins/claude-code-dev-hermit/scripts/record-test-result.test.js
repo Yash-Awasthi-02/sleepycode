@@ -10,6 +10,8 @@ const HOOK = path.join(__dirname, 'record-test-result.js');
 let passed = 0;
 let failed = 0;
 
+const { execSync } = require('child_process');
+
 function setupProject(testCmd) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rec-test-'));
   const hermit = path.join(tmp, '.claude-code-hermit');
@@ -17,6 +19,8 @@ function setupProject(testCmd) {
   fs.writeFileSync(path.join(hermit, 'config.json'), JSON.stringify({
     'claude-code-dev-hermit': { commands: { test: testCmd } },
   }));
+  const gitEnv = { ...process.env, GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@t', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@t' };
+  execSync('git init -q && git commit -q --allow-empty -m init', { cwd: tmp, env: gitEnv, stdio: 'ignore' });
   return tmp;
 }
 
@@ -69,16 +73,24 @@ assert('does not record for non-test commands', s === null);
 cleanup(proj);
 
 proj = setupProject('npm test');
-runHook(proj, { tool_input: { command: 'npm test' }, tool_response: { success: true } });
+runHook(proj, { tool_input: { command: 'npm test' }, tool_response: {} });
 s = readState(proj);
-assert('falls back to success boolean (true → pass)', s !== null && s.status === 'pass' && s.exit_code === 0);
+assert('records unknown when no exit_code in response', s !== null && s.status === 'unknown' && s.exit_code === null);
 cleanup(proj);
 
 proj = setupProject('npm test');
-runHook(proj, { tool_input: { command: 'npm test' }, tool_response: {} });
+runHook(proj, { tool_input: { command: 'npm test' }, tool_response: { exit_code: 0 } });
 s = readState(proj);
-assert('records unknown when no exit_code/success in response', s !== null && s.status === 'unknown');
+assert('records git HEAD sha', s !== null && typeof s.sha === 'string' && s.sha.length === 40);
 cleanup(proj);
+
+const tmpNoGit = fs.mkdtempSync(path.join(os.tmpdir(), 'rec-test-nogit-'));
+const hermitNoGit = path.join(tmpNoGit, '.claude-code-hermit');
+fs.mkdirSync(hermitNoGit);
+fs.writeFileSync(path.join(hermitNoGit, 'config.json'), JSON.stringify({ 'claude-code-dev-hermit': { commands: { test: 'npm test' } } }));
+runHook(tmpNoGit, { tool_input: { command: 'npm test' }, tool_response: { exit_code: 0 } });
+assert('does not write last-test.json when not in a git repo', !fs.existsSync(path.join(hermitNoGit, 'state', 'last-test.json')));
+fs.rmSync(tmpNoGit, { recursive: true, force: true });
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rec-test-noproj-'));
 const rc = runHook(tmp, { tool_input: { command: 'npm test' }, tool_response: { exit_code: 0 } });
