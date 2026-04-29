@@ -18,3 +18,6 @@ __pycache__/
 .obsidian/
 *.swp
 *~
+
+# Cost log
+.claude/cost-log.jsonl

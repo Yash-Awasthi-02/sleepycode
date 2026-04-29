@@ -57,6 +57,9 @@ Thumbs.db
 # History
 .history/
 
+# Cost log
+.claude/cost-log.jsonl
+
 # Local data
 .local
 .claude.local/

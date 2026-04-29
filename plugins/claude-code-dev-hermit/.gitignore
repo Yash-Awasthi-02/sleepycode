@@ -7,3 +7,5 @@ Thumbs.db
 .claude/cost-log.jsonl
 .claude/settings.json
 .history
+# Cost log
+.claude/cost-log.jsonl

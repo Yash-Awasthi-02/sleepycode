@@ -4,6 +4,8 @@
 
 ### Added
 
+- **Heartbeat and reflect precheck scripts for token cost reduction** — adds `scripts/heartbeat-precheck.js` and `scripts/reflect-precheck.js`. The heartbeat precheck runs before each tick and emits `SKIP` (outside active hours / empty checklist), `OK` (all checklist items already suppressed and stable), or `EVALUATE` (anything requiring LLM judgment). It is the sole writer of `total_ticks`; the skill remains the sole writer of `alerts{}` and `self_eval{}`. The reflect precheck determines which phases are due (compute, resolution_check, cost_spike, digest, newborn) and on `EMPTY` owns the audit trail: it calls `update-reflection-state.js` and appends the mandatory Progress Log line to SHELL.md before short-circuiting. Both scripts are zero-dependency (Node stdlib only) with full fail-open error handling. Heartbeat `SKILL.md` is thinned from 209 → 94 lines by extracting the alert dedup and self-eval detail into `skills/heartbeat/reference.md`, which is loaded on demand only on the `EVALUATE` path. Shared timezone helpers extracted to `scripts/lib/time.js`.
+
 - **`GITIGNORE-APPEND.txt`: complete local-scope coverage** — added `templates/`, `bin/`, `HEARTBEAT.md`, `IDLE-TASKS.md`, `knowledge-schema.md`, and `.claude.local/` (channel state dir). Previously hatch's gitignore append left bin/ and operator-editable files unignored, so `.claude-code-hermit/` kept showing as untracked in projects with local scope.
 
 ### Removed
