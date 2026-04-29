@@ -173,6 +173,216 @@ run_test "update-reflection-state (last_sparse_nudge merge)" bash -c \
 cleanup
 
 # -------------------------------------------------------
+# heartbeat-precheck.js
+# -------------------------------------------------------
+
+# 12. SKIP — HEARTBEAT.md missing
+workdir="$(setup_workdir)"
+echo '{"timezone":"UTC","heartbeat":{"active_hours":{"start":"00:00","end":"23:59"}}}' \
+  > "$workdir/.claude-code-hermit/config.json"
+echo '{"alerts":{},"last_digest_date":null,"self_eval":{},"total_ticks":0}' \
+  > "$workdir/.claude-code-hermit/state/alert-state.json"
+echo '{"session_state":"idle"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+echo '{"pending":[]}' > "$workdir/.claude-code-hermit/state/micro-proposals.json"
+out="$(node "$REPO_ROOT/scripts/heartbeat-precheck.js" "$workdir/.claude-code-hermit")"
+run_test "heartbeat-precheck (SKIP: missing HEARTBEAT.md)" bash -c "echo '$out' | grep -qE '^SKIP\|'"
+cleanup
+
+# 13. SKIP — empty HEARTBEAT.md (no checklist items)
+workdir="$(setup_workdir)"
+echo '{"timezone":"UTC","heartbeat":{"active_hours":{"start":"00:00","end":"23:59"}}}' \
+  > "$workdir/.claude-code-hermit/config.json"
+echo '{"alerts":{},"last_digest_date":null,"self_eval":{},"total_ticks":0}' \
+  > "$workdir/.claude-code-hermit/state/alert-state.json"
+echo '{"session_state":"idle"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+echo '{"pending":[]}' > "$workdir/.claude-code-hermit/state/micro-proposals.json"
+printf '# Heartbeat Checklist\n<!-- no items -->\n' > "$workdir/.claude-code-hermit/HEARTBEAT.md"
+out="$(node "$REPO_ROOT/scripts/heartbeat-precheck.js" "$workdir/.claude-code-hermit")"
+run_test "heartbeat-precheck (SKIP: empty HEARTBEAT.md)" bash -c "echo '$out' | grep -qE '^SKIP\|'"
+cleanup
+
+# 14. SKIP — outside active hours (window 00:00–00:01, always past it)
+workdir="$(setup_workdir)"
+echo '{"timezone":"UTC","heartbeat":{"active_hours":{"start":"00:00","end":"00:01"}}}' \
+  > "$workdir/.claude-code-hermit/config.json"
+echo '{"alerts":{},"last_digest_date":null,"self_eval":{},"total_ticks":0}' \
+  > "$workdir/.claude-code-hermit/state/alert-state.json"
+echo '{"session_state":"idle"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+echo '{"pending":[]}' > "$workdir/.claude-code-hermit/state/micro-proposals.json"
+printf '# Heartbeat\n- Check something\n' > "$workdir/.claude-code-hermit/HEARTBEAT.md"
+out="$(node "$REPO_ROOT/scripts/heartbeat-precheck.js" "$workdir/.claude-code-hermit")"
+run_test "heartbeat-precheck (SKIP: outside active hours)" bash -c "echo '$out' | grep -qE '^SKIP\|'"
+cleanup
+
+# 15. EVALUATE — no alert entry for checklist item
+workdir="$(setup_workdir)"
+echo '{"timezone":"UTC","heartbeat":{"active_hours":{"start":"00:00","end":"23:59"}}}' \
+  > "$workdir/.claude-code-hermit/config.json"
+echo '{"alerts":{},"last_digest_date":null,"self_eval":{},"total_ticks":0}' \
+  > "$workdir/.claude-code-hermit/state/alert-state.json"
+echo '{"session_state":"idle"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+echo '{"pending":[]}' > "$workdir/.claude-code-hermit/state/micro-proposals.json"
+printf '# Heartbeat\n- Review proposals/ for any needing attention\n' \
+  > "$workdir/.claude-code-hermit/HEARTBEAT.md"
+out="$(node "$REPO_ROOT/scripts/heartbeat-precheck.js" "$workdir/.claude-code-hermit")"
+run_test "heartbeat-precheck (EVALUATE: item not in alerts)" bash -c "[ '$out' = 'EVALUATE' ]"
+cleanup
+
+# 16. EVALUATE — pending tier-1 micro-proposal
+workdir="$(setup_workdir)"
+echo '{"timezone":"UTC","heartbeat":{"active_hours":{"start":"00:00","end":"23:59"}}}' \
+  > "$workdir/.claude-code-hermit/config.json"
+echo '{"alerts":{},"last_digest_date":null,"self_eval":{},"total_ticks":0}' \
+  > "$workdir/.claude-code-hermit/state/alert-state.json"
+echo '{"session_state":"idle"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+echo '{"pending":[{"id":"MP-001","tier":1,"status":"pending","question":"Do X?"}]}' \
+  > "$workdir/.claude-code-hermit/state/micro-proposals.json"
+printf '# Heartbeat\n- Review proposals/ for any needing attention\n' \
+  > "$workdir/.claude-code-hermit/HEARTBEAT.md"
+out="$(node "$REPO_ROOT/scripts/heartbeat-precheck.js" "$workdir/.claude-code-hermit")"
+run_test "heartbeat-precheck (EVALUATE: tier-1 micro-proposal pending)" bash -c "[ '$out' = 'EVALUATE' ]"
+cleanup
+
+# 17. EVALUATE — session in_progress
+workdir="$(setup_workdir)"
+echo '{"timezone":"UTC","heartbeat":{"active_hours":{"start":"00:00","end":"23:59"}}}' \
+  > "$workdir/.claude-code-hermit/config.json"
+echo '{"alerts":{},"last_digest_date":null,"self_eval":{},"total_ticks":0}' \
+  > "$workdir/.claude-code-hermit/state/alert-state.json"
+echo '{"session_state":"in_progress"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+echo '{"pending":[]}' > "$workdir/.claude-code-hermit/state/micro-proposals.json"
+printf '# Heartbeat\n- Review proposals/ for any needing attention\n' \
+  > "$workdir/.claude-code-hermit/HEARTBEAT.md"
+out="$(node "$REPO_ROOT/scripts/heartbeat-precheck.js" "$workdir/.claude-code-hermit")"
+run_test "heartbeat-precheck (EVALUATE: session in_progress)" bash -c "[ '$out' = 'EVALUATE' ]"
+cleanup
+
+# 18. EVALUATE — self-eval due (tick 20)
+workdir="$(setup_workdir)"
+echo '{"timezone":"UTC","heartbeat":{"active_hours":{"start":"00:00","end":"23:59"}}}' \
+  > "$workdir/.claude-code-hermit/config.json"
+echo '{"alerts":{},"last_digest_date":null,"self_eval":{},"total_ticks":19}' \
+  > "$workdir/.claude-code-hermit/state/alert-state.json"
+echo '{"session_state":"idle"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+echo '{"pending":[]}' > "$workdir/.claude-code-hermit/state/micro-proposals.json"
+printf '# Heartbeat\n- Review proposals/ for any needing attention\n' \
+  > "$workdir/.claude-code-hermit/HEARTBEAT.md"
+out="$(node "$REPO_ROOT/scripts/heartbeat-precheck.js" "$workdir/.claude-code-hermit")"
+run_test "heartbeat-precheck (EVALUATE: self-eval due at tick 20)" bash -c "[ '$out' = 'EVALUATE' ]"
+cleanup
+
+# 19. OK — all items suppressed and stable, structural checks clear
+workdir="$(setup_workdir)"
+echo '{"timezone":"UTC","heartbeat":{"active_hours":{"start":"00:00","end":"23:59"}}}' \
+  > "$workdir/.claude-code-hermit/config.json"
+echo '{"alerts":{"checklist:reviewpr":{"count":6,"suppressed":true,"consecutive_clean":0,"first_seen":"2026-04-01","last_seen":"2026-04-28","text":"Review proposals"}},"last_digest_date":"'$(date -u +%Y-%m-%d)'","self_eval":{},"total_ticks":5}' \
+  > "$workdir/.claude-code-hermit/state/alert-state.json"
+echo '{"session_state":"idle"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+echo '{"pending":[]}' > "$workdir/.claude-code-hermit/state/micro-proposals.json"
+printf '# Heartbeat\n- Review proposals/ for any needing attention\n' \
+  > "$workdir/.claude-code-hermit/HEARTBEAT.md"
+out="$(node "$REPO_ROOT/scripts/heartbeat-precheck.js" "$workdir/.claude-code-hermit")"
+run_test "heartbeat-precheck (OK: all items suppressed and stable)" bash -c "[ '$out' = 'OK' ]"
+cleanup
+
+# 20. total_ticks incremented exactly once; alerts{} and self_eval{} untouched by precheck
+workdir="$(setup_workdir)"
+echo '{"timezone":"UTC","heartbeat":{"active_hours":{"start":"00:00","end":"23:59"}}}' \
+  > "$workdir/.claude-code-hermit/config.json"
+echo '{"alerts":{"checklist:reviewpr":{"count":6,"suppressed":true,"consecutive_clean":0}},"last_digest_date":"'$(date -u +%Y-%m-%d)'","self_eval":{"mykey":{"clean_ticks":5}},"total_ticks":3}' \
+  > "$workdir/.claude-code-hermit/state/alert-state.json"
+echo '{"session_state":"idle"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+echo '{"pending":[]}' > "$workdir/.claude-code-hermit/state/micro-proposals.json"
+printf '# Heartbeat\n- Review proposals/ for any needing attention\n' \
+  > "$workdir/.claude-code-hermit/HEARTBEAT.md"
+node "$REPO_ROOT/scripts/heartbeat-precheck.js" "$workdir/.claude-code-hermit" >/dev/null
+run_test "heartbeat-precheck (total_ticks incremented once)" bash -c \
+  "python3 -c \"import json; d=json.load(open('$workdir/.claude-code-hermit/state/alert-state.json')); assert d['total_ticks']==4\""
+run_test "heartbeat-precheck (alerts{} not mutated by precheck)" bash -c \
+  "python3 -c \"import json; d=json.load(open('$workdir/.claude-code-hermit/state/alert-state.json')); assert d['alerts']['checklist:reviewpr']['count']==6\""
+run_test "heartbeat-precheck (self_eval{} not mutated by precheck)" bash -c \
+  "python3 -c \"import json; d=json.load(open('$workdir/.claude-code-hermit/state/alert-state.json')); assert d['self_eval']['mykey']['clean_ticks']==5\""
+cleanup
+
+# -------------------------------------------------------
+# reflect-precheck.js
+# -------------------------------------------------------
+
+# 21. EMPTY — all timestamps recent, session idle, no accepted proposals
+workdir="$(setup_workdir)"
+echo '{"timezone":"UTC"}' > "$workdir/.claude-code-hermit/config.json"
+echo '{"session_state":"idle"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+mkdir -p "$workdir/.claude-code-hermit/proposals"
+today="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+echo "{\"last_reflection\":\"$today\",\"last_resolution_check\":null,\"last_digest_at\":\"$today\",\"counters\":{\"total_runs\":5,\"empty_runs\":2,\"runs_with_candidates\":3,\"last_run_at\":\"$today\",\"since\":\"$(python3 -c "import datetime; print((datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(days=30)).strftime('%Y-%m-%dT%H:%M:%SZ'))")\"}}" \
+  > "$workdir/.claude-code-hermit/state/reflection-state.json"
+mkdir -p "$workdir/.claude"
+# No cost log, no session reports newer than last_run_at
+out="$(node "$REPO_ROOT/scripts/reflect-precheck.js" "$workdir/.claude-code-hermit" "$REPO_ROOT")"
+run_test "reflect-precheck (EMPTY: no due phases)" bash -c "[ '$out' = 'EMPTY' ]"
+cleanup
+
+# 22. EMPTY path: progress log line appended to SHELL.md
+workdir="$(setup_workdir)"
+echo '{"timezone":"UTC"}' > "$workdir/.claude-code-hermit/config.json"
+echo '{"session_state":"idle"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+mkdir -p "$workdir/.claude-code-hermit/proposals"
+today="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+echo "{\"last_reflection\":\"$today\",\"counters\":{\"total_runs\":1,\"empty_runs\":0,\"last_run_at\":\"$today\",\"since\":\"$(python3 -c "import datetime; print((datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(days=30)).strftime('%Y-%m-%dT%H:%M:%SZ'))")\"}}" \
+  > "$workdir/.claude-code-hermit/state/reflection-state.json"
+mkdir -p "$workdir/.claude"
+node "$REPO_ROOT/scripts/reflect-precheck.js" "$workdir/.claude-code-hermit" "$REPO_ROOT" >/dev/null
+run_test "reflect-precheck (EMPTY: progress log line written to SHELL.md)" bash -c \
+  "grep -q 'reflect' '$workdir/.claude-code-hermit/sessions/SHELL.md'"
+cleanup
+
+# 23. EMPTY path: empty_runs incremented in reflection-state.json
+workdir="$(setup_workdir)"
+echo '{"timezone":"UTC"}' > "$workdir/.claude-code-hermit/config.json"
+echo '{"session_state":"idle"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+mkdir -p "$workdir/.claude-code-hermit/proposals"
+today="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+echo "{\"counters\":{\"total_runs\":3,\"empty_runs\":1,\"runs_with_candidates\":2,\"last_run_at\":\"$today\",\"since\":\"$(python3 -c "import datetime; print((datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(days=30)).strftime('%Y-%m-%dT%H:%M:%SZ'))")\"}}" \
+  > "$workdir/.claude-code-hermit/state/reflection-state.json"
+mkdir -p "$workdir/.claude"
+node "$REPO_ROOT/scripts/reflect-precheck.js" "$workdir/.claude-code-hermit" "$REPO_ROOT" >/dev/null
+run_test "reflect-precheck (EMPTY: empty_runs incremented)" bash -c \
+  "python3 -c \"import json; d=json.load(open('$workdir/.claude-code-hermit/state/reflection-state.json')); assert d['counters']['empty_runs']==2 and d['counters']['total_runs']==4\""
+cleanup
+
+# 24. RUN — resolution_check due (accepted proposal + last_resolution_check > 7 days)
+workdir="$(setup_workdir)"
+echo '{"timezone":"UTC"}' > "$workdir/.claude-code-hermit/config.json"
+echo '{"session_state":"idle"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+mkdir -p "$workdir/.claude-code-hermit/proposals"
+printf -- '---\nstatus: accepted\naccepted_date: 2026-04-01\ntitle: Test\n---\nBody\n' \
+  > "$workdir/.claude-code-hermit/proposals/PROP-001.md"
+today="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+old_date="2026-04-01T00:00:00Z"
+echo "{\"counters\":{\"total_runs\":5,\"empty_runs\":2,\"last_run_at\":\"$today\",\"since\":\"$(python3 -c "import datetime; print((datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(days=30)).strftime('%Y-%m-%dT%H:%M:%SZ'))")\"},\"last_resolution_check\":\"$old_date\"}" \
+  > "$workdir/.claude-code-hermit/state/reflection-state.json"
+mkdir -p "$workdir/.claude"
+out="$(node "$REPO_ROOT/scripts/reflect-precheck.js" "$workdir/.claude-code-hermit" "$REPO_ROOT")"
+run_test "reflect-precheck (RUN: resolution_check due)" bash -c "echo '$out' | grep -q 'resolution_check'"
+cleanup
+
+# 25. RUN — compute activity (session report newer than last_run_at)
+workdir="$(setup_workdir)"
+echo '{"timezone":"UTC"}' > "$workdir/.claude-code-hermit/config.json"
+echo '{"session_state":"idle"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+mkdir -p "$workdir/.claude-code-hermit/proposals"
+old_date="2026-01-01T00:00:00Z"
+echo "{\"counters\":{\"total_runs\":2,\"empty_runs\":1,\"last_run_at\":\"$old_date\",\"since\":\"$(python3 -c "import datetime; print((datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(days=30)).strftime('%Y-%m-%dT%H:%M:%SZ'))")\"}}" \
+  > "$workdir/.claude-code-hermit/state/reflection-state.json"
+# Create a session report (mtime = now, which is after old_date)
+printf -- '---\ntitle: Test\ncreated: 2026-04-29\n---\nBody\n' \
+  > "$workdir/.claude-code-hermit/sessions/S-001-REPORT.md"
+mkdir -p "$workdir/.claude"
+out="$(node "$REPO_ROOT/scripts/reflect-precheck.js" "$workdir/.claude-code-hermit" "$REPO_ROOT")"
+run_test "reflect-precheck (RUN: compute activity detected)" bash -c "echo '$out' | grep -q 'compute'"
+cleanup
+
+# -------------------------------------------------------
 # Summary
 # -------------------------------------------------------
 print_results

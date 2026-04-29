@@ -1,5 +1,59 @@
 # Changelog
 
+## [1.0.24] - 2026-04-29
+
+### Added
+
+- **Heartbeat and reflect precheck scripts for token cost reduction** — adds `scripts/heartbeat-precheck.js` and `scripts/reflect-precheck.js`. The heartbeat precheck runs before each tick and emits `SKIP` (outside active hours / empty checklist), `OK` (all checklist items already suppressed and stable), or `EVALUATE` (anything requiring LLM judgment). It is the sole writer of `total_ticks`; the skill remains the sole writer of `alerts{}` and `self_eval{}`. The reflect precheck determines which phases are due (compute, resolution_check, cost_spike, digest, newborn) and on `EMPTY` owns the audit trail: it calls `update-reflection-state.js` and appends the mandatory Progress Log line to SHELL.md before short-circuiting. Both scripts are zero-dependency (Node stdlib only) with full fail-open error handling. Heartbeat `SKILL.md` is thinned from 209 → 94 lines by extracting the alert dedup and self-eval detail into `skills/heartbeat/reference.md`, which is loaded on demand only on the `EVALUATE` path. Shared timezone helpers extracted to `scripts/lib/time.js`.
+
+- **`GITIGNORE-APPEND.txt`: complete local-scope coverage** — added `templates/`, `bin/`, `HEARTBEAT.md`, `IDLE-TASKS.md`, `knowledge-schema.md`, and `.claude.local/` (channel state dir). Previously hatch's gitignore append left bin/ and operator-editable files unignored, so `.claude-code-hermit/` kept showing as untracked in projects with local scope.
+
+- **`hatch`: operator consent before `.gitignore` writes** — step 7 now shows the entries to be appended and waits for `AskUserQuestion` confirmation before modifying or creating the project `.gitignore`.
+
+### Removed
+
+- **`scope` config field and `project` scope** — the `scope` field (`"local"` | `"project"`) has been removed. Hermit state is now always gitignored (local scope only). `project` scope caused LLM-generated session reports, `raw/`, and `compiled/` artifacts — which may contain credentials or sensitive context encountered during work — to be committed to git history. The credential scan in `/migrate` is pattern-based and cannot reliably catch novel secret formats in LLM prose. The migration-via-git-clone convenience is already covered by the `/migrate` skill itself. `GITIGNORE-APPEND-PROJECT.txt` has been deleted.
+
+### Fixed
+
+- **`channel-setup`: inject `<CHANNEL>_STATE_DIR` into `settings.local.json`** — the skill wrote the bot token to the project-local `state_dir` but never wired the MCP server subprocess to read from there. Without `DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` in the session env, channel servers defaulted to `~/.claude/channels/<channel>/` even when `state_dir` pointed elsewhere, causing "Failed to reconnect" errors and misplaced `access.json` files. The token write and the `settings.local.json` update (stale-token cleanup + `STATE_DIR` injection) are now a single read-modify-write in step 6, and the fix also runs when the token was already configured.
+
+- **`hatch`: add `heartbeat-precheck.js` and `reflect-precheck.js` to required permissions** — both scripts are called on every heartbeat tick and reflect run but were missing from the `permissions.allow` block, causing operators to be prompted on every invocation.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/heartbeat-precheck.js` | New — heartbeat precheck script |
+| `scripts/reflect-precheck.js` | New — reflect precheck script |
+| `scripts/lib/time.js` | New — shared timezone helpers |
+| `skills/heartbeat/SKILL.md` | Thinned to 94 lines; precheck integration |
+| `skills/heartbeat/reference.md` | New — alert dedup and self-eval detail, loaded on demand |
+| `skills/reflect/SKILL.md` | Precheck integration in step 1 |
+| `skills/hatch/SKILL.md` | Gitignore consent gate; precheck permissions added |
+| `skills/channel-setup/SKILL.md` | STATE_DIR injection in step 6 |
+| `skills/hermit-evolve/SKILL.md` | Upgrade instruction execution |
+| `skills/migrate/SKILL.md` | Scope removal references updated |
+| `state-templates/GITIGNORE-APPEND.txt` | Extended local-scope entries |
+| `state-templates/GITIGNORE-APPEND-PROJECT.txt` | Deleted |
+| `state-templates/config.json.template` | `scope` field removed |
+| `scripts/hermit-start.py` | `scope` handling and worktree setup removed |
+| `docs/config-reference.md` | `scope` field entry removed |
+| `tests/run-scripts.sh` | Precheck test cases added (34 → 52 script tests) |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. If `config.json` contains `"scope": "project"`:
+   - **Warn the operator** (channel in always-on mode; inline in interactive mode):
+     > "claude-code-hermit v1.0.24 removed the `project` scope. Your hermit state is currently tracked in git. To clean it up: (a) run `/claude-code-hermit:migrate` for a credential audit and manifest, (b) manually run `git rm --cached -r .claude-code-hermit/sessions/ .claude-code-hermit/proposals/ .claude-code-hermit/state/ .claude-code-hermit/raw/ .claude-code-hermit/compiled/ .claude-code-hermit/config.json`, then (c) replace the `.claude-code-hermit` block in `.gitignore` with the local-scope template. Skipping this leaves session reports and raw artifacts in your git history. Reply (1) to continue anyway (drop `scope` field only, no git changes), or (2) to abort so you can clean up first."
+   - On **(2)**: abort hermit-evolve entirely with a message directing the operator to run `/claude-code-hermit:migrate` first. The `scope` key remains in `config.json`, so the next `/hermit-evolve` run will re-enter this instruction automatically.
+   - On **(1)**: drop the `scope` field from `config.json` and proceed. Write a `compiled/` artifact `compiled/decision-scope-removal-<YYYY-MM-DD>.md` recording the operator's acknowledged decision to skip migration for now (frontmatter: `title`, `type: decision`, `created`, `tags: [scope, security]`).
+2. If `config.json` contains `"scope": "local"` or no `scope` key: silently remove the `scope` key from `config.json` and continue.
+3. Add missing precheck script permissions to `.claude/settings.json`. Check if `permissions.allow` contains `"Bash(node */scripts/heartbeat-precheck.js*)"` and `"Bash(node */scripts/reflect-precheck.js*)"`. If either is missing, show the operator the entries to add and ask with `AskUserQuestion` (header: "Precheck permissions") — options: **Yes — add** (default) / **No — skip**. If confirmed, merge the missing entries into `permissions.allow`.
+4. Apply extended `.gitignore` coverage to existing projects. Read the project `.gitignore`. Check if it contains `.claude-code-hermit/bin/`. If not, show the operator the lines that will be appended (from `${CLAUDE_PLUGIN_ROOT}/state-templates/GITIGNORE-APPEND.txt`, filtered to entries not already present) and ask with `AskUserQuestion` (header: "Update .gitignore") — options: **Yes — append** (default) / **No — skip**. Append only if confirmed.
+
 ## [1.0.23] - 2026-04-28
 
 ### Removed
