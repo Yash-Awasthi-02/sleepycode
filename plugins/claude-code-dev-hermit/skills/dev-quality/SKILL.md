@@ -31,10 +31,10 @@ Invoke `/simplify` on the current diff. Wait for it to complete. If `/simplify` 
 If `commands.test` is unset: skip this gate, record `tests: skipped`, and proceed to Gate 3 pass path.
 
 ```bash
-$COMMANDS_TEST
+node "${CLAUDE_PLUGIN_ROOT}/scripts/record-test-result.js" run
 ```
 
-Run `commands.test` via Bash. Capture exit code and wall-clock duration.
+Use `timeout: 600000`. Records the result to `last-test.json`.
 
 ### Gate 3 — report
 
@@ -97,4 +97,4 @@ dev-quality
 - **Never invokes `/code-review:code-review`.** Suggests it to the operator when available; the operator decides.
 - **Never commits.** Leaves the diff uncommitted for the operator.
 - **Never modifies the working tree on test failure.** Surfaces the regression and stops; no rollback.
-- **No state file, no cross-skill contract.** `/dev-pr` is independent — run it separately after committing.
+- **Writes `last-test.json`, but no cross-skill contract.** The record is written at the pre-commit HEAD. After committing, `/dev-pr` sees a stale SHA and re-runs tests — expected behaviour.
