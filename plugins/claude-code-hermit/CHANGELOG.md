@@ -5,7 +5,19 @@
 ### Added
 
 - **`GITIGNORE-APPEND.txt`: complete local-scope coverage** — added `templates/`, `bin/`, `HEARTBEAT.md`, `IDLE-TASKS.md`, `knowledge-schema.md`, and `.claude.local/` (channel state dir). Previously hatch's gitignore append left bin/ and operator-editable files unignored, so `.claude-code-hermit/` kept showing as untracked in projects with local scope.
-- **`GITIGNORE-APPEND-PROJECT.txt`: ignore `.claude.local/`** — channel state lives here (bot tokens, access.json) and must never be tracked even in project-scope hermits. Also replaced stale `.claude/worktrees/` with `.claude.local/`.
+
+### Removed
+
+- **`scope` config field and `project` scope** — the `scope` field (`"local"` | `"project"`) has been removed. Hermit state is now always gitignored (local scope only). `project` scope caused LLM-generated session reports, `raw/`, and `compiled/` artifacts — which may contain credentials or sensitive context encountered during work — to be committed to git history. The credential scan in `/migrate` is pattern-based and cannot reliably catch novel secret formats in LLM prose. The migration-via-git-clone convenience is already covered by the `/migrate` skill itself. `GITIGNORE-APPEND-PROJECT.txt` has been deleted.
+
+### Upgrade Instructions
+
+1. If `config.json` contains `"scope": "project"`:
+   - **Warn the operator** (channel in always-on mode; inline in interactive mode):
+     > "claude-code-hermit v1.0.24 removed the `project` scope. Your hermit state is currently tracked in git. To clean it up: (a) run `/claude-code-hermit:migrate` for a credential audit and manifest, (b) manually run `git rm --cached -r .claude-code-hermit/sessions/ .claude-code-hermit/proposals/ .claude-code-hermit/state/ .claude-code-hermit/raw/ .claude-code-hermit/compiled/ .claude-code-hermit/config.json`, then (c) replace the `.claude-code-hermit` block in `.gitignore` with the local-scope template. Skipping this leaves session reports and raw artifacts in your git history. Reply (1) to continue anyway (drop `scope` field only, no git changes), or (2) to abort so you can clean up first."
+   - On **(2)**: abort hermit-evolve entirely with a message directing the operator to run `/claude-code-hermit:migrate` first. The `scope` key remains in `config.json`, so the next `/hermit-evolve` run will re-enter this instruction automatically.
+   - On **(1)**: drop the `scope` field from `config.json` and proceed. Write a `compiled/` artifact `compiled/decision-scope-removal-<YYYY-MM-DD>.md` recording the operator's acknowledged decision to skip migration for now (frontmatter: `title`, `type: decision`, `created`, `tags: [scope, security]`).
+2. If `config.json` contains `"scope": "local"` or no `scope` key: silently remove the `scope` key from `config.json` and continue.
 
 ### Fixed
 

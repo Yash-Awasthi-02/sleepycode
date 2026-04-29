@@ -13,8 +13,6 @@ claude plugin install claude-code-hermit@claude-code-hermit --scope project
 
 After install, run `/claude-code-hermit:hatch` in the target project to create the state directory.
 
-**Git scope:** Set `scope: "project"` in `config.json` to version hermit state in git. Default is `"local"` (state gitignored).
-
 ## Plugin Structure
 
 - `agents/` — subagent definitions (session-mgr, hermit-config-validator, proposal-triage, reflection-judge; hermit plugins add more subagents)
