@@ -503,8 +503,8 @@ Use `${CLAUDE_SKILL_DIR}/../../state-templates/GITIGNORE-APPEND.txt`.
 
 - If `.gitignore` exists: check if it already contains `.claude/cost-log.jsonl` or `.claude-code-hermit/HEARTBEAT.md`
   - If either marker is already present: skip
-  - If not: append the template contents
-- If `.gitignore` doesn't exist: create it with the template contents
+  - If not: read the template, show the operator the lines that will be appended, and ask with `AskUserQuestion` (header: "Update .gitignore") — options: **Yes — append** (add hermit entries, default) / **No — skip** (you'll manage .gitignore manually). Append only if confirmed.
+- If `.gitignore` doesn't exist: read the template, show the operator the lines that will be written, and ask with `AskUserQuestion` (header: "Create .gitignore") — options: **Yes — create** (default) / **No — skip**. Create only if confirmed.
 
 ### 8. Ensure plugin permissions in settings.json
 
@@ -521,6 +521,8 @@ The plugin's hooks and boot scripts require specific Bash permissions to run wit
       "Bash(git log:*)",
       "Bash(node */scripts/cost-tracker.js*)",
       "Bash(node */scripts/suggest-compact.js*)",
+      "Bash(node */scripts/heartbeat-precheck.js*)",
+      "Bash(node */scripts/reflect-precheck.js*)",
       "Bash(node */scripts/run-with-profile.js*)",
       "Bash(node */scripts/evaluate-session.js*)",
       "Bash(node */scripts/append-metrics.js*)",
@@ -537,7 +539,7 @@ The plugin's hooks and boot scripts require specific Bash permissions to run wit
 **Why each one:**
 
 - `git diff`, `git status`, `git log` — session-diff.js hook auto-populates `## Changed` in SHELL.md
-- `node */scripts/<name>.js` — Stop hooks (cost-tracker, suggest-compact, session-diff, evaluate-session), scoped to plugin scripts only
+- `node */scripts/<name>.js` — Stop hooks (cost-tracker, suggest-compact, session-diff, evaluate-session) and precheck scripts (heartbeat-precheck, reflect-precheck), scoped to plugin scripts only
 - `bash -c 'AGENT_DIR=...` — SessionStart hook that loads session context on every startup
 - `Edit`, `Write` on `.claude-code-hermit/**` — heartbeat appends to SHELL.md, increments config.json tick counter, and skills update session state without prompting
 
