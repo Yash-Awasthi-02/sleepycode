@@ -1,4 +1,3 @@
-
 ---
 <!-- claude-code-dev-hermit: Development Workflow -->
 
@@ -36,26 +35,6 @@ Before starting code changes:
 
 Examples: `PROJ-123 add auth flow` → `feature/proj-123-add-auth-flow`. `Fix login redirect (urgent!)` → `fix/login-redirect-urgent`. `feature/foo/bar` → `feature/foo-bar`.
 
-## Implementation Flow
-
-If the project's own CLAUDE.md or skills define an implementation flow (e.g. its own commit/test/PR sequence), follow that. The steps below are the fallback for projects without one.
-
-After making code changes:
-
-1. Run the configured test command (`claude-code-dev-hermit.commands.test`, set via `/claude-code-dev-hermit:hatch`). If unset, ask the operator for the command and offer to save it via `hatch`.
-2. If tests fail, fix the failures or surface them in the response — **do not declare the task done with broken tests**.
-3. If the task is non-trivial and `/feature-dev:feature-dev` is installed, run it first when the code path is unfamiliar (framework lifecycle hooks, ORM internals, build-tool plugins, auth middleware). The trigger is **unfamiliarity, not urgency**. Skip for: doc/prompt/config edits, single-line fixes, code paths you've already read end-to-end.
-4. Before declaring the task done: run `/claude-code-dev-hermit:dev-quality`. It runs `/simplify` on the diff and re-runs `commands.test` if configured. If tests regress, investigate before committing. If `/code-review:code-review` is installed (`code-review@claude-plugins-official`), the skill will tell you to suggest it to the operator — do not invoke that skill autonomously.
-
-## Tests Before PR
-
-If the project defines its own pre-PR validation (e.g. a custom test runner, CI gate, or PR-creation skill that handles testing internally), follow that. The steps below are the fallback.
-
-1. Run `/claude-code-dev-hermit:dev-quality` — handles `/simplify` + test re-run (see §Implementation Flow step 4).
-2. Commit.
-3. If you committed after `/dev-quality` ran and `commands.test` is configured, re-run it once — `/dev-pr` Gate 0 checks `last-test.json` against the current HEAD sha.
-4. Run `/claude-code-dev-hermit:dev-pr`. Gate 0 reads `last-test.json` and refuses if missing, on a stale sha, or with a non-pass status.
-
 ## Technical Constraints
 
 Subagents cannot invoke skills (`/simplify`, `/batch`, etc.) — those must run in the main session only.
@@ -66,7 +45,7 @@ Core rules (artifact frontmatter, tag discipline, proposals) apply to all dev wo
 
 ## Before Archiving a Task
 
-- `/claude-code-dev-hermit:dev-pr` run, or PR opened via other means — URL recorded in `state/bindings.json`.
+- PR opened.
 - Feature branch committed, no uncommitted changes.
 - If partial: Session Summary describes what remains.
 
@@ -97,9 +76,6 @@ Tier mapping:
 ## Dev Quick Reference
 
 - One-time setup / re-config: `/claude-code-dev-hermit:hatch`
-- Mid-task test run + cache warm: `/claude-code-dev-hermit:dev-test`
-- Pre-wrap quality gate: `/claude-code-dev-hermit:dev-quality`
-- Open the PR: `/claude-code-dev-hermit:dev-pr`
 - Cleanup: `/simplify` (built-in)
 - Parallel changes across many files: `/batch` (built-in)
 - Diagnostics: `/debug` (built-in)

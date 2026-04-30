@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.3.2] - 2026-04-29
+
+### Added
+
+- **`claude-code-dev-hermit.hatch_mode` config key** — `"safety"` | `"standard"`. Persists the operator's hatch mode across re-runs and is used by `/hatch` to select the right CLAUDE-APPEND template.
+- **`state-templates/CLAUDE-APPEND-SAFETY.md`** — a subset template for `safety` mode containing only mode-independent sections: §Git Safety, §Branch Discipline, §Technical Constraints, §Before Archiving a Task, §Dev Session Hygiene, §Dev Knowledge, §Dev Proposal Categories, and a trimmed §Dev Quick Reference. Does not include §Implementation Flow, §Tests Before PR, or `/dev-test`/`/dev-quality`/`/dev-pr` references.
+
+### Changed
+
+- **`state-templates/CLAUDE-APPEND.md`** — adds a one-sentence "project conventions take precedence" preamble to §Branch Discipline, §Implementation Flow, and §Tests Before PR. Makes `standard`-mode installs non-destructive in projects that already have their own commit/PR/release skills.
+- **`/hatch` capability scan** — at hatch time, scans `.claude/skills/` for dirs named `commit`, `create-pr`, `pr`, `pull-request`, `release`, or `git-commit`. If matched, defaults the mode prompt to `safety` and surfaces the detected skill names. Else defaults to `standard`.
+- **`/hatch` mode-conditional prompts** — in `safety` mode, skips prompts for `commands.test`, `commands.lint`, `commands.format`, `commands.pr_create`, and `pr_template_path` (workflow keys that feed sections not injected). Only asks `Protected` branches, `Hook` profile, and companion `Plugins`. In `standard` mode, behavior is unchanged from v0.3.1.
+- **`/hatch` template selection** — injects `CLAUDE-APPEND-SAFETY.md` in safety mode, `CLAUDE-APPEND.md` in standard mode.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/CLAUDE-APPEND.md` | Precedence preambles added to §Branch Discipline, §Implementation Flow, §Tests Before PR |
+| `state-templates/CLAUDE-APPEND-SAFETY.md` | New safety-mode template |
+| `skills/hatch/SKILL.md` | Capability scan, mode question, conditional prompts, mode-aware template selection, `hatch_mode` persistence |
+| `.claude-plugin/plugin.json` | Version bump to 0.3.2 |
+| `.claude-plugin/marketplace.json` | Version synced to 0.3.2 |
+
+### Upgrade Instructions
+
+1. Ask the operator (`AskUserQuestion`): "Does this project already have its own `/commit`, `/create-pr`, or `/release` skills? Choose `safety` to keep dev-hermit's workflow sections out of CLAUDE.md, or `standard` for the full workflow (recommended for greenfield projects)." Options: `safety` / `standard`.
+2. Write the chosen value to `.claude-code-hermit/config.json` under `claude-code-dev-hermit.hatch_mode`.
+3. Tell the operator: "After this evolve completes, re-run `/claude-code-dev-hermit:hatch` to refresh your CLAUDE.md with the chosen mode. (hermit-evolve's CLAUDE-APPEND sync writes the standard template at the end of this run — that's expected; one `/hatch` re-run resolves it.)"
+
 ## [0.3.1] - 2026-04-29
 
 ### Added

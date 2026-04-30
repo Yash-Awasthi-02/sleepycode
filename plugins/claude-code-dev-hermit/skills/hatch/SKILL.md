@@ -1,13 +1,13 @@
 ---
 name: hatch
-description: Activate the dev hermit in the current project. Appends the dev safety rules to CLAUDE.md, captures test/lint/format/PR-template commands, installs the git-push-guard hook at strict profile by default, and offers companion plugins. Run once per project after /claude-code-hermit:hatch; re-run to update individual settings.
+description: Activate the dev hermit in the current project. Appends the dev safety rules to CLAUDE.md, installs the git-push-guard hook at strict profile by default, and offers companion plugins. Run once per project after /claude-code-hermit:hatch; re-run to update individual settings.
 ---
 
 # Activate Dev Hermit
 
 Set up the language-agnostic safety layer for this project. Requires `claude-code-hermit` core to be initialized first.
 
-The plugin's identity in v0.3.0+: a thin wrapper around (a) `git-push-guard` strict-profile hook, (b) `state-templates/CLAUDE-APPEND.md` rules injected into the project's CLAUDE.md, (c) `/dev-pr` to push and open the PR. There is no built-in implementer agent — operators use the native `Agent` tool, `feature-dev`, or custom subagents, all governed by the injected rules.
+The plugin's identity in v0.3.0+: a thin wrapper around (a) `git-push-guard` strict-profile hook, (b) a CLAUDE-APPEND template (safety or standard) injected into the project's CLAUDE.md, (c) dev workflow skills (`/dev-pr`, `/dev-quality`, `/dev-test`) available but only prescribed in standard mode. There is no built-in implementer agent — operators use the native `Agent` tool, `feature-dev`, or custom subagents, all governed by the injected rules.
 
 ## Plan
 
@@ -18,38 +18,70 @@ Check if `.claude-code-hermit/` exists in the current project.
 - Missing: ask the operator (`AskUserQuestion`) "Core hermit isn't set up yet. Run `/claude-code-hermit:hatch` now?" with options `Yes — run now` / `No — I'll do it later`. If yes, invoke `/claude-code-hermit:hatch`, then continue. If no, stop.
 - Present: read `.claude-code-hermit/config.json` and the plugin's `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/hermit-meta.json`. Verify `_hermit_versions["claude-code-hermit"]` from config satisfies `required_core_version` from hermit-meta (e.g. `">=1.0.22"`). If absent or below the floor, ask whether to run `/claude-code-hermit:hermit-evolve` first; allow opt-out with a warning. (Reading the floor from hermit-meta — never hardcoding it in skill prose — keeps this skill in sync with the plugin's declared requirement.)
 
-### 2. Update CLAUDE.md dev block
+### 2. Capability scan + choose mode
 
-Read the cached `${CLAUDE_PLUGIN_ROOT}/state-templates/CLAUDE-APPEND.md` and `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`.
-
-Look for the marker comment `<!-- claude-code-dev-hermit: Development Workflow -->` in the project's `CLAUDE.md`.
-
-- Marker absent: append the cached template to `CLAUDE.md`.
-- Marker present, stamped version differs from the plugin version: silently replace the existing block with the cached template.
-- Marker present, versions match: skip — block is current.
-
-The template is the source of truth. No operator prompt is needed for this step.
-
-### 3. Detect, then ask
-
-This skill is **idempotent**. Every config key shown below is ALWAYS prompted; for keys already set in `config.json`, the prompt offers `Keep current (<value>)` as the first (recommended) option so the operator can sweep through Enter-presses to fast-confirm. There is no `--reset` mode — re-running and pressing Enter for every key is the equivalent.
-
-**Placeholder convention.** Strings in angle brackets in the question definitions below (e.g. `<value>`, `<detected default>`, `<detected path>`) are templating placeholders. Substitute them with concrete runtime values before passing to `AskUserQuestion`. Never pass the literal angle-bracket string.
-
-Run all detection in a single parallel turn before asking anything:
+Run all detection in a single parallel turn:
 
 **Bash:**
 - Existing PR template: `ls .github/PULL_REQUEST_TEMPLATE.md docs/pull_request_template.md 2>/dev/null | head -1`.
 - Installed plugins: `claude plugin list 2>/dev/null` or read `.claude/settings.json`.
 - Remote host (for `commands.pr_create` default): `git remote get-url origin 2>/dev/null` — if the URL contains `gitlab`, default `pr_create` to `glab pr create`; else default to `gh pr create`.
+- Capability scan: `ls .claude/skills/ 2>/dev/null` — list skill directory names. Match if any of the following dir names are present: `commit`, `create-pr`, `pr`, `pull-request`, `release`, `git-commit`. Record the matched names.
 
 **File reads:**
 - `OPERATOR.md` if present (check for `## Development Conventions` section).
-- The project's main config files for stack hints — `package.json`, `Cargo.toml`, `pyproject.toml`, `Gemfile`, `pom.xml`, `go.mod`. Use these only to seed reasonable defaults for the test command prompt; never assume them.
+- The project's main config files for stack hints — `package.json`, `Cargo.toml`, `pyproject.toml`, `Gemfile`, `pom.xml`, `go.mod`. Use these only to seed reasonable defaults for the test command prompt in standard mode; never assume them.
 
-#### Round 1 — commands and safety
+**Mode question:**
 
-Single `AskUserQuestion` call with up to 4 questions. ALWAYS include all four; for keys already in `config.json`, prepend `Keep current (<value>)` as the first option (and recommend it).
+Ask the operator a single `AskUserQuestion`:
+
+```
+questions: [
+  {
+    header: "Mode",
+    question: "Which hatch mode? 'safety' injects only the git-safety and branch-discipline sections (recommended when this project already has its own /commit, /create-pr, or /release skills). 'standard' injects the full dev workflow.",
+    options: [
+      { label: "Keep current (<value>)", description: "Already configured" },        // only on re-run when hatch_mode already in config
+      { label: "safety (recommended)", description: "Detected existing skills: <matched names> — skip /dev-quality, /dev-pr, /dev-test workflow sections." },   // when capability scan matched
+      { label: "safety", description: "Inject only §Git Safety, §Branch Discipline, §Technical Constraints, and supporting sections." },   // when no match but operator chooses
+      { label: "standard", description: "Inject the full workflow including §Implementation Flow, §Tests Before PR, §Dev Quick Reference." }
+    ]
+  }
+]
+```
+
+**Placeholder convention.** Strings in angle brackets (e.g. `<value>`, `<matched names>`) are templating placeholders — substitute concrete runtime values before passing to `AskUserQuestion`. Never pass the literal angle-bracket string.
+
+When building the options array at runtime:
+- If `hatch_mode` is already set in `config.json`, prepend `Keep current (<value>)` as the first (recommended) option.
+- If the capability scan matched one or more skill dirs, surface `safety (recommended)` with the detected names; present `standard` as the alternative.
+- If no scan match, present `standard` first (no existing project skills detected) and `safety` as the alternative.
+
+### 3. Update CLAUDE.md dev block
+
+Read the plugin version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`.
+
+Based on the mode chosen in step 2:
+- `safety` → read `${CLAUDE_PLUGIN_ROOT}/state-templates/CLAUDE-APPEND-SAFETY.md`
+- `standard` → read `${CLAUDE_PLUGIN_ROOT}/state-templates/CLAUDE-APPEND.md`
+
+Look for the marker comment `<!-- claude-code-dev-hermit: Development Workflow -->` in the project's `CLAUDE.md`.
+
+- Marker absent: append the selected template to `CLAUDE.md`.
+- Marker present, stamped version differs from the plugin version: silently replace the existing block with the selected template.
+- Marker present, versions match AND mode is unchanged from config: skip — block is current.
+- Marker present, versions match but mode changed: replace — operator switched modes.
+
+The template is the source of truth. No operator prompt is needed for this step.
+
+### 4. Ask about remaining settings
+
+#### Round 1 — commands and safety (standard mode only)
+
+In `safety` mode, skip this round entirely — do not prompt for `commands.test`, `commands.lint`, `commands.format`, or `commands.pr_create`. These keys feed workflow sections that are not injected. The dev-hermit skills (`/dev-test`, `/dev-quality`, `/dev-pr`) remain available; if invoked, they will prompt for `commands.test` on first use.
+
+In `standard` mode, ask a single `AskUserQuestion` with up to 4 questions. ALWAYS include all four; for keys already in `config.json`, prepend `Keep current (<value>)` as the first option (and recommend it).
 
 ```
 questions: [
@@ -94,6 +126,8 @@ questions: [
 ]
 ```
 
+In `safety` mode, ask only the `Protected` question (single `AskUserQuestion` call with one question).
+
 #### Round 2 — hook profile and companions
 
 `git-push-guard` defaults to **strict**. The wizard does not ask which profile to use; it installs strict and offers an opt-out.
@@ -133,40 +167,49 @@ questions: [
 ]
 ```
 
+In `safety` mode, skip the `PR template` question and do not write `pr_template_path` to config (it feeds `/dev-pr` which is not prescribed in safety mode). Keep `Hook` and `Plugins`.
+
 Filter the Plugins `options` array to only those NOT already installed (per the `claude plugin list` detection above). If the filtered list is empty, skip the Plugins question entirely.
 
 If `OPERATOR.md` exists and does NOT contain a `## Development Conventions` section, append the answers under that heading.
 
-### 4. Write config and stamp version
+### 5. Write config and stamp version
 
 Single atomic config.json write:
 
-- `claude-code-dev-hermit.commands.test` — required, from Round 1.
-- `claude-code-dev-hermit.commands.lint` — optional.
-- `claude-code-dev-hermit.commands.format` — optional.
-- `claude-code-dev-hermit.commands.pr_create` — from the remote-host detection above (`gh pr create` / `glab pr create`); preserve any existing operator override.
-- `claude-code-dev-hermit.protected_branches` — array. The Round 1 prompt accepts a comma-separated string; split on `,`, trim each entry, drop empties before writing.
-- `claude-code-dev-hermit.pr_template_path` — optional, from Round 2.
+- `claude-code-dev-hermit.hatch_mode` — `"safety"` or `"standard"`, from step 2.
+- `claude-code-dev-hermit.protected_branches` — array. The prompt accepts a comma-separated string; split on `,`, trim each entry, drop empties before writing.
 - `env.AGENT_HOOK_PROFILE`:
   - If the operator accepted strict in Round 2 → write `"strict"`.
   - Else if the existing value is already `"strict"` → preserve it (never silently downgrade).
   - Else → write `"standard"` explicitly. Do not leave the key unset; an explicit value makes the operator's choice durable across `hermit-evolve` runs and prevents silent re-prompting.
-- `_hermit_versions["claude-code-dev-hermit"]` — set to the plugin version cached in step 2.
+- `_hermit_versions["claude-code-dev-hermit"]` — set to the plugin version cached in step 3.
+
+In `standard` mode only, also write:
+- `claude-code-dev-hermit.commands.test` — required, from Round 1.
+- `claude-code-dev-hermit.commands.lint` — optional.
+- `claude-code-dev-hermit.commands.format` — optional.
+- `claude-code-dev-hermit.commands.pr_create` — from the remote-host detection above (`gh pr create` / `glab pr create`); preserve any existing operator override.
+- `claude-code-dev-hermit.pr_template_path` — optional, from Round 2.
 
 For each selected companion plugin: `claude plugin install <plugin>@claude-plugins-official --scope project`.
 
-### 5. Report results
+### 6. Report results
 
 Print a summary that reflects what actually happened:
 
 ```
 Dev hermit activated (claude-code-dev-hermit vX.Y.Z).
 
+Mode: safety  [or: standard]
+  Injected: §Git Safety, §Branch Discipline, §Technical Constraints  [safety]
+  Injected: §Git Safety, §Branch Discipline, §Implementation Flow, §Tests Before PR, §Technical Constraints  [standard]
+
 Git safety:
   Hook profile: strict (git-push-guard active)  [or: standard — no hook enforcement]
   Protected branches: main, master  [or whatever was set]
 
-Commands:
+Commands:  [standard mode only]
   Test:   <cmd>
   Lint:   <cmd or 'skipped'>
   Format: <cmd or 'skipped'>
@@ -174,7 +217,7 @@ Commands:
 Updated:
   CLAUDE.md — dev block [appended / updated to vX.Y.Z / already current]
   OPERATOR.md — dev conventions [added / already present / skipped]
-  PR template: <path or 'none'>
+  PR template: <path or 'none'>  [standard mode only]
 
 Companion plugins:
   [installed: code-review, feature-dev, context7  /  partial  /  none]
@@ -182,17 +225,20 @@ Companion plugins:
 Available skills:
   /claude-code-dev-hermit:hatch    — re-run to update settings (idempotent)
   /claude-code-dev-hermit:dev-pr   — push the current branch and open a PR
+  /claude-code-dev-hermit:dev-test — run the configured test suite and warm test cache
+  /claude-code-dev-hermit:dev-quality — pre-wrap quality gate (simplify + test re-run)
 
+Conventions are in CLAUDE.md (§Git Safety, §Branch Discipline). [safety]
 Conventions are in CLAUDE.md (§Git Safety, §Branch Discipline,
-§Implementation Flow, §Tests Before PR). Any agent doing dev
-work in this project — native Agent, feature-dev, custom — must
-follow them.
+§Implementation Flow, §Tests Before PR). [standard]
+Any agent doing dev work in this project — native Agent, feature-dev, custom — must follow them.
 ```
 
 ## Rules
 
 - **Strict-by-default.** The wizard defaults to installing `git-push-guard` at strict. Do not ask "which profile?" — ask "yes or opt out?".
 - **Idempotent.** Re-running detects existing `config.json` values and offers `Keep current (<value>)` as the first option per key, so operators can fast-confirm with Enter presses.
-- **Single source of truth.** `state-templates/CLAUDE-APPEND.md` is the source for the project's dev conventions. Step 2 always overwrites the marked block when versions differ; do not preserve operator edits to that block (operators who want overrides put them elsewhere in their CLAUDE.md).
+- **Single source of truth.** The selected template (`CLAUDE-APPEND.md` or `CLAUDE-APPEND-SAFETY.md`) is the source for the project's dev conventions. Step 3 always overwrites the marked block when versions differ or mode changes; do not preserve operator edits to that block (operators who want overrides put them elsewhere in their CLAUDE.md).
 - **Never downgrade hook profile.** If the operator chooses "No — leave at standard" but `env.AGENT_HOOK_PROFILE` is already `strict`, preserve `strict`. The opt-out only applies on first install.
 - **No stack detection magic.** Detection seeds defaults for prompts; operators always confirm. Never write `commands.test` from detection alone — it must be operator-confirmed.
+- **Safety mode skips workflow prompts.** In `safety` mode, do not prompt for `commands.test`, `commands.lint`, `commands.format`, `commands.pr_create`, or `pr_template_path`. These keys feed workflow sections that safety mode does not inject.

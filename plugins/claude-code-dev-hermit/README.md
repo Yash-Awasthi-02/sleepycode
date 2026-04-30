@@ -1,7 +1,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.3.1-green.svg" alt="Version 0.3.1" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.3.2-green.svg" alt="Version 0.3.2" /></a>
   <img src="https://img.shields.io/badge/Claude-Pro%20%7C%20Max-blueviolet.svg" alt="Claude Pro/Max Compatible" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
 </p>
@@ -15,6 +15,8 @@
 </p>
 
 Ships a `git-push-guard` hook (strict-by-default), a test-result recorder, a `/hatch` setup wizard, a `/dev-pr` skill, and a CLAUDE-APPEND template that injects safety rules into your project's `CLAUDE.md`. No built-in implementer — operators use the native `Agent` tool, `feature-dev`'s research/architect agents, or their own subagents. The rules apply to whichever agent runs; the `git-push-guard` hook backs them at strict profile; the test-result recorder closes the loop so `/dev-pr` only opens PRs after tests actually pass on the current commit.
+
+**Using a project that already has its own `/commit`, `/create-pr`, or `/release` skills?** Run `/hatch` — it detects those skills and defaults to `safety` mode, which installs the git safety layer and branch discipline without prescribing dev-hermit's own workflow on top of yours.
 
 Three steps to a hermit that won't push to main:
 
