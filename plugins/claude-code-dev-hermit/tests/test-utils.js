@@ -11,4 +11,23 @@ function parseFrontmatter(text) {
   return { raw: m[1], fields, body: text.slice(m[0].length) };
 }
 
-module.exports = { parseFrontmatter };
+function makeReporter() {
+  let passed = 0;
+  let failed = 0;
+  function ok(name, cond, detail) {
+    if (cond) {
+      console.log(`  ✓ ${name}`);
+      passed += 1;
+    } else {
+      console.error(`  ✗ ${name}${detail ? ' — ' + detail : ''}`);
+      failed += 1;
+    }
+  }
+  function summary() {
+    console.log(`\nResults: ${passed} passed, ${failed} failed`);
+    return failed;
+  }
+  return { ok, summary };
+}
+
+module.exports = { parseFrontmatter, makeReporter };

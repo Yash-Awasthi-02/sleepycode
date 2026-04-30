@@ -13,7 +13,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { parseFrontmatter } = require('./test-utils');
+const { parseFrontmatter, makeReporter } = require('./test-utils');
 
 const SKILL_DIR = path.join(__dirname, '..', 'skills');
 
@@ -23,18 +23,7 @@ const SKILLS = [
   { name: 'dev-pr', gates: 5 },         // Gate 0..4
 ];
 
-let passed = 0;
-let failed = 0;
-
-function ok(name, cond, detail) {
-  if (cond) {
-    console.log(`  ✓ ${name}`);
-    passed += 1;
-  } else {
-    console.error(`  ✗ ${name}${detail ? ' — ' + detail : ''}`);
-    failed += 1;
-  }
-}
+const { ok, summary } = makeReporter();
 
 for (const { name, gates } of SKILLS) {
   console.log(`\n${name}/SKILL.md:`);
@@ -84,5 +73,4 @@ for (const { name, gates } of SKILLS) {
   ok(`internal links resolve (${linksChecked} checked)`, linksBad === 0, `${linksBad} bad`);
 }
 
-console.log(`\nResults: ${passed} passed, ${failed} failed`);
-process.exit(failed === 0 ? 0 : 1);
+process.exit(summary() === 0 ? 0 : 1);
