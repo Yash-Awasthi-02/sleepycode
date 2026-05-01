@@ -1,5 +1,63 @@
 # Changelog
 
+## [1.0.25] - 2026-05-01
+
+### Changed
+
+- **`reflect`, `cortex-sync`: delegate recon-heavy scans to the built-in `Explore` subagent.** `reflect` delegates three inline Glob+Read sequences to `Explore`: the full proposal scan (step 5), the resolution-check session fetch (step 6d), and the session-citation half of the routine-silence check. `cortex-sync` delegates its Step 1 gap scan and Step 3 tag-vocabulary scan. The orchestrating context receives compact summaries instead of raw file contents. All callers of the Explore delegation still hold the interpret/act logic locally — `Explore` is a read-only recon layer. The step 6d delegation prompt instructs Explore to return session bodies verbatim and report (rather than silently trim) any file that exceeds its read window; the orchestrator falls back to inline `Read` for any truncated file before evaluating step e, since the resolution check is correctness-sensitive.
+
+- **`proposal-triage`: extended evidence scope, richer verdict output.** Three new pre-gate steps run between dedup and the three-condition check: (1) session cross-reference — the 3 most recent session reports are scanned for prior discussion of the candidate; (2) OPERATOR.md lexical alignment check — explicit "don't/avoid/decided not to" language near candidate title keywords surfaces as `aligned: false` + `operator_excerpt`; (3) compiled artifact overlap scan — compiled/ frontmatter is checked for artifacts that already address the topic. `SUPPRESS` verdicts now include a quoted excerpt from the candidate evidence. Additive metadata lines after the verdict (`closest_prop`, `aligned`, `operator_excerpt`, `overlap_compiled`, `prior_discussion`, `failed_condition`) give callers actionable context without changing the branching contract. `maxTurns` bumped from 8 → 14.
+
+- **`reflect`, `reflect-scheduled-checks`, `proposal-create`: triage verdict counters.** All three callers now append a `triage-verdict` event to `state/proposal-metrics.jsonl` after each triage call. `reflect`'s Component Health section now reads these counts from the already-tailed `proposal-metrics.jsonl` window and flags if `SUPPRESS` dominates `CREATE` at the same 2× threshold used for `reflection-judge` — closing the "proposal-triage has no verdict counters" gap. All callers updated to treat triage output as line 1 = verdict, lines 2+ = metadata.
+
+- **`channel-setup` and `docker-setup`: default `ackReaction` to 👀 during pairing.** Channel plugins (`discord`, `telegram`) ship `ackReaction` empty by default, so freshly paired hermits had no inbound emoji feedback — operators only saw the 5–10s typing indicator before silence until the actual reply landed (often a minute+ for `session-start`, `proposal-create`, etc.). Both setup skills now run `/<channel>:access set ackReaction 👀` on first pair (with the same state-dir hint pattern used for pair/policy), skipping if the operator has already customized the value. `👀` is in Telegram's reaction whitelist and works on Discord. (`channel-setup/SKILL.md`, `docker-setup/SKILL.md`)
+
+- **Recommended plugins: added `feature-dev` (Anthropic-official)** — orchestrated 7-phase implementation workflow (`/feature-dev:feature-dev`) for designing, exploring, and reviewing code changes. Surfaces in `/hatch` Phase 4 for opt-in install; operators invoke it manually during sessions when implementing accepted proposals.
+
+### Fixed
+
+- **`proposal-triage` agent: YAML frontmatter parse error** — the `description` field contained a bare colon-space sequence (`<code>: <reason>`) which YAML interprets as a key-value separator, causing all frontmatter fields (model, effort, maxTurns, tools, disallowedTools) to be silently dropped at load time. Quoted the description string to fix the parse error.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `agents/proposal-triage.md` | Extended evidence scope, richer verdict output, YAML fix |
+| `skills/reflect/SKILL.md` | Explore delegation; triage verdict counters |
+| `skills/cortex-sync/SKILL.md` | Explore delegation; manifest flag fix |
+| `skills/reflect-scheduled-checks/SKILL.md` | Triage verdict counters |
+| `skills/proposal-create/SKILL.md` | Triage verdict counters |
+| `skills/channel-setup/SKILL.md` | Default ackReaction to 👀 on first pair |
+| `skills/docker-setup/SKILL.md` | Default ackReaction to 👀; feature-dev recommended plugin |
+| `skills/hatch/SKILL.md` | feature-dev opt-in in Phase 4 |
+| `docs/recommended-plugins.md` | Added feature-dev entry |
+
+### Upgrade Instructions
+
+For each entry in `.claude-code-hermit/config.json` `channels` where `enabled !== false` and the channel name is `discord` or `telegram`:
+
+1. Resolve the `access.json` path:
+   - Try `channels.<channel>.state_dir/access.json` (relative paths anchored at project root).
+   - Fall back to `~/.claude/channels/<channel>/access.json`.
+2. If the file does not exist: skip this channel — defaults will be applied next time `/claude-code-hermit:channel-setup` or `/claude-code-hermit:docker-setup` runs.
+3. Parse the JSON. If `ackReaction` is missing or set to `""`:
+   - Set `ackReaction` to `"👀"` and write the file back, preserving every other key exactly and matching existing formatting (typically 2-space indent, trailing newline).
+   - Log: "Set default `ackReaction` (👀) for `<channel>`."
+4. If `ackReaction` is already a non-empty string: skip — preserve operator customization.
+
+Use direct JSON edit, not the slash command. The setup skills route through `/<channel>:access set ackReaction` with a state-dir hint because they run during interactive pairing; for the migration, a direct edit is simpler for batch backfill across multiple channels and doesn't depend on channel plugins being loaded at upgrade time.
+
+**Offer `feature-dev` install for existing hermits.** Read `config.json`. If `docker.recommended_plugins` exists and contains `"feature-dev"`, skip silently — already adopted. If `docker.recommended_plugins` is absent (tmux/local hermit without docker setup), run `claude plugin list` — if `feature-dev` appears, skip silently.
+
+Otherwise, ask the operator with `AskUserQuestion` (header: "feature-dev"):
+
+- Question: "claude-code-hermit's recommended-plugin set now includes `feature-dev` (Anthropic-official) — orchestrated 7-phase implementation workflow (`/feature-dev:feature-dev`) for designing, exploring, and reviewing code changes. Install it?"
+- Options: **Yes — install** (default) / **No — skip**
+
+On **Yes**: run `claude plugin install feature-dev@claude-plugins-official --scope project` (idempotent if already installed). If `config.json` has a `docker.recommended_plugins` array, append `"feature-dev"` to it and write the file back, preserving existing formatting (2-space indent, trailing newline). If the key is absent (tmux/local hermits without docker setup), skip the config.json edit. Log: "Installed `feature-dev`@`claude-plugins-official`."
+
+On **No**: skip — operator can install later via `/claude-code-hermit:hermit-settings` or by re-running `/claude-code-hermit:hatch`.
+
 ## [1.0.24] - 2026-04-29
 
 ### Added

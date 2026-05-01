@@ -240,7 +240,7 @@ The entrypoint adds the marketplace (if needed) and installs every enabled entry
 
 **On container-side `claude plugin marketplace add` / `plugin install` failure (either in entrypoint logs or when re-running the command manually after boot):** if the error mentions SSH auth, HTTPS credentials, `gh` not found, or `.gitconfig` read-only, **stop immediately — do not attempt workarounds inside the container.** The container has no SSH client, no `gh` CLI, and `.gitconfig` is bind-mounted read-only by design. Iterating on `GIT_CONFIG_NOSYSTEM`, `git config --global url...insteadOf`, or similar is guaranteed to fail and wastes the operator's time. Surface the error to the operator verbatim and move on — no retry unless the operator changes something host-side (makes the repo public, mirrors it, etc.) and asks to retry.
 
-If the operator selected plugins that have corresponding `scheduled_checks` entries in hatch Phase 4 (claude-code-setup, claude-md-management, skill-creator), also record those `scheduled_checks` entries if not already present.
+If the operator selected plugins that have corresponding `scheduled_checks` entries in hatch Phase 4 (claude-code-setup, claude-md-management, skill-creator, feature-dev), also record those `scheduled_checks` entries if not already present.
 
 ### 7b.packages: Plugin-declared apt dependencies
 
@@ -395,7 +395,19 @@ If the token is present, ask if already paired. If not:
    ```
    docker compose exec -T hermit bash -c 'src="${CLAUDE_CONFIG_DIR:-/home/claude/.claude}/channels/<plugin>/access.json"; dst="<project_path>/.claude.local/channels/<plugin>/"; [ -f "$src" ] && mkdir -p "$dst" && mv "$src" "$dst" && echo moved'
    ```
-6. Confirm: "Paired and locked down. If the bot doesn't respond to your first message, give it up to 2 minutes — the hermit may still be booting or running initial checks (plugin installs, workspace trust, auto-memory seeding)."
+6. **Default delivery settings** (skip if `"Already paired"` was chosen or pairing was skipped this run):
+   1. Read `<project_path>/.claude.local/channels/<plugin>/access.json` from the host. If `ackReaction` is already non-empty, skip — preserve operator customization.
+   2. Otherwise send via tmux with the state-dir hint (same two-call pattern and hint format as the pair/policy commands above):
+      ```
+      docker compose -f docker-compose.hermit.yml exec -T hermit \
+        tmux send-keys -t <session> '/<plugin>:access set ackReaction 👀 — save access.json to <project_path>/.claude.local/channels/<plugin>/ not ~/.claude'
+      sleep 0.5
+      docker compose -f docker-compose.hermit.yml exec -T hermit \
+        tmux send-keys -t <session> Enter
+      ```
+
+   The bind-mount already makes the container default path resolve to the host project-local file, but the hint matches the existing pair/policy pattern and is defense-in-depth against future bind-mount changes. Idempotent: re-running docker-setup leaves customized values alone.
+7. Confirm: "Paired and locked down. If the bot doesn't respond to your first message, give it up to 2 minutes — the hermit may still be booting or running initial checks (plugin installs, workspace trust, auto-memory seeding)."
 
 If "skip": tell them to DM the bot later and run the commands manually.
 

@@ -14,10 +14,15 @@
 - **`/hatch` mode-conditional prompts** — in `safety` mode, skips prompts for `commands.test`, `commands.lint`, `commands.format`, `commands.pr_create`, and `pr_template_path` (workflow keys that feed sections not injected). Only asks `Protected` branches, `Hook` profile, and companion `Plugins`. In `standard` mode, behavior is unchanged from v0.3.1.
 - **`/hatch` template selection** — injects `CLAUDE-APPEND-SAFETY.md` in safety mode, `CLAUDE-APPEND.md` in standard mode.
 
+### Fixed
+
+- **git-push-guard tests: `master`-branch cases falsely passing** — `runRaw` used `process.cwd()` as the guard's working directory, so it found the monorepo's `.claude-code-hermit/config.json` (which only lists `main`) and overrode the default `["main", "master"]` fallback. Fixed by running test spawns in a fresh tmpdir with no hermit config. Also wrapped `runWithConfig` in `try/finally` to prevent tmpdir leaks and unified `force: true` on both cleanup calls.
+
 ### Files affected
 
 | File | Change |
 |------|--------|
+| `scripts/git-push-guard.test.js` | Test isolation fix: tmpdir CWD in `runRaw`; `try/finally` in `runWithConfig`; `force: true` cleanup |
 | `state-templates/CLAUDE-APPEND.md` | Precedence preambles added to §Branch Discipline, §Implementation Flow, §Tests Before PR |
 | `state-templates/CLAUDE-APPEND-SAFETY.md` | New safety-mode template |
 | `skills/hatch/SKILL.md` | Capability scan, mode question, conditional prompts, mode-aware template selection, `hatch_mode` persistence |

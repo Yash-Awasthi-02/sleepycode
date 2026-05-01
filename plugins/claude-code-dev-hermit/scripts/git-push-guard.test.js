@@ -22,32 +22,40 @@ function run(command, env = {}) {
 }
 
 function runRaw(rawInput, env = {}) {
-  const result = spawnSync(process.execPath, [GUARD], {
-    input: rawInput,
-    env: { ...process.env, ...env },
-    encoding: 'utf-8',
-    cwd: process.cwd(),
-  });
-  return result.status;
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-test-'));
+  try {
+    const result = spawnSync(process.execPath, [GUARD], {
+      input: rawInput,
+      env: { ...process.env, ...env },
+      encoding: 'utf-8',
+      cwd: tmpDir,
+    });
+    return result.status;
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 }
 
 // Run guard with a temporary config that sets custom protected branches
 function runWithConfig(command, protectedBranches, env = {}) {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-test-'));
-  const hermitDir = path.join(tmpDir, '.claude-code-hermit');
-  fs.mkdirSync(hermitDir);
-  fs.writeFileSync(
-    path.join(hermitDir, 'config.json'),
-    JSON.stringify({ 'claude-code-dev-hermit': { protected_branches: protectedBranches } })
-  );
-  const result = spawnSync(process.execPath, [GUARD], {
-    input: makeInput(command),
-    env: { ...process.env, AGENT_HOOK_PROFILE: 'strict', ...env },
-    encoding: 'utf-8',
-    cwd: tmpDir,
-  });
-  fs.rmSync(tmpDir, { recursive: true, force: true });
-  return result.status;
+  try {
+    const hermitDir = path.join(tmpDir, '.claude-code-hermit');
+    fs.mkdirSync(hermitDir);
+    fs.writeFileSync(
+      path.join(hermitDir, 'config.json'),
+      JSON.stringify({ 'claude-code-dev-hermit': { protected_branches: protectedBranches } })
+    );
+    const result = spawnSync(process.execPath, [GUARD], {
+      input: makeInput(command),
+      env: { ...process.env, AGENT_HOOK_PROFILE: 'strict', ...env },
+      encoding: 'utf-8',
+      cwd: tmpDir,
+    });
+    return result.status;
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 }
 
 function assert(description, actual, expected) {

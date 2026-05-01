@@ -72,6 +72,15 @@ Evidence Source: scheduled-check/<id>
 Evidence: <summary>
 ```
 
+Parse line 1 as the verdict. Lines 2+ are additive metadata (`closest_prop`, `aligned`, `operator_excerpt`, `overlap_compiled`, `prior_discussion`, `failed_condition`) — read for context if useful but do not branch on them.
+
+After receiving the verdict, append one event to `state/proposal-metrics.jsonl`:
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js \
+  .claude-code-hermit/state/proposal-metrics.jsonl \
+  '{"ts":"<now ISO>","type":"triage-verdict","verdict":"<CREATE|SUPPRESS|DUPLICATE>","caller":"scheduled-checks"}'
+```
+
 - Triage `CREATE` → classify tier. Tier 1/2: queue micro-approval (§ Micro-approval queuing). Tier 3: call `/claude-code-hermit:proposal-create` directly.
 - Triage `SUPPRESS` or `DUPLICATE` → drop silently; note in SHELL.md Progress Log.
 
