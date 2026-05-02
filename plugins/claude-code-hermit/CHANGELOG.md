@@ -1,5 +1,60 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Container hardening**: docker-compose template now blocks setuid escalation (`security_opt: no-new-privileges:true`), drops all Linux capabilities (`cap_drop: ALL`), and caps process count (`pids_limit: 2048`). Defense in depth for `bypassPermissions` containers. The load-bearing stanza is `no-new-privileges` — it closes the setuid-escalation vector against future supply-chain compromise of any installed plugin; the other two are incremental ambient-surface reductions. Verified against entrypoint, hermit-start, and plugin-install paths; nothing in the runtime needs the dropped capabilities or setuid binaries, and steady-state PID usage sits well under the cap.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Skip if no Docker scaffolding.** If `docker-compose.hermit.yml` does not exist at the project root, this entry is a no-op.
+
+2. **Ask the operator for consent.** Use `AskUserQuestion` (header: `"Container hardening"`):
+   - **Yes — apply hardening** (Recommended): proceed to step 3.
+   - **Skip**: do nothing for this entry; continue with the rest of evolve.
+
+   Hardening is opt-in because operators may have customized their compose for special workloads (privileged ports, larger PID needs).
+
+3. **Idempotency check.** Read the rendered `docker-compose.hermit.yml`. If it contains the literal string `no-new-privileges`, skip — already migrated. Tell the operator: "Container hardening already in place, skipping." (If it contains `cap_drop` or `pids_limit` but not `no-new-privileges`, a partial previous attempt may have stalled — show the operator the current file and ask them to patch it manually or re-run `/docker-setup` with backup.)
+
+4. **Locate the insertion point.** Find the `hermit:` service block. Within it, locate the `restart:` line at 4-space indent. If either is missing or the structure is ambiguous (e.g. service renamed, restart removed, indentation drift), do NOT attempt the patch — fall through to step 6.
+
+5. **Patch.** Insert the following three stanzas immediately before the `restart:` line, indented to match adjacent service keys (4 spaces in the standard template). Show the diff to the operator and ask for final confirmation before writing:
+
+   ```yaml
+   cap_drop:
+     - ALL
+   security_opt:
+     - no-new-privileges:true
+   pids_limit: 2048
+   ```
+
+   *(Shown unindented for clarity — in the file each line gets 4 leading spaces, same level as `restart:` and `stop_grace_period:`.)*
+
+   On confirm: write the file. Then jump to step 7.
+
+6. **Fallback for unrecognized structure.** Tell the operator:
+
+   > "Your `docker-compose.hermit.yml` has been customized — I can't patch it safely. Re-run `/claude-code-hermit:docker-setup` and choose **'Yes — back up'** when prompted to regenerate it cleanly with the new hardening defaults. Your customizations will be preserved in `docker-backup/` so you can re-apply them on top."
+
+   No further action.
+
+7. **Container recreation reminder (CRITICAL).** Tell the operator:
+
+   > "**`hermit-docker restart` is NOT enough** — Docker only applies `cap_drop`, `security_opt`, and `pids_limit` at container creation, not on restart. To activate the new settings, run:
+   >
+   > ```
+   > .claude-code-hermit/bin/hermit-docker down
+   > .claude-code-hermit/bin/hermit-docker up
+   > ```
+   >
+   > The named config volume preserves credentials, plugins, and onboarding state."
+
+No `config.json` changes required.
+
 ## [1.0.25] - 2026-05-01
 
 ### Changed
