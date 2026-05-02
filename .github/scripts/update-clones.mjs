@@ -55,7 +55,7 @@ writeFileSync(
     {
       schemaVersion: 1,
       label: "clones",
-      message: new Intl.NumberFormat("en-US").format(totalCount),
+      message: totalCount >= 1000 ? `${Math.floor(totalCount / 1000)}k+` : String(totalCount),
       color: "blue",
     },
     null,
