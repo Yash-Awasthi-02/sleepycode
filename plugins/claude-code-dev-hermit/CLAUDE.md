@@ -27,7 +27,7 @@ The `git-push-guard` hook activates at **strict** profile only (`AGENT_HOOK_PROF
 
 ## Depends On
 
-- `claude-code-hermit` v1.0.22+ (core). Authoritative source: `.claude-plugin/hermit-meta.json` (`required_core_version` field). Step 7 of v0.3.0 verified that the surviving 3 components (`hatch`, `dev-pr`, `git-push-guard`) only need core's config.json + CLAUDE-APPEND injection mechanism + hook-profile env var; the floor may be relaxed in a future release.
+- `claude-code-hermit` v1.0.26+ (core). Authoritative source: `.claude-plugin/hermit-meta.json` (`required_core_version` field).
 
 ## Core Contracts
 
