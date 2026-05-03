@@ -10,6 +10,7 @@
 
 ### Added
 - hermit-doctor: `docker-security` check now flags subnet collisions (`warn`) and hermit-side `ports:` blocks that conflict with LAN containment (`fail`). Daemon-unreachable degrades to `warn` rather than `fail`. Existing 8-check structure unchanged.
+- Host-only skills (`docker-setup`, `docker-security`, `hermit-takeover`, `hermit-hand-back`) now refuse to run inside the hermit container — each detects `/.dockerenv` / `/run/.containerenv` at step 0 and prints a tailored redirect (e.g. docker-setup points operators to `/hermit-doctor` for in-container inspection). Prevents partial-success file writes that would corrupt host scaffolding from the wrong vantage point.
 
 ### Upgrade Instructions
 For operators on v1.0.26 with docker-security already configured:

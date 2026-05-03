@@ -21,6 +21,16 @@ Templates live in `${CLAUDE_SKILL_DIR}/../../state-templates/docker/security/`.
 
 ## Plan
 
+### 0. Refuse to run inside the hermit container
+
+This skill is host-only — it writes a `docker-compose.security.yml` overlay on the host and recreates the container with stronger isolation.
+
+Run: `[ -f /.dockerenv ] || [ -f /run/.containerenv ] && echo container || echo host`
+
+If the output is `container`, **stop immediately** — do not proceed to step 1. Print:
+
+> This skill writes a `docker-compose.security.yml` overlay on the host and recreates the container with stronger isolation. Run it from your host shell in the project root. To inspect the live security posture *inside* the running container, run `/claude-code-hermit:hermit-doctor` — it includes a `docker-security` check.
+
 ### 1. Prerequisites
 
 1. Read `.claude-code-hermit/config.json`. If missing: "Run `/claude-code-hermit:hatch` first." Stop.
