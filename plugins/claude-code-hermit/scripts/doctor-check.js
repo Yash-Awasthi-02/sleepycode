@@ -267,7 +267,10 @@ function checkDockerSecurity() {
   // out adding one. Per-key drift detection deferred (would need sentinel
   // regex; not worth the maintenance for v1).
   try {
-    const overlayPath = path.resolve('docker-compose.security.yml');
+    // Anchor to the project root (parent of the agent dir), not process.cwd(),
+    // so this check is consistent with the rest of doctor-check when invoked
+    // with an explicit agent-dir argv from a different CWD.
+    const overlayPath = path.join(hermitDir, '..', 'docker-compose.security.yml');
     const overlayPresent = fs.existsSync(overlayPath);
 
     let config = {};
