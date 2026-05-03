@@ -13,6 +13,7 @@
 - **`/dev-pr` Gate 4 session-close nudge** — after a successful `gh pr create`, `/dev-pr` now appends `next: PR opened — consider /claude-code-hermit:session-close to wrap the session` to the report. Reduces false-positive stale-session heartbeat alerts caused by sessions left open after PR creation.
 - **`/hatch` safety-mode skip list** — `pr_base_branch` added to the list of keys not written in safety mode (these feed `/dev-pr` which is not prescribed in that mode).
 - **`/hatch` Docker network requirements section** — adds an explicit "intentionally empty" Docker domains/LAN block with an explanation for why the plugin cannot pre-declare DNS allowlist entries (language-agnostic; dev workflows vary per project).
+- **core requirement bumped to `>=1.0.26` / `^1.0.26`** — was `>=1.0.22` / `^1.0.22`. `required_core_version` + `requires` (in `hermit-meta.json`) and `dependencies[0].version` (in `plugin.json`) all bumped together. Updated `CLAUDE.md`, `CONTRIBUTING.md`, `docs/HOW-TO-USE.md`.
 
 ## [0.3.2] - 2026-04-29
 
