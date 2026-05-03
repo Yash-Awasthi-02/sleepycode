@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **`hermit-routines load` now honors `config.timezone`** when registering CronCreates. Previously `config.timezone` was ignored by the routines pipeline, so a hermit running on a UTC server with `timezone: "Europe/Lisbon"` would fire daily routines at the wrong wall-clock hour during BST/WEST. The new `scripts/cron-tz-shift.js` helper converts each routine's schedule from `config.timezone` to the machine's local timezone using a minute-granularity offset, so half-hour and 45-minute IANA zones (Asia/Kolkata, Australia/Adelaide, Asia/Kathmandu) work correctly. DOW is shifted automatically when an hour shift crosses a day boundary. Schedules that cannot be represented as a single cron after shifting (mixed day-wrap on restricted-DOW, step patterns that lose their periodicity) pass through unchanged with a warning. The daily `heartbeat-restart` reload self-corrects DST drift within 24h.
+
+### Upgrade Instructions
+
+- Add `Bash(node */scripts/cron-tz-shift.js*)` to the project's `.claude/settings.json` Bash allowlist alongside the other `node */scripts/...` entries. This prevents permission prompts during routine load. `hermit-evolve` handles this automatically.
+- Run `/claude-code-hermit:hermit-routines load` after upgrading to re-register routines with the new timezone shift applied.
+
 ### Added
 
 - **Container hardening**: docker-compose template now blocks setuid escalation (`security_opt: no-new-privileges:true`), drops all Linux capabilities (`cap_drop: ALL`), and caps process count (`pids_limit: 2048`). Defense in depth for `bypassPermissions` containers. The load-bearing stanza is `no-new-privileges` — it closes the setuid-escalation vector against future supply-chain compromise of any installed plugin; the other two are incremental ambient-surface reductions. Verified against entrypoint, hermit-start, and plugin-install paths; nothing in the runtime needs the dropped capabilities or setuid binaries, and steady-state PID usage sits well under the cap.
