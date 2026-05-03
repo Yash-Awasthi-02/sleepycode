@@ -8,9 +8,16 @@ Pause and think about your recent work.
 
 This skill is **silent by default**. Only notify the operator (per the channel policy in CLAUDE.md § Operator Notification) if reflect produces an outcome: a proposal candidate, a micro-approval, a resolved proposal, a graduated sub-threshold observation, or a cost spike.
 
-1. Read SHELL.md for current context
-2. Read last 20 lines of cost-log.jsonl. Compute today's total and the 7-day median. If today's total > 2× the 7-day median (and both are non-zero), record the spike to project memory as a sub-threshold observation with pattern `cost_spike: $X.XX vs 7d median $Y.YY` and today's session_id — it becomes input to later reflects and may graduate via the recurrence rule.
-2b. **Compute phase** — gates adapt to hermit age so cold-start installs produce visible output without eroding mature-hermit rigor.
+1. Run the precheck to determine whether a full reflect run is warranted:
+   ```
+   node ${CLAUDE_PLUGIN_ROOT}/scripts/reflect-precheck.js .claude-code-hermit ${CLAUDE_PLUGIN_ROOT}
+   ```
+   Read the verdict (first line of output):
+   - `EMPTY` → the precheck found no due phases and no compute activity. It has already updated `reflection-state.json` and appended the mandatory Progress Log line to SHELL.md. Emit `reflect: no candidates` and stop.
+   - `RUN|<phases-json>` → continue to step 2. The JSON object lists which phases are due (`cost_spike`, `resolution_check`, `compute`, `digest`, `newborn`). Skip evaluation sections for phases not listed — they are not due this run.
+2. Read SHELL.md for current context.
+3. Read last 20 lines of cost-log.jsonl. If `cost_spike` is listed in the phases JSON: compute today's total and the 7-day median. If today's total > 2× the 7-day median (and both are non-zero), record the spike to project memory as a sub-threshold observation with pattern `cost_spike: $X.XX vs 7d median $Y.YY` and today's session_id — it becomes input to later reflects and may graduate via the recurrence rule. If `cost_spike` is not listed, skip this read.
+4. **Compute phase** — gates adapt to hermit age so cold-start installs produce visible output without eroding mature-hermit rigor.
    - Read `counters.since` from `state/reflection-state.json` (set once at hatch, never rewritten). If missing or unparseable → default `$PHASE = adult` and continue. Never block.
    - `age_days` = whole days between `counters.since` and now.
    - `$PHASE` table (age is monotonic → no hysteresis):
@@ -19,15 +26,15 @@ This skill is **silent by default**. Only notify the operator (per the channel p
      - `adult` — `age_days ≥ 14`
    - Bind `$PHASE` for the rest of this run; it gates recurrence (Three-Condition Rule #1), sub-threshold surfacing (Outcomes), and the Progress Log annotation.
 
-3. Scan proposals/ for existing proposals (dedup, stale check, feedback loop). Parse metadata from YAML frontmatter if present (file starts with `---`). Fall back to parsing bullet-point metadata (`**Status:**`, `**Source:**`, etc.) for pre-Observatory proposals. Also tail the last 100 lines of `state/proposal-metrics.jsonl` and count `responded` events by `action` (accept / defer / dismiss) — the dismissal ratio feeds the operator-value self-check below.
+5. Delegate the proposal scan to the built-in `Explore` subagent. Prompt: `List all .claude-code-hermit/proposals/PROP-*.md files. For each, extract id, status, title, source, created, accepted_date, related_sessions from YAML frontmatter (or **Status:**/**Title:** bullet fallback for pre-Observatory proposals). Return a compact JSON array — metadata only, no file bodies.` Also tail the last 100 lines of `state/proposal-metrics.jsonl` (inline, single read): count `responded` events by `action` (accept / defer / dismiss) — the dismissal ratio feeds the operator-value self-check below. Also count `triage-verdict` events by `verdict` (CREATE / SUPPRESS / DUPLICATE) — feeds the Component Health triage check below.
 
-4. **Resolution Check** — check whether any accepted proposals can be marked resolved. **Cap: check up to 5 per reflect cycle, round-robin.**
+6. **Resolution Check** — check whether any accepted proposals can be marked resolved. **Cap: check up to 5 per reflect cycle, round-robin.**
 
    a. Read `state/reflection-state.json` → `last_resolution_check` (last PROP-NNN checked, or null if first run).
    b. Read all proposals with `status: accepted`. Sort by `accepted_date` ascending. Resume from the proposal after `last_resolution_check`, wrapping around. Take up to 5.
    c. If the accepted list from step b is empty, skip to step f.
    d. For each proposal: read its `title` and Evidence section to understand the original pattern.
-      Glob `.claude-code-hermit/sessions/S-*-REPORT.md`, sort descending, take the 3 most recent.
+      Delegate the session fetch to the built-in `Explore` subagent. Prompt: `Glob .claude-code-hermit/sessions/S-*-REPORT.md. Sort descending by filename. Read the 3 most recent and return: filename, date from frontmatter, and the full body verbatim — do not truncate, summarize, or excerpt (full body is required for pattern presence/absence detection). If a body exceeds your read window, say so explicitly per file rather than silently trimming.` If Explore returns truncated bodies for any of the 3 files, fall back to reading those files inline with the Read tool before evaluating step e.
    e. If the pattern is **absent** from all 3 checked sessions — apply the cadence-aware resolution rule:
 
       **Compute original cadence:**
@@ -90,7 +97,7 @@ If SHELL.md status is `idle` — think broader:
   ```
   When accepted via `proposal-act`, this JSON is parsed and added to `config.json` routines automatically.
 
-- Is a routine firing repeatedly with no visible downstream effect? Read the tail of `state/routine-metrics.jsonl` (last 200 lines), group `fired` events by `routine_id`, and cross-reference with the last 3 session reports (`sessions/S-*-REPORT.md`). If a routine has ≥5 fires in the last 14 days and no session report cites its `routine_id` or skill output as producing findings, decisions, or follow-ups — apply the Three-Condition Rule. If all three conditions hold:
+- Is a routine firing repeatedly with no visible downstream effect? Read the last 200 lines of `state/routine-metrics.jsonl` inline — count `fired` events per `routine_id` where `ts` falls within the last 14 days. Then delegate the session citation check to the built-in `Explore` subagent. Prompt: `Glob .claude-code-hermit/sessions/S-*-REPORT.md. Read the 3 most recent. Return which routine_ids appear in any session body.` If a routine has ≥5 fires in the last 14 days and no session report cites its `routine_id` or skill output as producing findings, decisions, or follow-ups — apply the Three-Condition Rule. If all three conditions hold:
   - Propose `enabled: false` (disable) via a `Type: routine` proposal reusing the existing `id`. `proposal-act` upserts by `id`, so no delete path is needed.
   - Or propose a changed `schedule` if the routine is valuable but mis-timed.
   - Include the fire count + window in the proposal's Evidence section.
@@ -110,7 +117,7 @@ Check whether any skill, agent, or hook is underperforming.
 - Did a skill fail to catch something it should have?
 - Is a skill burning disproportionate tokens for the value it delivers?
 
-**Agents:** read `state/reflection-state.json` cumulative counters (they accumulate since the `since` timestamp). Flag if `reflection-judge` shows `judge_suppress` dominating `judge_accept` (rough threshold: suppress count > 2× accept count, with at least 5 total verdicts since `since`) — the gate may be too strict and killing legitimate candidates. `proposal-triage` has no verdict counters today; treat it as a known gap and skip unless qualitative evidence (e.g., a recent DUPLICATE verdict that was actually novel) is visible in SHELL.md Findings.
+**Agents:** read `state/reflection-state.json` cumulative counters (they accumulate since the `since` timestamp). Flag if `reflection-judge` shows `judge_suppress` dominating `judge_accept` (rough threshold: suppress count > 2× accept count, with at least 5 total verdicts since `since`) — the gate may be too strict and killing legitimate candidates. For `proposal-triage`: use the `triage-verdict` counts from the `state/proposal-metrics.jsonl` tail already read in step 5. Flag if `SUPPRESS` count > 2× `CREATE` count with at least 5 total triage verdicts in the tail window — the gate may be over-strict and rejecting legitimate candidates.
 
 **Hooks:** out of scope here — there is no hook execution telemetry. Document as a known gap if hook misbehavior is suspected; do not try to infer from side-effects.
 
@@ -201,6 +208,15 @@ Evidence: <one-paragraph evidence summary>
 - `DUPLICATE:<PROP-ID>` — link to existing proposal in SHELL.md Findings instead, do not create
 - `SUPPRESS` — drop silently
 
+Parse line 1 as the verdict. Lines 2+ are additive metadata (`closest_prop`, `aligned`, `operator_excerpt`, `overlap_compiled`, `prior_discussion`, `failed_condition`) — read for context if useful, but do not treat as part of the verdict for branching.
+
+After receiving the verdict, append one event to `state/proposal-metrics.jsonl`:
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js \
+  .claude-code-hermit/state/proposal-metrics.jsonl \
+  '{"ts":"<now ISO>","type":"triage-verdict","verdict":"<CREATE|SUPPRESS|DUPLICATE>","caller":"reflect"}'
+```
+
 ### Micro-approval queuing
 
 Every micro-proposal question must include: **[observed pattern + duration] + [consequence] + [exact proposed change] + "Yes / No"**
@@ -232,9 +248,9 @@ Include `"last_sparse_nudge":{"<PROP-NNN>":"<now ISO>"}` when a sparse-pattern n
 
 The script handles: counter increments, `last_reflection`/`last_run_at` timestamps, missing-counters fallback, `since` preservation, `last_digest_at` passthrough, `last_sparse_nudge` merge, and atomic write. It always exits 0 — if the write fails it logs one line to stderr and continues. Counters are diagnostic, not audit-grade — a missed increment is acceptable.
 
-## Progress Log Entry (always)
+## Progress Log Entry (non-empty runs)
 
-On every reflect run, including empty ones, append one line to SHELL.md `## Progress Log`:
+On every reflect run that reaches this point (i.e., not an EMPTY verdict from the precheck — the precheck appends the Progress Log line for empty runs), append one line to SHELL.md `## Progress Log`:
 
 `[HH:MM] reflect (<phase>) — N candidates; verdicts: accept=A downgrade=D suppress=S; outcomes: <list or "none">`
 

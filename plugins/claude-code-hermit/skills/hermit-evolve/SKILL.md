@@ -54,7 +54,7 @@ For each new key, check the table below. If the key is interactive, ask the oper
 - `remote` (0.0.1): default `true`
 
 **Silent keys** (add with default if missing):
-- `always_on` (0.0.1): `false` | `scope` (0.3.15): `"local"` | `auto_session` (0.0.1): `true`
+- `always_on` (0.0.1): `false` | `auto_session` (0.0.1): `true`
 - `model` (0.0.1): `"sonnet"` | `permission_mode` (0.0.1): `"acceptEdits"` | `ask_budget` (0.0.1): `false`
 - `tmux_session_name` (0.0.1): `"hermit-{project_name}"` | `chrome` (0.0.1): `false`
 - `channels` (0.0.1): `{}` | `monitors` (0.3.14): `[]`
@@ -143,7 +143,7 @@ If `.claude-code-hermit/cortex-manifest.json` does not exist:
 
 ### 8. Ensure plugin permissions in settings.json
 
-Same logic as init step 8: check `.claude/settings.json` for the plugin's required permissions (`git diff/status/log`, per-script `node` entries, the SessionStart `bash -c` hook, and `Edit`/`Write` on `.claude-code-hermit/**`). The required node entries are: `cost-tracker.js`, `suggest-compact.js`, `run-with-profile.js`, `evaluate-session.js`, `append-metrics.js`, `generate-summary.js`. If any are missing, show the operator which ones and ask for confirmation before adding. Only add missing entries — never remove existing ones. If all are already present, skip silently. Also remove stale permissions from previous versions if found:
+Same logic as init step 8: check `.claude/settings.json` for the plugin's required permissions (`git diff/status/log`, per-script `node` entries, the SessionStart `bash -c` hook, and `Edit`/`Write` on `.claude-code-hermit/**`). The required node entries are: `cost-tracker.js`, `suggest-compact.js`, `run-with-profile.js`, `evaluate-session.js`, `append-metrics.js`, `generate-summary.js`, `cron-tz-shift.js`. If any are missing, show the operator which ones and ask for confirmation before adding. Only add missing entries — never remove existing ones. If all are already present, skip silently. Also remove stale permissions from previous versions if found:
 
 - `Bash(python3:*)`, `Bash(node:*)` — replaced by scoped node entries
 - `Edit(.claude/.claude-code-hermit/**)`, `Write(.claude/.claude-code-hermit/**)` — replaced by `.claude-code-hermit/**` (v0.0.6 path change)

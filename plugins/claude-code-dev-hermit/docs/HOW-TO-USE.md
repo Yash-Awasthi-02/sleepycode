@@ -17,7 +17,10 @@ claude plugin install claude-code-dev-hermit@claude-code-hermit --scope project
 /claude-code-dev-hermit:hatch
 ```
 
-The wizard captures your test/lint/format commands, protected branches, and PR template path; installs `git-push-guard` at strict profile (with an explicit opt-out); and offers companion plugins. Run it once per project.
+The wizard installs `git-push-guard` at strict profile (with an explicit opt-out) and offers companion plugins. It scans the project for existing `/commit`, `/create-pr`, or `/release` skills and chooses a mode:
+
+- **`safety` mode** (default when existing skills are detected) — injects only §Git Safety, §Branch Discipline, and supporting sections. Does not inject §Implementation Flow, §Tests Before PR, or `/dev-pr`/`/dev-quality`/`/dev-test` references. Use this when the project already has its own dev workflow.
+- **`standard` mode** (default for greenfield) — injects the full workflow and prompts for `commands.test`, lint, format, and PR template. Behavior unchanged from v0.3.1.
 
 **Already set up?** Re-run `/claude-code-dev-hermit:hatch` any time. Every key offers `Keep current (<value>)` as the recommended option, so you can sweep through with Enter-presses to fast-confirm — or change individual values.
 

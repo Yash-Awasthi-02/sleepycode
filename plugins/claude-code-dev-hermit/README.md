@@ -1,7 +1,7 @@
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.3.0-green.svg" alt="Version 0.3.0" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-0.3.2-green.svg" alt="Version 0.3.2" /></a>
   <img src="https://img.shields.io/badge/Claude-Pro%20%7C%20Max-blueviolet.svg" alt="Claude Pro/Max Compatible" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
 </p>
@@ -15,6 +15,8 @@
 </p>
 
 Ships a `git-push-guard` hook (strict-by-default), a test-result recorder, a `/hatch` setup wizard, a `/dev-pr` skill, and a CLAUDE-APPEND template that injects safety rules into your project's `CLAUDE.md`. No built-in implementer — operators use the native `Agent` tool, `feature-dev`'s research/architect agents, or their own subagents. The rules apply to whichever agent runs; the `git-push-guard` hook backs them at strict profile; the test-result recorder closes the loop so `/dev-pr` only opens PRs after tests actually pass on the current commit.
+
+**Using a project that already has its own `/commit`, `/create-pr`, or `/release` skills?** Run `/hatch` — it detects those skills and defaults to `safety` mode, which installs the git safety layer and branch discipline without prescribing dev-hermit's own workflow on top of yours.
 
 Three steps to a hermit that won't push to main:
 
@@ -117,7 +119,9 @@ See [docs/GIT-SAFETY.md](docs/GIT-SAFETY.md) for the full safety model and the t
 | Surface | Role |
 |-------|-------------|
 | `hatch` skill | One-time setup wizard. Idempotent / re-runnable. Captures test/lint/format/protected/PR-template/hook-profile. Installs `git-push-guard` at strict by default. |
-| `dev-pr` skill | Push the current feature branch and open a PR with body assembled from commits + last test result + screenshots + optional project template. |
+| `dev-pr` skill | Push the current feature branch and open a PR with body assembled from commits + last test result + screenshots + optional project template. Runs tests automatically on cache miss — fresh HEAD pass hits instantly; anything else triggers the test runner. |
+| `dev-quality` skill | Pre-wrap quality gate. Runs `/simplify` on the diff, re-runs `commands.test` via `record-test-result.js`, and reports pass/fail. Suggests `/code-review` to the operator if available — never invokes it. |
+| `dev-test` skill | Run the configured test suite and record the result to `last-test.json`. Useful for mid-task verification and warming the `/dev-pr` cache. |
 | `git-push-guard` hook | Strict-profile-only `PreToolUse` Bash hook. Blocks the dangerous git operations listed above. |
 | `state-templates/CLAUDE-APPEND.md` | Injected into your project's `CLAUDE.md` by `/hatch`. The rules-of-the-road every agent reads when working on this project. |
 
@@ -131,7 +135,7 @@ These are Claude Code built-ins — no installation needed:
 - `/batch` — same change across many files in parallel
 - `/debug` — diagnostics when something's stuck
 
-The CLAUDE-APPEND.md `§Tests Before PR` rule wraps `/simplify` with a tests-then-revert-on-regression discipline; this is enforced by the agent reading the rule, not by a separate skill.
+The CLAUDE-APPEND.md `§Implementation Flow` points to `/dev-quality` as the pre-commit quality gate — it runs `/simplify`, re-runs `commands.test`, and records the result so `/dev-pr` can hit the cache at the current HEAD.
 
 ---
 

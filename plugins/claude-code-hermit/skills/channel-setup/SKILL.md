@@ -92,8 +92,13 @@ Operator pastes the token via Other, or selects Skip.
 2. Write `<TOKEN_VAR>=<pasted-token>` to `<state_dir>/.env` (overwrite if exists)
 3. `chmod 600 <state_dir>/.env`
 4. Ensure `.claude.local/` is in `.gitignore`: check if `.gitignore` exists and contains `.claude.local/`; if missing, append `.claude.local/`.
-5. Clean stale `*_BOT_TOKEN` from `.claude/settings.local.json` `env` block if present (tokens must only live in `.env`).
-6. If `channels.<channel>.state_dir` was not set in config.json, write it now as a relative path (e.g. `.claude.local/channels/<channel>`).
+5. If `channels.<channel>.state_dir` was not set in config.json, write it now as a relative path (e.g. `.claude.local/channels/<channel>`).
+6. Update `.claude/settings.local.json` in a single read-modify-write (create `{}` if missing):
+   - Remove any stale `*_BOT_TOKEN` from the `env` block (tokens must only live in `.env`).
+   - Compute the absolute path of `state_dir`. Set `env.<CHANNEL_UPPERCASE>_STATE_DIR = <absolute_state_dir>` if not already correct. Same naming convention as token vars (step 4) — suffix `_STATE_DIR` instead of `_BOT_TOKEN`.
+   - Write the file. Confirm: "Wired `<CHANNEL_UPPERCASE>_STATE_DIR` → `<absolute_state_dir>` in `.claude/settings.local.json` (takes effect on next restart)."
+
+**If token already configured:** also run step 6 before proceeding to step 5.
 
 **If Skip:** print the manual command:
 ```
@@ -179,6 +184,20 @@ Check if `access.json` exists at `<state_dir>/access.json`.
   ```
   Confirm: "Moved access.json to `<state_dir>/`."
 - If found in neither location: note — "access.json not found. Pairing may not have completed. Run `/<channel>:access pair <code>` after DMing your bot."
+
+### 6b. Default delivery settings
+
+Once `access.json` is at `<state_dir>/access.json` (§6), set sensible delivery defaults the operator hasn't customized.
+
+Skip this step if the current channel is `imessage`. Otherwise:
+
+1. Read `<state_dir>/access.json`. If `ackReaction` is already a non-empty string, skip — don't overwrite operator customization.
+2. Otherwise run, with the state-dir hint (same pattern as §5):
+   ```
+   /<channel>:access set ackReaction 👀 — save access.json to <state_dir>/, not ~/.claude
+   ```
+
+`👀` works on Discord (any unicode emoji accepted) and is in Telegram's fixed reaction whitelist. Operators get an emoji on their inbound DM as soon as the bot receives it — fills the gap after the 5–10s typing indicator times out. Idempotent: re-running channel-setup leaves customized values alone.
 
 ### 7. Summary
 

@@ -182,6 +182,7 @@ questions: [
       { label: "claude-code-setup", description: "Analyzes codebase, recommends automations (skills, hooks, MCP servers, subagents)" },
       { label: "claude-md-management", description: "Audits and improves CLAUDE.md files — grades quality, proposes fixes" },
       { label: "skill-creator", description: "Builds and refines new skills from proposals" },
+      { label: "feature-dev", description: "Designs, explores, and reviews code for accepted-PROP implementation work" },
       { label: "None", description: "Skip all — add later via hermit-settings" }
     ],
     multiSelect: true
@@ -203,6 +204,7 @@ For each accepted plugin, also add the corresponding `scheduled_checks` entries 
   - `{"id":"md-audit","plugin":"claude-md-management","skill":"/claude-md-management:claude-md-improver","enabled":true,"trigger":"interval","interval_days":7}`
   - `{"id":"md-revise","plugin":"claude-md-management","skill":"/claude-md-management:revise-claude-md","enabled":true,"trigger":"session"}`
 - `skill-creator` → no entry (event-driven via proposal-act, not scheduled)
+- `feature-dev` → no entry (manual on-demand via /feature-dev:feature-dev, not scheduled)
 
 For each plugin the operator declines, skip silently. Note: "You can add it later with `/claude-code-hermit:hermit-settings`."
 
@@ -293,18 +295,10 @@ questions: [
       { label: "No", description: "No scheduled routines" }
     ]
   },
-  {
-    header: "Git scope",
-    question: "Track hermit history in git? Sessions, proposals, config become versioned — migration is just git clone.",
-    options: [
-      { label: "Local", description: "Gitignore hermit state — recommended for teams (default)" },
-      { label: "Project", description: "Track hermit state in git — recommended for solo projects. Run /migrate first to catch credentials" }
-    ]
-  }
 ]
 ```
 
-Record: `permission_mode` (default/acceptEdits/auto/plan/dontAsk/bypassPermissions), `scope` (`"local"` or `"project"`). `plan` mode can be typed via Other if needed.
+Record: `permission_mode` (default/acceptEdits/auto/plan/dontAsk/bypassPermissions). `plan` mode can be typed via Other if needed.
 
 For routines — if Yes: use the config defaults (`active_hours.start = 08:00`, `end = 23:00`) to derive morning = `08:30` and evening = `22:30`. Add to `routines` array:
 
@@ -332,7 +326,6 @@ Write the collected preferences to `.claude-code-hermit/config.json`:
   "remote": true,
   "permission_mode": "acceptEdits",
   "tmux_session_name": "hermit-{project_name}",
-  "scope": "local",
   "auto_session": true,
   "boot_skill": null,
   "ask_budget": false,
@@ -508,17 +501,12 @@ If a hermit was activated in step 3, also append its CLAUDE-APPEND.md here (usin
 
 ### 7. Update .gitignore
 
-Use the `scope` value recorded in Phase 6:
+Use `${CLAUDE_SKILL_DIR}/../../state-templates/GITIGNORE-APPEND.txt`.
 
-- `"project"` → use `${CLAUDE_SKILL_DIR}/../../state-templates/GITIGNORE-APPEND-PROJECT.txt`
-- `"local"` (default) → use `${CLAUDE_SKILL_DIR}/../../state-templates/GITIGNORE-APPEND.txt`
-
-Select the appropriate template, then:
-
-- If `.gitignore` exists: check if it already contains `.claude/cost-log.jsonl` (local template) or `.env` (project template)
-  - If the marker is already present: skip
-  - If not: append the template contents
-- If `.gitignore` doesn't exist: create it with the template contents
+- If `.gitignore` exists: check if it already contains `.claude/cost-log.jsonl` or `.claude-code-hermit/HEARTBEAT.md`
+  - If either marker is already present: skip
+  - If not: read the template, show the operator the lines that will be appended, and ask with `AskUserQuestion` (header: "Update .gitignore") — options: **Yes — append** (add hermit entries, default) / **No — skip** (you'll manage .gitignore manually). Append only if confirmed.
+- If `.gitignore` doesn't exist: read the template, show the operator the lines that will be written, and ask with `AskUserQuestion` (header: "Create .gitignore") — options: **Yes — create** (default) / **No — skip**. Create only if confirmed.
 
 ### 8. Ensure plugin permissions in settings.json
 
@@ -535,11 +523,14 @@ The plugin's hooks and boot scripts require specific Bash permissions to run wit
       "Bash(git log:*)",
       "Bash(node */scripts/cost-tracker.js*)",
       "Bash(node */scripts/suggest-compact.js*)",
+      "Bash(node */scripts/heartbeat-precheck.js*)",
+      "Bash(node */scripts/reflect-precheck.js*)",
       "Bash(node */scripts/run-with-profile.js*)",
       "Bash(node */scripts/evaluate-session.js*)",
       "Bash(node */scripts/append-metrics.js*)",
       "Bash(node */scripts/generate-summary.js*)",
       "Bash(node */scripts/update-reflection-state.js*)",
+      "Bash(node */scripts/cron-tz-shift.js*)",
       "Bash(bash -c 'AGENT_DIR=\".claude-code-hermit\"*)",
       "Edit(.claude-code-hermit/**)",
       "Write(.claude-code-hermit/**)"
@@ -551,7 +542,7 @@ The plugin's hooks and boot scripts require specific Bash permissions to run wit
 **Why each one:**
 
 - `git diff`, `git status`, `git log` — session-diff.js hook auto-populates `## Changed` in SHELL.md
-- `node */scripts/<name>.js` — Stop hooks (cost-tracker, suggest-compact, session-diff, evaluate-session), scoped to plugin scripts only
+- `node */scripts/<name>.js` — Stop hooks (cost-tracker, suggest-compact, session-diff, evaluate-session) and precheck scripts (heartbeat-precheck, reflect-precheck), scoped to plugin scripts only
 - `bash -c 'AGENT_DIR=...` — SessionStart hook that loads session context on every startup
 - `Edit`, `Write` on `.claude-code-hermit/**` — heartbeat appends to SHELL.md, increments config.json tick counter, and skills update session state without prompting
 
@@ -657,7 +648,7 @@ Identity:
   Sign-off:        Atlas out.
 
 Config:
-  Plugins:         claude-code-setup, claude-md-management, skill-creator
+  Plugins:         claude-code-setup, claude-md-management, skill-creator, feature-dev
   Channels:        none
   Budget prompts:  enabled
   Morning brief:   disabled

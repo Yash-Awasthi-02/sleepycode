@@ -38,7 +38,6 @@ DEFAULT_CONFIG = {
     'model': 'sonnet',
     'permission_mode': 'acceptEdits',
     'tmux_session_name': 'hermit-{project_name}',
-    'scope': 'local',
     'auto_session': True,
     'ask_budget': False,
     'always_on': False,

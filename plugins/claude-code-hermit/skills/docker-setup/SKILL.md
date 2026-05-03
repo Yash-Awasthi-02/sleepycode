@@ -240,7 +240,7 @@ The entrypoint adds the marketplace (if needed) and installs every enabled entry
 
 **On container-side `claude plugin marketplace add` / `plugin install` failure (either in entrypoint logs or when re-running the command manually after boot):** if the error mentions SSH auth, HTTPS credentials, `gh` not found, or `.gitconfig` read-only, **stop immediately — do not attempt workarounds inside the container.** The container has no SSH client, no `gh` CLI, and `.gitconfig` is bind-mounted read-only by design. Iterating on `GIT_CONFIG_NOSYSTEM`, `git config --global url...insteadOf`, or similar is guaranteed to fail and wastes the operator's time. Surface the error to the operator verbatim and move on — no retry unless the operator changes something host-side (makes the repo public, mirrors it, etc.) and asks to retry.
 
-If the operator selected plugins that have corresponding `scheduled_checks` entries in hatch Phase 4 (claude-code-setup, claude-md-management, skill-creator), also record those `scheduled_checks` entries if not already present.
+If the operator selected plugins that have corresponding `scheduled_checks` entries in hatch Phase 4 (claude-code-setup, claude-md-management, skill-creator, feature-dev), also record those `scheduled_checks` entries if not already present.
 
 ### 7b.packages: Plugin-declared apt dependencies
 
@@ -395,7 +395,19 @@ If the token is present, ask if already paired. If not:
    ```
    docker compose exec -T hermit bash -c 'src="${CLAUDE_CONFIG_DIR:-/home/claude/.claude}/channels/<plugin>/access.json"; dst="<project_path>/.claude.local/channels/<plugin>/"; [ -f "$src" ] && mkdir -p "$dst" && mv "$src" "$dst" && echo moved'
    ```
-6. Confirm: "Paired and locked down. If the bot doesn't respond to your first message, give it up to 2 minutes — the hermit may still be booting or running initial checks (plugin installs, workspace trust, auto-memory seeding)."
+6. **Default delivery settings** (skip if `"Already paired"` was chosen or pairing was skipped this run):
+   1. Read `<project_path>/.claude.local/channels/<plugin>/access.json` from the host. If `ackReaction` is already non-empty, skip — preserve operator customization.
+   2. Otherwise send via tmux with the state-dir hint (same two-call pattern and hint format as the pair/policy commands above):
+      ```
+      docker compose -f docker-compose.hermit.yml exec -T hermit \
+        tmux send-keys -t <session> '/<plugin>:access set ackReaction 👀 — save access.json to <project_path>/.claude.local/channels/<plugin>/ not ~/.claude'
+      sleep 0.5
+      docker compose -f docker-compose.hermit.yml exec -T hermit \
+        tmux send-keys -t <session> Enter
+      ```
+
+   The bind-mount already makes the container default path resolve to the host project-local file, but the hint matches the existing pair/policy pattern and is defense-in-depth against future bind-mount changes. Idempotent: re-running docker-setup leaves customized values alone.
+7. Confirm: "Paired and locked down. If the bot doesn't respond to your first message, give it up to 2 minutes — the hermit may still be booting or running initial checks (plugin installs, workspace trust, auto-memory seeding)."
 
 If "skip": tell them to DM the bot later and run the commands manually.
 
@@ -455,3 +467,7 @@ If something looks wrong, help diagnose — suggest concrete next steps.
 **Want shared config instead?** Replace the `claude-config` named volume with a bind-mount in `docker-compose.hermit.yml`: `- ${HOME}/.claude:${HOME}/.claude` and set `CLAUDE_CONFIG_DIR=${HOME}/.claude`. Not recommended — changes in either direction leak.
 
 **Domain-plugin apt dependencies.** Declare system packages your plugin needs in a `## Docker apt dependencies` section in the plugin's hatch SKILL.md or a `DOCKER.md` at the plugin root. See step 7b.packages and [Creating Your Own Hermit — Docker dependencies](../../docs/creating-your-own-hermit.md#docker-dependencies).
+
+**Why the three hardening stanzas (`no-new-privileges`, `cap_drop`, `pids_limit`)?** The container runs with `bypassPermissions` and the recommended-plugins flow accepts third-party marketplaces — defense in depth matters here. The load-bearing one is `no-new-privileges:true` — it blocks setuid escalation at the kernel level, which is a real vector against future supply-chain compromise of any installed plugin. `cap_drop: ALL` is incremental: the container already runs as non-root `claude` so most caps were already unreachable, but dropping them explicitly closes the kernel-enforced ceiling. `pids_limit: 2048` is a resource bound, not a security primitive — it caps fork-bomb-style payloads with comfortable headroom over hermit's ~80 PID steady state. Hermit's runtime needs none of what's removed (verified across tmux, claude CLI, python3, jq, npm, git+HTTPS plugin installs). Operators extending the container with services on privileged ports (<1024), setuid helpers, or high-PID workloads must relax the relevant stanza explicitly. See [Security — Container Hardening](../../docs/security.md#container-hardening) for the full rationale.
+
+**Want stronger isolation?** v1.0.26 ships an opt-in advanced wizard, `/claude-code-hermit:docker-security`, that adds LAN containment with DNS policy (firewall + DNS sidecar with port-53 redirect for actual enforcement), read-only root filesystem with smoke test, resource bounds with kernel hygiene sysctls, and a boot-time plugin-install audit log. Each toggle is opt-in with honest cost/benefit framing, runs verification against the live container, and is fully reversible. **Note:** the LAN containment toggle is hard-skipped when `docker.network_mode: "host"` is in use — bridge networking required. See [Docker Security](../../docs/docker-security.md).

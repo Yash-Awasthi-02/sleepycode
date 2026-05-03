@@ -1,5 +1,72 @@
 # Changelog
 
+## [0.3.2] - 2026-04-29
+
+### Added
+
+- **`claude-code-dev-hermit.hatch_mode` config key** — `"safety"` | `"standard"`. Persists the operator's hatch mode across re-runs and is used by `/hatch` to select the right CLAUDE-APPEND template.
+- **`state-templates/CLAUDE-APPEND-SAFETY.md`** — a subset template for `safety` mode containing only mode-independent sections: §Git Safety, §Branch Discipline, §Technical Constraints, §Before Archiving a Task, §Dev Session Hygiene, §Dev Knowledge, §Dev Proposal Categories, and a trimmed §Dev Quick Reference. Does not include §Implementation Flow, §Tests Before PR, or `/dev-test`/`/dev-quality`/`/dev-pr` references.
+
+### Changed
+
+- **`state-templates/CLAUDE-APPEND.md`** — adds a one-sentence "project conventions take precedence" preamble to §Branch Discipline, §Implementation Flow, and §Tests Before PR. Makes `standard`-mode installs non-destructive in projects that already have their own commit/PR/release skills.
+- **`/hatch` capability scan** — at hatch time, scans `.claude/skills/` for dirs named `commit`, `create-pr`, `pr`, `pull-request`, `release`, or `git-commit`. If matched, defaults the mode prompt to `safety` and surfaces the detected skill names. Else defaults to `standard`.
+- **`/hatch` mode-conditional prompts** — in `safety` mode, skips prompts for `commands.test`, `commands.lint`, `commands.format`, `commands.pr_create`, and `pr_template_path` (workflow keys that feed sections not injected). Only asks `Protected` branches, `Hook` profile, and companion `Plugins`. In `standard` mode, behavior is unchanged from v0.3.1.
+- **`/hatch` template selection** — injects `CLAUDE-APPEND-SAFETY.md` in safety mode, `CLAUDE-APPEND.md` in standard mode.
+
+### Fixed
+
+- **git-push-guard tests: `master`-branch cases falsely passing** — `runRaw` used `process.cwd()` as the guard's working directory, so it found the monorepo's `.claude-code-hermit/config.json` (which only lists `main`) and overrode the default `["main", "master"]` fallback. Fixed by running test spawns in a fresh tmpdir with no hermit config. Also wrapped `runWithConfig` in `try/finally` to prevent tmpdir leaks and unified `force: true` on both cleanup calls.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/git-push-guard.test.js` | Test isolation fix: tmpdir CWD in `runRaw`; `try/finally` in `runWithConfig`; `force: true` cleanup |
+| `state-templates/CLAUDE-APPEND.md` | Precedence preambles added to §Branch Discipline, §Implementation Flow, §Tests Before PR |
+| `state-templates/CLAUDE-APPEND-SAFETY.md` | New safety-mode template |
+| `skills/hatch/SKILL.md` | Capability scan, mode question, conditional prompts, mode-aware template selection, `hatch_mode` persistence |
+| `.claude-plugin/plugin.json` | Version bump to 0.3.2 |
+| `.claude-plugin/marketplace.json` | Version synced to 0.3.2 |
+
+### Upgrade Instructions
+
+1. Ask the operator (`AskUserQuestion`): "Does this project already have its own `/commit`, `/create-pr`, or `/release` skills? Choose `safety` to keep dev-hermit's workflow sections out of CLAUDE.md, or `standard` for the full workflow (recommended for greenfield projects)." Options: `safety` / `standard`.
+2. Write the chosen value to `.claude-code-hermit/config.json` under `claude-code-dev-hermit.hatch_mode`.
+3. Tell the operator: "After this evolve completes, re-run `/claude-code-dev-hermit:hatch` to refresh your CLAUDE.md with the chosen mode. (hermit-evolve's CLAUDE-APPEND sync writes the standard template at the end of this run — that's expected; one `/hatch` re-run resolves it.)"
+
+## [0.3.1] - 2026-04-29
+
+### Added
+
+- **`/dev-test` skill (`skills/dev-test/SKILL.md`)** — run the configured test suite and record the result to `last-test.json`. Useful for mid-task verification and warming the `/dev-pr` test cache. Internally calls `record-test-result.js run`.
+- **`/dev-quality` skill (`skills/dev-quality/SKILL.md`)** — re-introduces a `/dev-quality` skill (removed in v0.3.0 as "workflow ceremony") in leaner form as a mechanical pre-wrap quality gate: runs `/simplify` on the working-tree diff, re-runs `commands.test` if set, and reports results. On test regression, surfaces the failure and stops — no auto-rollback. If `/code-review:code-review` (`code-review@claude-plugins-official`) is in the agent's available slash-command list, the skill tells the agent to suggest it to the operator (never invokes it autonomously).
+
+### Changed
+
+- **`/dev-pr` Gate 0 tests check** — now runs tests automatically on cache miss instead of blocking with "run the test command yourself". A fresh `status:"pass"` record at the current HEAD is a cache hit (instant); anything else triggers `record-test-result.js run`. Fixes #12 (hook couldn't observe exit codes; gate previously refused all PRs).
+- **`scripts/record-test-result.js`** — adds `run` subcommand (executes `commands.test`, records real exit code + duration) and `write <exit_code> <duration_ms>` subcommand (for direct callers and CI). Hook path now silently skips on missing exit code instead of writing `status:"unknown"`. Interrupted runs (`tool_response.interrupted === true`) are skipped.
+- **`/dev-quality`** — test step now calls `record-test-result.js run` instead of `$COMMANDS_TEST`, so the result is recorded to `last-test.json` (note: SHA is pre-commit; `/dev-pr` will still re-run after commit).
+- **`state-templates/CLAUDE-APPEND.md`** — adds step 4 to §Implementation Flow pointing to `/dev-quality`; rewrites §Tests Before PR to reference `/dev-quality` as the `/simplify`+re-run owner. Operators must re-run `/claude-code-dev-hermit:hatch` to refresh their project's CLAUDE.md.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/dev-test/SKILL.md` | New skill — run tests and record result to `last-test.json` |
+| `skills/dev-quality/SKILL.md` | New skill — `/simplify` + test re-run quality gate |
+| `scripts/record-test-result.js` | Adds `run` and `write` subcommands; drops `status:"unknown"`; skips interrupted runs |
+| `skills/dev-pr/SKILL.md` | Gate 0 auto-runs tests on cache miss instead of blocking |
+| `state-templates/CLAUDE-APPEND.md` | §Implementation Flow step 4 + §Tests Before PR rewritten; §Dev Quick Reference updated |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Re-run `/claude-code-dev-hermit:hatch`** in each project using this plugin to refresh the injected `CLAUDE.md` with the updated §Implementation Flow and §Tests Before PR sections.
+
+No `config.json` changes required.
+
 ## [0.3.0] - 2026-04-28
 
 **v0.3.0 — language-agnostic safety layer.** Mass cleanup: dropped ~6,000 lines (~70% of the plugin) to reframe dev-hermit as a thin safety layer instead of a stack-aware orchestrator. The plugin now ships 2 skills (`hatch`, `dev-pr`), 1 hook (`git-push-guard`), and a CLAUDE-APPEND template that injects safety rules into the project's CLAUDE.md. No built-in implementer agent — operators use the native `Agent` tool, `feature-dev`'s research/architect agents, or custom subagents, all governed by the injected rules. Three audits (value / complexity / native-delegation) and a series of design-iteration conversations led to this redesign; full rationale in the v0.3.0 plan (`/home/d0m/.claude/plans/cryptic-weaving-dolphin.md`).

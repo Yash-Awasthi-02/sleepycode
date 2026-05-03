@@ -10,7 +10,6 @@
   "model": "sonnet",
   "permission_mode": "acceptEdits",
   "tmux_session_name": "hermit-{project_name}",
-  "scope": "local",
   "auto_session": true,
   "ask_budget": false,
   "always_on": false,

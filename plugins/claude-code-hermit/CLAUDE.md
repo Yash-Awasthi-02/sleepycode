@@ -13,12 +13,10 @@ claude plugin install claude-code-hermit@claude-code-hermit --scope project
 
 After install, run `/claude-code-hermit:hatch` in the target project to create the state directory.
 
-**Git scope:** Set `scope: "project"` in `config.json` to version hermit state in git. Default is `"local"` (state gitignored).
-
 ## Plugin Structure
 
 - `agents/` — subagent definitions (session-mgr, hermit-config-validator, proposal-triage, reflection-judge; hermit plugins add more subagents)
-- `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): session, session-start, session-close, pulse, brief, watch, heartbeat, hermit-routines, hermit-settings, proposal-create, proposal-list, proposal-act, reflect, reflect-scheduled-checks, channel-responder, channel-setup, hatch, hermit-evolve, docker-setup, hermit-takeover, hermit-hand-back, smoke-test, test-run, obsidian-setup, cortex-refresh, cortex-sync, weekly-review, migrate, knowledge, hermit-doctor
+- `skills/` — skill definitions (namespaced as `/claude-code-hermit:*`): session, session-start, session-close, pulse, brief, watch, heartbeat, hermit-routines, hermit-settings, proposal-create, proposal-list, proposal-act, reflect, reflect-scheduled-checks, channel-responder, channel-setup, hatch, hermit-evolve, docker-setup, docker-security, hermit-takeover, hermit-hand-back, smoke-test, test-run, obsidian-setup, cortex-refresh, cortex-sync, weekly-review, migrate, knowledge, hermit-doctor
 - `hooks/hooks.json` — hook registrations
 - `scripts/` — hook implementation scripts + boot scripts (hermit-start.py, hermit-stop.py)
 - `state-templates/` — templates copied into target projects by the `hatch` skill

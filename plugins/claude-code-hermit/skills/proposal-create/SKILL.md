@@ -31,6 +31,15 @@ Evidence: <one-paragraph evidence summary>
 
 `Evidence Source:` is optional (default: `archived-session`).
 
+Parse line 1 as the verdict. Lines 2+ are additive metadata (`closest_prop`, `aligned`, `operator_excerpt`, `overlap_compiled`, `prior_discussion`, `failed_condition`) — read for context if useful but do not branch on them.
+
+After receiving the verdict, append one event to `state/proposal-metrics.jsonl`:
+```bash
+node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js \
+  .claude-code-hermit/state/proposal-metrics.jsonl \
+  '{"ts":"<now ISO>","type":"triage-verdict","verdict":"<CREATE|SUPPRESS|DUPLICATE>","caller":"proposal-create"}'
+```
+
 - `CREATE` — proceed with the steps below
 - `DUPLICATE:<PROP-ID> — <reason>`: stop, report to the caller: "Proposal already exists as <PROP-ID>"
 - `SUPPRESS — <code>: <reason>`: stop, report the suppression reason to the caller

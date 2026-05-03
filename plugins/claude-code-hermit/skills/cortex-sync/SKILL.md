@@ -8,15 +8,9 @@ Brings existing hermit content up to date with the frontmatter contract. Safe to
 
 ## Step 1 — Scan (no writes)
 
-Scan for missing fields:
+Delegate the gap scan to the built-in `Explore` subagent. Prompt: `Scan and return a JSON object with these keys: sessions_missing_tags (list of .claude-code-hermit/sessions/S-NNN-REPORT.md paths whose YAML frontmatter lacks the tags field), proposals_missing_tags (same for .claude-code-hermit/proposals/PROP-NNN.md), artifacts_missing_frontmatter (paths from .claude-code-hermit/cortex-manifest.json artifact_paths whose files lack title or created), artifacts_missing_tags (artifact files that have frontmatter but no tags), cortex_manifest_configured (false if cortex-manifest.json does not exist or its artifact_paths is empty, otherwise true). Return file paths and counts only — no file bodies.`
 
-- `sessions/S-NNN-REPORT.md` — missing `tags`
-- `proposals/PROP-NNN.md` — missing `tags`
-- Artifact paths declared in `cortex-manifest.json` — missing frontmatter (`title`, `created`) or `tags`
-
-If `cortex-manifest.json` does not exist or `artifact_paths` is empty: skip artifact scanning entirely and include in the summary: "No artifact paths configured — skipping artifact enrichment. Run `/claude-code-hermit:obsidian-setup` to configure."
-
-Report a full summary before doing anything. No writes in this step.
+Use the returned data to render the operator-facing summary:
 
 ```
 Cortex sync — gaps found:
@@ -28,6 +22,8 @@ Cortex sync — gaps found:
 
 Proceed? (y/n)
 ```
+
+If `cortex_manifest_configured` is `false` in the Explore result: include in the summary: "No artifact paths configured — skipping artifact enrichment. Run `/claude-code-hermit:obsidian-setup` to configure."
 
 "Proceed?" is abort-or-continue only — not blanket approval. Each cluster in the following steps still requires its own confirmation. Within each cluster, "skip" skips that cluster only — the skill continues with remaining clusters. If nothing is missing: "All content is up to date. Nothing to do." Stop.
 
@@ -49,7 +45,7 @@ Handle all artifact files with gaps — both missing frontmatter and missing tag
 
 ## Step 3 — Tag sessions and proposals
 
-Before proposing any tags: scan the last 5 session reports and proposals for the existing vocabulary. Follow the tag discipline rule from CLAUDE-APPEND: reuse existing tags, introduce new ones only when nothing fits, bias toward 1–2 tags per document.
+Before proposing any tags, delegate the vocabulary scan to the built-in `Explore` subagent. Prompt: `Glob .claude-code-hermit/sessions/S-*-REPORT.md and .claude-code-hermit/proposals/PROP-*.md. Sort each set descending by filename. Read the 5 most recent of each. Extract tags from YAML frontmatter and return a deduplicated array of tag strings with a per-tag frequency count. Omit file bodies.` Use the returned vocabulary to follow the tag discipline rule from CLAUDE-APPEND: reuse existing tags, introduce new ones only when nothing fits, bias toward 1–2 tags per document.
 
 After confirming each cluster, fold the accepted tags into the live vocabulary before proposing the next cluster — tags coined early in the run should be reusable for later clusters.
 

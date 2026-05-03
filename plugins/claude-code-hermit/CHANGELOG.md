@@ -1,5 +1,213 @@
 # Changelog
 
+## [1.0.26] - 2026-05-03
+
+### Fixed
+
+- **hermit-routines: routine schedules now shift from `config.timezone` to machine timezone** before CronCreate registration. Previously the routines pipeline ignored `config.timezone`, so a UTC server with `timezone: "Europe/Lisbon"` would fire daily routines at the wrong wall-clock hour during BST. A new `scripts/cron-tz-shift.js` helper handles the conversion with minute-granularity offsets (30/45-minute IANA zones work), automatic DOW adjustment on day-wrap, and fail-open pass-through for patterns that can't collapse into a single cron. DST self-corrects within 24h via the daily `heartbeat-restart` reload.
+
+- **`hermit-doctor` `docker-security` check: anchor overlay path to the agent dir, not `process.cwd()`.** The check was resolving `docker-compose.security.yml` relative to the current working directory, which diverged from the rest of doctor-check (which derives every path from `hermitDir` / argv). Invoking doctor with an explicit agent-dir argument from a different CWD would have looked in the wrong place and falsely reported "not configured." Now uses `path.join(hermitDir, '..', 'docker-compose.security.yml')` for consistency with the file's other path constants.
+
+### Added
+
+- **Container hardening**: docker-compose template now blocks setuid escalation (`security_opt: no-new-privileges:true`), drops all Linux capabilities (`cap_drop: ALL`), and caps process count (`pids_limit: 2048`). Defense in depth for `bypassPermissions` containers. The load-bearing stanza is `no-new-privileges` — it closes the setuid-escalation vector against future supply-chain compromise of any installed plugin; the other two are incremental ambient-surface reductions. Verified against entrypoint, hermit-start, and plugin-install paths; nothing in the runtime needs the dropped capabilities or setuid binaries, and steady-state PID usage sits well under the cap.
+
+- **`/claude-code-hermit:docker-security` advanced wizard**: opt-in hardening for already-deployed hermit containers. Four toggles, each with honest cost/benefit framing: (1) **LAN containment + DNS policy** — firewall + DNS sidecar (`hermit-netguard`) sharing hermit's network namespace, with nftables-driven port-53 redirect for *actual* DNS-policy enforcement (not just resolver hints); (2) **read-only root filesystem** with concrete smoke test (real `npm install` + plugin add/remove + claude-owned canary write before persisting); (3) **resource bounds + kernel hygiene** (`mem_limit`, `cpus`, network sysctls — sysctl placement is conditional on whether the netguard sidecar owns the netns); (4) **boot-time plugin install audit log**. Applied as a `docker-compose.security.yml` overlay — never modifies the base compose. Hard-skips the LAN containment prompt when `docker.network_mode: "host"` (would break host-bound HA workflows). Fleet-aware: scans installed fleet plugins for `## Docker network requirements` declarations and offers their domains/LAN suggestions for per-entry confirmation. Documented limitations: public-IP egress is not blocked (v1.1 may add nftset-driven IP allowlisting); Docker default bridge falls in the LAN drop range; Compose service-name DNS and mDNS don't work through dnsmasq.
+
+- **`hermit-doctor`** gains an eighth check, `docker-security`, that flags drift between declared `docker.security.*` posture in `config.json` and the presence of `docker-compose.security.yml`. Two-state presence check; no YAML parsing.
+
+- **`hermit-docker`** wrapper: pins `SERVICE="hermit"` explicitly (was deriving from `docker compose config --services | head -1`, which becomes ambiguous once the security overlay introduces a netguard sidecar — `bash`/`login`/`attach` could land on the wrong service). Also auto-detects `docker-compose.security.yml` and chains it onto every compose command. No effect when the overlay is absent.
+
+- **Per-fleet-plugin contract**: plugins can declare network requirements in a `## Docker network requirements` section in `skills/hatch/SKILL.md` or `DOCKER.md` (mirrors the existing `## Docker apt dependencies` pattern). The `/docker-security` wizard reads these and offers per-entry confirmation. Special token `ASK_OPERATOR_FOR_<NAME>_IP` triggers an operator IP prompt for plugin-specific LAN endpoints. Backward-compatible: plugins without the section contribute nothing.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/cron-tz-shift.js` | New: shifts 5-field cron between IANA timezones |
+| `scripts/lib/time.js` | Extended `currentHHMM` to accept optional `ref` date |
+| `skills/hermit-routines/SKILL.md` | `load` now invokes `cron-tz-shift.js` per routine |
+| `skills/hatch/SKILL.md` | Added `cron-tz-shift.js` to Bash allowlist |
+| `skills/hermit-evolve/SKILL.md` | Added `cron-tz-shift.js` to required node entries list |
+| `skills/smoke-test/SKILL.md` | Added step 4b: helper availability check |
+| `skills/docker-security/SKILL.md` | New: opt-in hardening wizard (LAN, ro-fs, resource bounds, audit log) |
+| `scripts/doctor-check.js` | Eighth check: `docker-security` posture vs overlay drift |
+| `state-templates/bin/hermit-docker` | Pins `SERVICE=hermit`, chains security overlay when present |
+| `docs/config-reference.md` | Updated `routines.schedule` TZ description |
+| `tests/cron-tz-shift.test.sh` | New: 20 deterministic cron-shift tests |
+| `tests/run-hooks.sh` | Updated doctor-check test: 7 → 8 checks |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Add `cron-tz-shift.js` to the Bash allowlist.** Add `Bash(node */scripts/cron-tz-shift.js*)` to `.claude/settings.json` `permissions.allow` alongside the other `node */scripts/...` entries.
+
+2. **Re-register routines.** Run `/claude-code-hermit:hermit-routines load` to apply the timezone shift to existing CronCreate registrations.
+
+3. **Skip if no Docker scaffolding.** If `docker-compose.hermit.yml` does not exist at the project root, this entry is a no-op.
+
+4. **Ask the operator for consent.** Use `AskUserQuestion` (header: `"Container hardening"`):
+   - **Yes — apply hardening** (Recommended): proceed to step 5.
+   - **Skip**: do nothing for this entry; continue with the rest of evolve.
+
+   Hardening is opt-in because operators may have customized their compose for special workloads (privileged ports, larger PID needs).
+
+5. **Idempotency check.** Read the rendered `docker-compose.hermit.yml`. If it contains the literal string `no-new-privileges`, skip — already migrated. Tell the operator: "Container hardening already in place, skipping." (If it contains `cap_drop` or `pids_limit` but not `no-new-privileges`, a partial previous attempt may have stalled — show the operator the current file and ask them to patch it manually or re-run `/docker-setup` with backup.)
+
+6. **Locate the insertion point.** Find the `hermit:` service block. Within it, locate the `restart:` line at 4-space indent. If either is missing or the structure is ambiguous (e.g. service renamed, restart removed, indentation drift), do NOT attempt the patch — fall through to step 8.
+
+7. **Patch.** Insert the following three stanzas immediately before the `restart:` line, indented to match adjacent service keys (4 spaces in the standard template). Show the diff to the operator and ask for final confirmation before writing:
+
+   ```yaml
+   cap_drop:
+     - ALL
+   security_opt:
+     - no-new-privileges:true
+   pids_limit: 2048
+   ```
+
+   *(Shown unindented for clarity — in the file each line gets 4 leading spaces, same level as `restart:` and `stop_grace_period:`.)*
+
+   On confirm: write the file. Then jump to step 9.
+
+8. **Fallback for unrecognized structure.** Tell the operator:
+
+   > "Your `docker-compose.hermit.yml` has been customized — I can't patch it safely. Re-run `/claude-code-hermit:docker-setup` and choose **'Yes — back up'** when prompted to regenerate it cleanly with the new hardening defaults. Your customizations will be preserved in `docker-backup/` so you can re-apply them on top."
+
+   No further action.
+
+9. **Container recreation reminder (CRITICAL).** Tell the operator:
+
+   > "**`hermit-docker restart` is NOT enough** — Docker only applies `cap_drop`, `security_opt`, and `pids_limit` at container creation, not on restart. To activate the new settings, run:
+   >
+   > ```
+   > .claude-code-hermit/bin/hermit-docker down
+   > .claude-code-hermit/bin/hermit-docker up
+   > ```
+   >
+   > The named config volume preserves credentials, plugins, and onboarding state."
+
+No `config.json` changes required.
+
+10. **Inform the operator about the new advanced wizard (no automatic action).** After steps 1–9 complete (or are skipped), tell them:
+
+   > "v1.0.26 also ships an opt-in advanced wizard, `/claude-code-hermit:docker-security`, for stronger isolation than the baseline. The headline gain is blocking your container from reaching your local network — meaningful if you run hermit on a home or office machine alongside HA, NAS, printer, etc. Run `/claude-code-hermit:docker-security` when you're ready; nothing changes until you do. See [`docs/docker-security.md`](docs/docker-security.md) for the full toggle reference and documented limitations."
+
+   This step is informational only — the wizard is opt-in by design, never invoked automatically by `/hermit-evolve`.
+
+## [1.0.25] - 2026-05-01
+
+### Changed
+
+- **`reflect`, `cortex-sync`: delegate recon-heavy scans to the built-in `Explore` subagent.** `reflect` delegates three inline Glob+Read sequences to `Explore`: the full proposal scan (step 5), the resolution-check session fetch (step 6d), and the session-citation half of the routine-silence check. `cortex-sync` delegates its Step 1 gap scan and Step 3 tag-vocabulary scan. The orchestrating context receives compact summaries instead of raw file contents. All callers of the Explore delegation still hold the interpret/act logic locally — `Explore` is a read-only recon layer. The step 6d delegation prompt instructs Explore to return session bodies verbatim and report (rather than silently trim) any file that exceeds its read window; the orchestrator falls back to inline `Read` for any truncated file before evaluating step e, since the resolution check is correctness-sensitive.
+
+- **`proposal-triage`: extended evidence scope, richer verdict output.** Three new pre-gate steps run between dedup and the three-condition check: (1) session cross-reference — the 3 most recent session reports are scanned for prior discussion of the candidate; (2) OPERATOR.md lexical alignment check — explicit "don't/avoid/decided not to" language near candidate title keywords surfaces as `aligned: false` + `operator_excerpt`; (3) compiled artifact overlap scan — compiled/ frontmatter is checked for artifacts that already address the topic. `SUPPRESS` verdicts now include a quoted excerpt from the candidate evidence. Additive metadata lines after the verdict (`closest_prop`, `aligned`, `operator_excerpt`, `overlap_compiled`, `prior_discussion`, `failed_condition`) give callers actionable context without changing the branching contract. `maxTurns` bumped from 8 → 14.
+
+- **`reflect`, `reflect-scheduled-checks`, `proposal-create`: triage verdict counters.** All three callers now append a `triage-verdict` event to `state/proposal-metrics.jsonl` after each triage call. `reflect`'s Component Health section now reads these counts from the already-tailed `proposal-metrics.jsonl` window and flags if `SUPPRESS` dominates `CREATE` at the same 2× threshold used for `reflection-judge` — closing the "proposal-triage has no verdict counters" gap. All callers updated to treat triage output as line 1 = verdict, lines 2+ = metadata.
+
+- **`channel-setup` and `docker-setup`: default `ackReaction` to 👀 during pairing.** Channel plugins (`discord`, `telegram`) ship `ackReaction` empty by default, so freshly paired hermits had no inbound emoji feedback — operators only saw the 5–10s typing indicator before silence until the actual reply landed (often a minute+ for `session-start`, `proposal-create`, etc.). Both setup skills now run `/<channel>:access set ackReaction 👀` on first pair (with the same state-dir hint pattern used for pair/policy), skipping if the operator has already customized the value. `👀` is in Telegram's reaction whitelist and works on Discord. (`channel-setup/SKILL.md`, `docker-setup/SKILL.md`)
+
+- **Recommended plugins: added `feature-dev` (Anthropic-official)** — orchestrated 7-phase implementation workflow (`/feature-dev:feature-dev`) for designing, exploring, and reviewing code changes. Surfaces in `/hatch` Phase 4 for opt-in install; operators invoke it manually during sessions when implementing accepted proposals.
+
+### Fixed
+
+- **`proposal-triage` agent: YAML frontmatter parse error** — the `description` field contained a bare colon-space sequence (`<code>: <reason>`) which YAML interprets as a key-value separator, causing all frontmatter fields (model, effort, maxTurns, tools, disallowedTools) to be silently dropped at load time. Quoted the description string to fix the parse error.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `agents/proposal-triage.md` | Extended evidence scope, richer verdict output, YAML fix |
+| `skills/reflect/SKILL.md` | Explore delegation; triage verdict counters |
+| `skills/cortex-sync/SKILL.md` | Explore delegation; manifest flag fix |
+| `skills/reflect-scheduled-checks/SKILL.md` | Triage verdict counters |
+| `skills/proposal-create/SKILL.md` | Triage verdict counters |
+| `skills/channel-setup/SKILL.md` | Default ackReaction to 👀 on first pair |
+| `skills/docker-setup/SKILL.md` | Default ackReaction to 👀; feature-dev recommended plugin |
+| `skills/hatch/SKILL.md` | feature-dev opt-in in Phase 4 |
+| `docs/recommended-plugins.md` | Added feature-dev entry |
+
+### Upgrade Instructions
+
+For each entry in `.claude-code-hermit/config.json` `channels` where `enabled !== false` and the channel name is `discord` or `telegram`:
+
+1. Resolve the `access.json` path:
+   - Try `channels.<channel>.state_dir/access.json` (relative paths anchored at project root).
+   - Fall back to `~/.claude/channels/<channel>/access.json`.
+2. If the file does not exist: skip this channel — defaults will be applied next time `/claude-code-hermit:channel-setup` or `/claude-code-hermit:docker-setup` runs.
+3. Parse the JSON. If `ackReaction` is missing or set to `""`:
+   - Set `ackReaction` to `"👀"` and write the file back, preserving every other key exactly and matching existing formatting (typically 2-space indent, trailing newline).
+   - Log: "Set default `ackReaction` (👀) for `<channel>`."
+4. If `ackReaction` is already a non-empty string: skip — preserve operator customization.
+
+Use direct JSON edit, not the slash command. The setup skills route through `/<channel>:access set ackReaction` with a state-dir hint because they run during interactive pairing; for the migration, a direct edit is simpler for batch backfill across multiple channels and doesn't depend on channel plugins being loaded at upgrade time.
+
+**Offer `feature-dev` install for existing hermits.** Read `config.json`. If `docker.recommended_plugins` exists and contains `"feature-dev"`, skip silently — already adopted. If `docker.recommended_plugins` is absent (tmux/local hermit without docker setup), run `claude plugin list` — if `feature-dev` appears, skip silently.
+
+Otherwise, ask the operator with `AskUserQuestion` (header: "feature-dev"):
+
+- Question: "claude-code-hermit's recommended-plugin set now includes `feature-dev` (Anthropic-official) — orchestrated 7-phase implementation workflow (`/feature-dev:feature-dev`) for designing, exploring, and reviewing code changes. Install it?"
+- Options: **Yes — install** (default) / **No — skip**
+
+On **Yes**: run `claude plugin install feature-dev@claude-plugins-official --scope project` (idempotent if already installed). If `config.json` has a `docker.recommended_plugins` array, append `"feature-dev"` to it and write the file back, preserving existing formatting (2-space indent, trailing newline). If the key is absent (tmux/local hermits without docker setup), skip the config.json edit. Log: "Installed `feature-dev`@`claude-plugins-official`."
+
+On **No**: skip — operator can install later via `/claude-code-hermit:hermit-settings` or by re-running `/claude-code-hermit:hatch`.
+
+## [1.0.24] - 2026-04-29
+
+### Added
+
+- **Heartbeat and reflect precheck scripts for token cost reduction** — adds `scripts/heartbeat-precheck.js` and `scripts/reflect-precheck.js`. The heartbeat precheck runs before each tick and emits `SKIP` (outside active hours / empty checklist), `OK` (all checklist items already suppressed and stable), or `EVALUATE` (anything requiring LLM judgment). It is the sole writer of `total_ticks`; the skill remains the sole writer of `alerts{}` and `self_eval{}`. The reflect precheck determines which phases are due (compute, resolution_check, cost_spike, digest, newborn) and on `EMPTY` owns the audit trail: it calls `update-reflection-state.js` and appends the mandatory Progress Log line to SHELL.md before short-circuiting. Both scripts are zero-dependency (Node stdlib only) with full fail-open error handling. Heartbeat `SKILL.md` is thinned from 209 → 94 lines by extracting the alert dedup and self-eval detail into `skills/heartbeat/reference.md`, which is loaded on demand only on the `EVALUATE` path. Shared timezone helpers extracted to `scripts/lib/time.js`.
+
+- **`GITIGNORE-APPEND.txt`: complete local-scope coverage** — added `templates/`, `bin/`, `HEARTBEAT.md`, `IDLE-TASKS.md`, `knowledge-schema.md`, and `.claude.local/` (channel state dir). Previously hatch's gitignore append left bin/ and operator-editable files unignored, so `.claude-code-hermit/` kept showing as untracked in projects with local scope.
+
+- **`hatch`: operator consent before `.gitignore` writes** — step 7 now shows the entries to be appended and waits for `AskUserQuestion` confirmation before modifying or creating the project `.gitignore`.
+
+### Removed
+
+- **`scope` config field and `project` scope** — the `scope` field (`"local"` | `"project"`) has been removed. Hermit state is now always gitignored (local scope only). `project` scope caused LLM-generated session reports, `raw/`, and `compiled/` artifacts — which may contain credentials or sensitive context encountered during work — to be committed to git history. The credential scan in `/migrate` is pattern-based and cannot reliably catch novel secret formats in LLM prose. The migration-via-git-clone convenience is already covered by the `/migrate` skill itself. `GITIGNORE-APPEND-PROJECT.txt` has been deleted.
+
+### Fixed
+
+- **`channel-setup`: inject `<CHANNEL>_STATE_DIR` into `settings.local.json`** — the skill wrote the bot token to the project-local `state_dir` but never wired the MCP server subprocess to read from there. Without `DISCORD_STATE_DIR` / `TELEGRAM_STATE_DIR` in the session env, channel servers defaulted to `~/.claude/channels/<channel>/` even when `state_dir` pointed elsewhere, causing "Failed to reconnect" errors and misplaced `access.json` files. The token write and the `settings.local.json` update (stale-token cleanup + `STATE_DIR` injection) are now a single read-modify-write in step 6, and the fix also runs when the token was already configured.
+
+- **`hatch`: add `heartbeat-precheck.js` and `reflect-precheck.js` to required permissions** — both scripts are called on every heartbeat tick and reflect run but were missing from the `permissions.allow` block, causing operators to be prompted on every invocation.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/heartbeat-precheck.js` | New — heartbeat precheck script |
+| `scripts/reflect-precheck.js` | New — reflect precheck script |
+| `scripts/lib/time.js` | New — shared timezone helpers |
+| `skills/heartbeat/SKILL.md` | Thinned to 94 lines; precheck integration |
+| `skills/heartbeat/reference.md` | New — alert dedup and self-eval detail, loaded on demand |
+| `skills/reflect/SKILL.md` | Precheck integration in step 1 |
+| `skills/hatch/SKILL.md` | Gitignore consent gate; precheck permissions added |
+| `skills/channel-setup/SKILL.md` | STATE_DIR injection in step 6 |
+| `skills/hermit-evolve/SKILL.md` | Upgrade instruction execution |
+| `skills/migrate/SKILL.md` | Scope removal references updated |
+| `state-templates/GITIGNORE-APPEND.txt` | Extended local-scope entries |
+| `state-templates/GITIGNORE-APPEND-PROJECT.txt` | Deleted |
+| `state-templates/config.json.template` | `scope` field removed |
+| `scripts/hermit-start.py` | `scope` handling and worktree setup removed |
+| `docs/config-reference.md` | `scope` field entry removed |
+| `tests/run-scripts.sh` | Precheck test cases added (34 → 52 script tests) |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. If `config.json` contains `"scope": "project"`:
+   - **Warn the operator** (channel in always-on mode; inline in interactive mode):
+     > "claude-code-hermit v1.0.24 removed the `project` scope. Your hermit state is currently tracked in git. To clean it up: (a) run `/claude-code-hermit:migrate` for a credential audit and manifest, (b) manually run `git rm --cached -r .claude-code-hermit/sessions/ .claude-code-hermit/proposals/ .claude-code-hermit/state/ .claude-code-hermit/raw/ .claude-code-hermit/compiled/ .claude-code-hermit/config.json`, then (c) replace the `.claude-code-hermit` block in `.gitignore` with the local-scope template. Skipping this leaves session reports and raw artifacts in your git history. Reply (1) to continue anyway (drop `scope` field only, no git changes), or (2) to abort so you can clean up first."
+   - On **(2)**: abort hermit-evolve entirely with a message directing the operator to run `/claude-code-hermit:migrate` first. The `scope` key remains in `config.json`, so the next `/hermit-evolve` run will re-enter this instruction automatically.
+   - On **(1)**: drop the `scope` field from `config.json` and proceed. Write a `compiled/` artifact `compiled/decision-scope-removal-<YYYY-MM-DD>.md` recording the operator's acknowledged decision to skip migration for now (frontmatter: `title`, `type: decision`, `created`, `tags: [scope, security]`).
+2. If `config.json` contains `"scope": "local"` or no `scope` key: silently remove the `scope` key from `config.json` and continue.
+3. Add missing precheck script permissions to `.claude/settings.json`. Check if `permissions.allow` contains `"Bash(node */scripts/heartbeat-precheck.js*)"` and `"Bash(node */scripts/reflect-precheck.js*)"`. If either is missing, show the operator the entries to add and ask with `AskUserQuestion` (header: "Precheck permissions") — options: **Yes — add** (default) / **No — skip**. If confirmed, merge the missing entries into `permissions.allow`.
+4. Apply extended `.gitignore` coverage to existing projects. Read the project `.gitignore`. Check if it contains `.claude-code-hermit/bin/`. If not, show the operator the lines that will be appended (from `${CLAUDE_PLUGIN_ROOT}/state-templates/GITIGNORE-APPEND.txt`, filtered to entries not already present) and ask with `AskUserQuestion` (header: "Update .gitignore") — options: **Yes — append** (default) / **No — skip**. Append only if confirmed.
+
 ## [1.0.23] - 2026-04-28
 
 ### Removed
