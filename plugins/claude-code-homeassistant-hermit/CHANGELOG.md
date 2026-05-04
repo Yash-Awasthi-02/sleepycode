@@ -2,6 +2,40 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
+## [0.0.8] - 2026-05-04
+
+### Added
+
+- **`READ_FROM_ENV:HOMEASSISTANT_URL` in docker network requirements** — added to the DNS allowlist section so `/claude-code-hermit:docker-security` step 3a can resolve the operator's configured HA hostname (e.g. `ha.mydomain.com`) dynamically, covering custom remote domains not under `nabu.casa`. Requires the core `>=1.0.29` bump below — the `READ_FROM_ENV:` sentinel is parsed by core 1.0.29's `/docker-security` allowlist resolver.
+
+### Changed
+
+- **deps: bump core requirement to `>=1.0.29` / `^1.0.29`** — was `>=1.0.26`; `required_core_version` and `requires.claude-code-hermit` in `hermit-meta.json` and `dependencies[0].version` in `plugin.json` all updated together. Required by the new `READ_FROM_ENV:HOMEASSISTANT_URL` allowlist entry above (resolver lives in core 1.0.29's `/docker-security`).
+
+### Fixed
+
+- **`hatch`: read token via Read tool, not Python subprocess** — replaced the `python -c "from dotenv import dotenv_values…"` one-liner with an instruction to use the Read tool on `.env` directly. The Python approach was blocked by the deny-pattern hook (any Bash argument containing the literal string `TOKEN` is rejected, including via `python -c`). The Read tool approach is hook-safe and avoids echoing the token to conversation output.
+- **`hatch`: removed non-existent `.env.example` copy step** — the `.env` missing-credential message instructed users to run `cp .env.example .env`, but no such example file ships with this plugin. Replaced with a direct "create `.env` with these values" instruction.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/hatch/SKILL.md` | Token-read instruction switched from Bash python one-liner to Read tool; `.env`-missing message dropped non-existent `cp .env.example .env` step; new `READ_FROM_ENV:HOMEASSISTANT_URL` entry under `### Domains (DNS allowlist)` with explanatory prose |
+| `.claude-plugin/hermit-meta.json` | `required_core_version` and `requires.claude-code-hermit` bumped `>=1.0.26` → `>=1.0.29` |
+| `.claude-plugin/plugin.json` | `dependencies[0].version` bumped `^1.0.26` → `^1.0.29`; manifest `version` bumped `0.0.7` → `0.0.8` |
+| `CHANGELOG.md` | New `[0.0.8]` entry |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Refresh the `hatch` skill content** — replace `plugins/claude-code-homeassistant-hermit/skills/hatch/SKILL.md` with the new file from this release.
+
+**Note:** The `READ_FROM_ENV:HOMEASSISTANT_URL` entry only takes effect when the operator runs `/claude-code-hermit:docker-security` and the fleet scan reads this plugin's `## Docker network requirements` section. Until then, the change is inert.
+
+No `config.json` changes required.
+
 ## [0.0.7] - 2026-05-03
 
 ### Added
