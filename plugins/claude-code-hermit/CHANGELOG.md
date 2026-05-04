@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.29] - 2026-05-04
 
 ### Added
 
@@ -49,14 +49,23 @@ End-to-end manual verification (run before release):
 | `skills/hatch/SKILL.md` | Resequence (gate before writes), split silent detection from activation prompt, replace inline default JSON with template-overlay algorithm, fix scheduled_checks accounting, add Quick Branch section (5 turns + confirm + auto-chain), add Quick-mode adjustment to Step 10 report |
 | `skills/docker-setup/SKILL.md` | Add Step 1.5 setup-mode gate (positional `quick` arg supported), apply Quick defaults silently throughout (auth, network, SAFE plugin mirror, apt auto-accept, build-now), add Step 7b.6 deferred template rendering (fixes latent `{{PACKAGES_BLOCK}}` sequencing concern; applies to both modes) |
 | `skills/channel-setup/SKILL.md` | Step 5 batched question collapsed to single 3-option `AskUserQuestion` |
+| `skills/docker-security/SKILL.md` | DNS-block verifier: timeout + exit-code 124 classification + mktemp/trap; RO-write canary path; --no-cache rebuild step; tune instruction updated |
+| `docs/docker-security.md` | Tune instruction: `hermit-docker down && hermit-docker up`; mDNS wording simplified |
+| `state-templates/docker/security/dnsmasq.allowlist.template` | Add `no-resolv`; add `claude.ai` and `claude.com`; update catchall comment |
 | `tests/test-template-skill-sync.sh` | New: monorepo-internal contract test for template ↔ hatch sync |
 | `tests/run-all.sh` | Wire new test into the suite |
+| `tests/test-docker-security-templates.sh` | 12 new assertions: no-resolv, OAuth domains, DNS-block timeout, canary path, --no-cache rebuild, tune instruction |
 
 ### Upgrade Instructions
 
-No operator action required. Existing `.claude-code-hermit/config.json` is untouched — Quick mode is opt-in at the next `/hatch` invocation (which only re-runs by explicit operator request). Operators using `/docker-setup` get the template-render ordering fix automatically; behavior is identical for any deployment that previously worked.
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
-If you want to try the Quick path on a new project: `mkdir new-proj && cd new-proj && claude` → `/claude-code-hermit:hatch` → pick Quick at the gate.
+1. **Skip if no docker-security overlay** — if `docker-compose.security.yml` does not exist at the project root, steps 2–4 are no-ops.
+2. **Re-render the security overlay** — run `/claude-code-hermit:docker-security` and accept the same toggles already enabled. The wizard re-renders `dnsmasq.allowlist` with `no-resolv` and the new `claude.ai`/`claude.com` entries, and forces a `--no-cache` netguard rebuild.
+3. **Restart hermit** — run `hermit-docker down && hermit-docker up` after the wizard completes (the wizard prompts for this).
+4. **Verify** — `/claude-code-hermit:docker-security` verification block should show `DNS-block: OK` (NXDOMAIN, not timeout) and `DNS-allow: OK`.
+
+No `config.json` changes required.
 
 ## [1.0.28] - 2026-05-04
 
