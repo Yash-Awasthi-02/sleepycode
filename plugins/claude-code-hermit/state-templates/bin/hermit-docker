@@ -161,7 +161,8 @@ case "$CMD" in
   restart)
     _require_running
     echo "[hermit] Restarting container..."
-    cd "$PROJECT_DIR" && "${DC[@]}" restart "$@"
+    cd "$PROJECT_DIR" && "${DC[@]}" down
+    cd "$PROJECT_DIR" && "${DC[@]}" up -d "$@"
     echo "[hermit] Container restarted."
     _oauth_hint
     ;;
