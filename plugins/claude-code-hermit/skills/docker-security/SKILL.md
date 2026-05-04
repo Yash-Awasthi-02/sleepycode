@@ -547,6 +547,12 @@ Reverse: re-run /docker-security and answer No to every prompt, OR
 
 Tune DNS allowlist: edit .claude-code-hermit/docker/dnsmasq.allowlist,
          then `hermit-docker restart hermit-netguard`.
+
+If hermit asks you to log in (session expired or first boot after
+hardening), open a shell in the container and authenticate:
+         .claude-code-hermit/bin/hermit-docker bash
+  then:  claude
+  then:  /login
 ```
 
 ## Notes

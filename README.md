@@ -3,7 +3,6 @@
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
   <a href="plugins/claude-code-hermit/CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.0.28-green.svg" alt="Version 1.0.28" /></a>
   <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/gtapps/claude-code-hermit/_stats_badges/.github/badges/clones.json" alt="Downloads" />
-  <img src="https://img.shields.io/badge/Claude-Pro%20%7C%20Max-blueviolet.svg" alt="Claude Pro/Max Compatible" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
   <a href="plugins/claude-code-hermit/docs/obsidian-setup.md"><img src="https://img.shields.io/badge/obsidian-active-7c3aed.svg" alt="Obsidian Integration" /></a>
 </p>
@@ -46,6 +45,8 @@ Hermit is the glue between Claude Code's native capabilities and a 24/7 agent th
 
 **5. See inside it.** Hermit Cortex (Obsidian-powered) turns your agent's memory — sessions, proposals, cost trends, learnings — into an Obsidian vault you can browse.
 
+**6. Safe to leave running.**  Docker isolation, deny-pattern hooks that block destructive commands, optional kernel-level hardening via `/docker-security`. See [Security](plugins/claude-code-hermit/docs/security.md) for more.
+
 ---
 
 ## Quick Start
@@ -60,7 +61,7 @@ claude plugin marketplace add gtapps/claude-code-hermit
 claude plugin install claude-code-hermit@claude-code-hermit --scope project
 ```
 
-> See the [Fleet](#fleet) below for existing plug-play domain hermits.
+> See the [Pre-built Hermits](#pre-built-hermits) below for existing plug-and-play domain hermits.
 
 ### 2. Initialize
 
@@ -118,45 +119,36 @@ Every hermit is yours from the moment you run `/claude-code-hermit:hatch`. See [
 
 Hermits ride on Claude Code's native intelligence and add a `raw/` → `compiled/` layer — raw notes distilled into durable artifacts the agent reloads next session. See [Plugin Hermit Storage](plugins/claude-code-hermit/docs/plugin-hermit-storage.md).
 
-For ready-made specialists, install another hermit plugin from the same marketplace — see the [Fleet](#fleet) table below.
+For ready-made specialists, install another hermit plugin from the same marketplace — see [Pre-built Hermits](#pre-built-hermits) below.
 
 ---
 
-## Fleet
+## Pre-built Hermits
 
-This repo is a multi-plugin marketplace. One `/plugin marketplace add`, then pick your hermits.
-
-| Plugin                                                                                   | For                  | What it adds                                                                |
-| ---------------------------------------------------------------------------------------- | -------------------- | --------------------------------------------------------------------------- |
-| **`claude-code-hermit`**                                                                 | everyone             | Core runtime: sessions, memory, daily rhythm, idle agency, learning loop    |
-| [`claude-code-dev-hermit`](plugins/claude-code-dev-hermit/README.md)                     | software builders    | Language-agnostic safety layer for any code-writing agent — `git-push-guard` hook (strict by default), CLAUDE-APPEND rules every agent reads (clean tree, branch discipline, tests-before-PR), and `/dev-pr` to open PRs gated on a recorded passing test result |
-| [`claude-code-homeassistant-hermit`](plugins/claude-code-homeassistant-hermit/README.md) | Home Assistant users | HA skills, safety hook, automation builder, Python CLI                      |
-| [`claude-code-fitness-hermit`](plugins/claude-code-fitness-hermit/README.md)             | runners / cyclists   | Strava MCP wiring, activity deep-dives, race debriefs, and weekly-load routines |
-
-Domain plugins pin `required_core_version` against core. `/claude-code-hermit:hermit-doctor` catches missing core.
+- [**`dev-hermit`**](plugins/claude-code-dev-hermit/README.md) — *For software builders.* Safety layer for code-writing agents: push guard, branch discipline, gated PRs.
+- [**`homeassistant-hermit`**](plugins/claude-code-homeassistant-hermit/README.md) — *For Home Assistant users.* HA skills, safety hook, automation builder, Python CLI.
+- [**`fitness-hermit`**](plugins/claude-code-fitness-hermit/README.md) — *Fitness focused.* Strava MCP wiring, activity deep-dives, weekly-load routines.
 
 ---
 
 ## Documentation
 
-| Document                                                                                       | Read this when...                                                          |
-| ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| [Getting Started](plugins/claude-code-hermit/docs/how-to-use.md)                               | You're new and want a walkthrough of install, first session, and daily use |
-| [Skills Reference](plugins/claude-code-hermit/docs/skills.md)                                  | You need the exact syntax or options for a specific skill                  |
-| [Always-On Setup](plugins/claude-code-hermit/docs/always-on.md)                                | You're ready to run Hermit in Docker with crash recovery                   |
-| [Always-On Operations](plugins/claude-code-hermit/docs/always-on-ops.md)                       | You're running bare tmux (no Docker) or need the lifecycle reference       |
-| [Architecture](plugins/claude-code-hermit/docs/architecture.md)                                | You want to understand the internals — layers, memory, learning loop       |
-| [Creating Your Own Hermit](plugins/claude-code-hermit/docs/creating-your-own-hermit.md)        | You want to customize OPERATOR.md, add agents, or build a reusable plugin  |
-| [Upgrading](plugins/claude-code-hermit/docs/upgrading.md)                                      | A new version is out and you need to update safely                         |
-| [Security](plugins/claude-code-hermit/docs/security.md)                                        | You need deny patterns, defense-in-depth model, or the security checklist  |
-| [Recommended Plugins](plugins/claude-code-hermit/docs/recommended-plugins.md)                  | You want to add official or third-party plugins to your Docker setup       |
-| [Config Reference](plugins/claude-code-hermit/docs/config-reference.md)                        | You need the full config.json schema with every key and default            |
-| [Troubleshooting](plugins/claude-code-hermit/docs/troubleshooting.md)                          | Something isn't working and you need to fix it                             |
-| [FAQ](plugins/claude-code-hermit/docs/faq.md)                                                  | Common questions — Windows, costs, multi-project, API keys                 |
-| [Testing](plugins/claude-code-hermit/docs/testing.md)                                          | You're contributing and need to run or write hook tests                    |
-| [Hermit Cortex (Powered by Obsidian)](plugins/claude-code-hermit/docs/obsidian-setup.md)       | You want to see inside your hermit's brain                                 |
-| [Plugin Hermit Storage](plugins/claude-code-hermit/docs/plugin-hermit-storage.md)              | You're building a hermit plugin and need the raw/compiled storage rules    |
-| [Artifact Naming](plugins/claude-code-hermit/docs/artifact-naming.md)                          | You're adding a new artifact or domain and need the naming convention      |
+- [Always-On Operations](plugins/claude-code-hermit/docs/always-on-ops.md)
+- [Always-On Setup](plugins/claude-code-hermit/docs/always-on.md)
+- [Architecture](plugins/claude-code-hermit/docs/architecture.md)
+- [Artifact Naming](plugins/claude-code-hermit/docs/artifact-naming.md)
+- [Config Reference](plugins/claude-code-hermit/docs/config-reference.md)
+- [Creating Your Own Hermit](plugins/claude-code-hermit/docs/creating-your-own-hermit.md)
+- [FAQ](plugins/claude-code-hermit/docs/faq.md)
+- [Getting Started](plugins/claude-code-hermit/docs/how-to-use.md)
+- [Hermit Cortex (Powered by Obsidian)](plugins/claude-code-hermit/docs/obsidian-setup.md)
+- [Plugin Hermit Storage](plugins/claude-code-hermit/docs/plugin-hermit-storage.md)
+- [Recommended Plugins](plugins/claude-code-hermit/docs/recommended-plugins.md)
+- [Security](plugins/claude-code-hermit/docs/security.md)
+- [Skills Reference](plugins/claude-code-hermit/docs/skills.md)
+- [Testing](plugins/claude-code-hermit/docs/testing.md)
+- [Troubleshooting](plugins/claude-code-hermit/docs/troubleshooting.md)
+- [Upgrading](plugins/claude-code-hermit/docs/upgrading.md)
 
 ---
 
