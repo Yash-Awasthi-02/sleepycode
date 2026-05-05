@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.30] - 2026-05-05
 
 ### Removed
 
@@ -22,8 +22,13 @@
 
 ### Upgrade Instructions
 
-- If `.claude-code-hermit/config.json` contains a `docker.security.read_only` key, delete it. The toggle was removed; the key is now inert and would otherwise surface as a stale `/hermit-doctor` warning.
-- If the deleted key had `enabled: true`, the live container is still running with `read_only: true`. Re-run `/claude-code-hermit:docker-security` (the read-only prompt no longer appears) and answer through the remaining prompts as you wish. Then `.claude-code-hermit/bin/hermit-docker down && .claude-code-hermit/bin/hermit-docker up`. Existing `claude-config` volume and credentials are preserved.
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Delete `docker.security.read_only` from `.claude-code-hermit/config.json`** — the key is now inert and surfaces as a stale `/hermit-doctor` warning.
+
+**Note:** If that key had `enabled: true`, the container is still running with `read_only: true`. Re-run `/claude-code-hermit:docker-security`, answer through the remaining prompts, then `hermit-docker down && hermit-docker up`. Existing `claude-config` volume and credentials are preserved.
+
+No other `config.json` changes required.
 
 ## [1.0.29] - 2026-05-04
 
