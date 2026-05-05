@@ -48,6 +48,10 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha simulate <artifact>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha validate-apply <artifact> [--reload automation|script]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha policy-check <entity_id_or_yaml>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha audit-automations
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-automations
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-scripts
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-automation <id>
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-script <id>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha probe <path>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status [--probe]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot store --language <locale> --url <url> [--token <token>]
@@ -64,6 +68,10 @@ Run `--help` for current flags. Source of truth: `src/ha_agent_lab/cli.py`.
 Before changing HA endpoint usage, verify against upstream (WebFetch or the `find-docs` skill) or probe a live instance with `./bin/ha-agent-lab ha probe <path>`. Do not assume an endpoint exists.
 
 - Automations have no bulk REST listing. Enumerate via `/api/states` (filter `domain=automation`), fetch each config via `/api/config/automation/config/{automation_id}`. YAML-packaged automations lack a numeric `id` and are not retrievable via REST (use WebSocket `config/automation/list` for full coverage).
+- `POST /api/config/{automation|script}/config/{id}` — create/update (upsert). URL `id` is sufficient; body `id` field is ignored by HA. Returns `{"result":"ok"}` on success. Returns 403 if HA is in YAML config mode (REST config API unavailable).
+- `DELETE /api/config/{automation|script}/config/{id}` — remove config. **A missing id returns 400** (not 404) with `{"message":"Resource not found"}` — do not special-case 404. All HA error responses carry `{"message":"..."}` — surface it verbatim.
+- After `POST`, `GET` reflects the change synchronously (verified against HA 2026.x). No retry or delay needed for verify calls.
+- `--reload {automation|script}` in `ha validate-apply` is overloaded: it controls both the REST push endpoint and the reload service call. There is no push-only mode; add `--no-reload` if that use case arises.
 
 ## Development constraints
 

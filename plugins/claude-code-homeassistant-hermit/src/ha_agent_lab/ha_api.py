@@ -44,6 +44,9 @@ class HomeAssistantClient:
     def post(self, path: str, payload: dict[str, Any] | None = None) -> Any:
         return self._request("POST", path, payload)
 
+    def delete(self, path: str) -> Any:
+        return self._request("DELETE", path, None)
+
     def get_states(self) -> list[dict[str, Any]]:
         return self.get("/api/states")
 
@@ -92,10 +95,23 @@ class HomeAssistantClient:
     def _http_error_message(status_code: int) -> str:
         mapping = {
             401: "Unauthorized Home Assistant request.",
+            403: "Forbidden: Home Assistant is in YAML mode (REST config API unavailable).",
             404: "Home Assistant endpoint not found.",
             405: "Home Assistant method not allowed.",
         }
         return mapping.get(status_code, "Home Assistant request failed.")
+
+
+def extract_ha_error_message(exc: HomeAssistantError) -> str:
+    """Pull HA's structured {"message": "..."} body from the error; fall back to str(exc)."""
+    if isinstance(exc.payload, str):
+        try:
+            parsed = json.loads(exc.payload)
+            if isinstance(parsed, dict) and isinstance(parsed.get("message"), str):
+                return parsed["message"]
+        except json.JSONDecodeError:
+            pass
+    return str(exc)
 
 
 def probe_home_assistant_url(base_url: str, token: str, timeout_seconds: int) -> bool:

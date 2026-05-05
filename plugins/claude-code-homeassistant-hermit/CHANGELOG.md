@@ -2,6 +2,25 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
+## [Unreleased]
+
+### Added
+
+- **`ha validate-apply` now pushes config to HA via REST** — `POST /api/config/{domain}/config/{id}` is called before the domain reload, fixing the silent failure where `reload_attempted: true` was returned but the automation never appeared in HA (PROP-005). The automation `id:` field is used as the REST config ID; if absent, it is derived from the alias or filename with a drift warning in the output.
+- **`ha delete-automation <id>` and `ha delete-script <id>`** — remove an automation or script config from HA via `DELETE /api/config/{domain}/config/{id}`. Output includes `ok`, `message`, and a report path.
+- **`ha list-automations` and `ha list-scripts`** — lightweight enumeration of live HA automations/scripts (entity_id, config id, alias, state). Intended as a quick lookup before delete, without the full policy audit of `audit-automations`.
+- **`ha-delete-config` skill** — operator-facing workflow for discovering a target automation/script, confirming deletion, and optionally triggering a reload.
+- **Structured HA error messages surfaced verbatim** — all HA error responses carry `{"message":"..."}`. This field is now extracted and included in apply/remove reports, replacing the opaque "Home Assistant request failed (status=400)".
+
+### Changed
+
+- **`validate-apply` JSON output** — includes three new fields: `config_id`, `creation_attempted`, `creation_ok`. The `creation_ok` field distinguishes a pushed-and-verified config from a reload-only operation (e.g. YAML mode fallback).
+- **`ApplyResult` dataclass** — extended with `config_id`, `domain`, `creation_attempted`, `creation_ok`.
+
+### Fixed
+
+- **Apply flow no longer silently succeeds when HA never received the config** — previous behavior called `automation.reload` with no config push, returning success despite the automation being absent. Now reports `creation_ok: false` with a clear message in the YAML-mode fallback case.
+
 ## [0.0.8] - 2026-05-04
 
 ### Added

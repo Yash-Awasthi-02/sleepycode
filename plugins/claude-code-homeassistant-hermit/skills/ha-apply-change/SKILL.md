@@ -15,16 +15,19 @@ allowed-tools:
    - If blocked: stop and explain why. Create a proposal via `/claude-code-hermit:proposal-create`.
 
 2. **Validate and apply**: Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha validate-apply <artifact_path> --reload automation` (or `script`).
-   - This runs HA config check, then reloads the domain.
+   - This runs HA config check, **pushes the config to HA via REST**, then reloads the domain.
+   - The artifact must include `id:` at the top level — if missing, the CLI derives an ID from the alias or filename and warns in the output. A derived ID drifts if the alias is renamed, creating a duplicate.
 
 3. **Confirm with operator**: Always ask before executing the apply. Show:
    - The artifact being applied
    - Policy check result
    - What domain will be reloaded
 
-4. **Post-apply**: Read the apply report from `.claude-code-hermit/raw/audit-ha-apply-latest.md`.
-   - If successful: update `MEMORY.md` Automation Insights if this is a new pattern.
-   - If failed: explain the error and suggest fixes.
+4. **Post-apply**: Check the JSON output for `creation_ok` and read `.claude-code-hermit/raw/audit-ha-apply-latest.md`.
+   - `creation_ok: true` — config was pushed and verified via REST. Reload picks it up immediately.
+   - `creation_ok: false` + message contains "YAML mode" — HA is in YAML config mode (403). Tell the operator to place the generated YAML in their HA config directory and reload manually.
+   - `creation_ok: false` + other message — push failed with a validation error from HA. Show the error message and suggest fixing the YAML.
+   - If overall successful: update `MEMORY.md` Automation Insights if this is a new pattern.
 
 ## Safety
 

@@ -7,7 +7,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-from .apply import validate_and_apply
+from .apply import remove_config, validate_and_apply
 from .artifacts import current_session_id, standard_metadata, utc_timestamp, write_json_artifact, write_markdown_artifact
 from .boot import boot_status, save_boot_preferences
 from .config import load_config, normalized_context_path
@@ -59,6 +59,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="GET a raw HA REST path and print the JSON response. Useful for verifying endpoints.",
     )
     probe_parser.add_argument("path", help="HA REST path, e.g. /api/config/automation/config/1234")
+
+    ha_subparsers.add_parser("list-automations", help="List all automation entity IDs and config IDs.")
+    ha_subparsers.add_parser("list-scripts", help="List all script entity IDs and config IDs.")
+
+    delete_automation_parser = ha_subparsers.add_parser("delete-automation", help="Delete an automation config by ID.")
+    delete_automation_parser.add_argument("id", help="Automation config ID (not entity_id).")
+
+    delete_script_parser = ha_subparsers.add_parser("delete-script", help="Delete a script config by ID.")
+    delete_script_parser.add_argument("id", help="Script config ID (not entity_id).")
 
     return parser
 
@@ -167,6 +176,10 @@ def main(argv: list[str] | None = None) -> int:
                 json.dumps(
                     {
                         "ok": result.ok,
+                        "config_id": result.config_id,
+                        "creation_attempted": result.creation_attempted,
+                        "creation_ok": result.creation_ok,
+                        "reload_attempted": result.reload_attempted,
                         "message": result.message,
                         "report_path": str(result.report_path.relative_to(root)),
                         "base_url_source": client.base_url_source,
@@ -179,8 +192,56 @@ def main(argv: list[str] | None = None) -> int:
             print(str(exc))
             return 1
 
+    if args.command == "ha" and args.ha_command in ("list-automations", "list-scripts"):
+        try:
+            client = HomeAssistantClient(config)
+            domain = "automation" if args.ha_command == "list-automations" else "script"
+            items = _list_domain(client, domain)
+            print(json.dumps(items, indent=2, ensure_ascii=False))
+            return 0
+        except HomeAssistantError as exc:
+            print(str(exc))
+            return 1
+
+    if args.command == "ha" and args.ha_command in ("delete-automation", "delete-script"):
+        try:
+            client = HomeAssistantClient(config)
+            domain = "automation" if args.ha_command == "delete-automation" else "script"
+            result = remove_config(root, client, domain, args.id)
+            print(
+                json.dumps(
+                    {
+                        "ok": result.ok,
+                        "domain": result.domain,
+                        "config_id": result.config_id,
+                        "message": result.message,
+                        "report_path": str(result.report_path.relative_to(root)),
+                    },
+                    indent=2,
+                )
+            )
+            return 0 if result.ok else 1
+        except HomeAssistantError as exc:
+            print(str(exc))
+            return 1
+
     parser.error("Unsupported command.")
     return 1
+
+
+def _list_domain(client: HomeAssistantClient, domain: str) -> list[dict[str, Any]]:
+    states = client.get("/api/states")
+    return [
+        {
+            "entity_id": s["entity_id"],
+            "id": (s.get("attributes") or {}).get("id"),
+            "alias": (s.get("attributes") or {}).get("friendly_name"),
+            "state": s.get("state"),
+            "last_changed": s.get("last_changed"),
+        }
+        for s in states
+        if isinstance(s, dict) and s.get("entity_id", "").startswith(f"{domain}.")
+    ]
 
 
 def _print_safety_audit_summary(summary: dict[str, Any]) -> None:
