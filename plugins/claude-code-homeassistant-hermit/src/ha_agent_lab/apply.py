@@ -78,6 +78,19 @@ def validate_and_apply(
     drift_warning: str | None = None
     yaml_mode_message: str | None = None
 
+    if reload_domain and not can_reload_domain(reload_domain):
+        report_path = _write_apply_report(
+            root, artifact_path, simulation,
+            config_check_ok=config_ok, config_id=None, creation_attempted=False,
+            creation_ok=False, reload_attempted=False, reload_domain=reload_domain,
+            message=f"Reload domain `{reload_domain}` is not allowed.",
+        )
+        return ApplyResult(
+            ok=False, config_check_ok=config_ok, config_id=None, domain=reload_domain,
+            creation_attempted=False, creation_ok=False, reload_attempted=False,
+            reload_domain=reload_domain, message="reload-blocked", report_path=report_path,
+        )
+
     if reload_domain in _CONFIG_DOMAINS:
         artifact_config = yaml.safe_load(artifact_path.read_text(encoding="utf-8")) or {}
         config_id = (
@@ -91,9 +104,9 @@ def validate_and_apply(
                 f"set id: explicitly in the YAML to prevent drift on rename."
             )
 
+        creation_attempted = True
         try:
             client.post(f"/api/config/{reload_domain}/config/{config_id}", artifact_config)
-            creation_attempted = True
             try:
                 verify = client.get(f"/api/config/{reload_domain}/config/{config_id}")
                 creation_ok = verify.get("alias") == artifact_config.get("alias")
@@ -101,7 +114,6 @@ def validate_and_apply(
                 creation_ok = False
         except HomeAssistantError as exc:
             if exc.status_code == 403:
-                creation_attempted = True
                 yaml_mode_message = (
                     f"YAML mode: HA rejected REST config push (403). "
                     f"Place the generated YAML in your HA config directory and reload {reload_domain}."
@@ -123,19 +135,6 @@ def validate_and_apply(
 
     reload_attempted = False
     if reload_domain:
-        if not can_reload_domain(reload_domain):
-            report_path = _write_apply_report(
-                root, artifact_path, simulation,
-                config_check_ok=config_ok, config_id=config_id, creation_attempted=creation_attempted,
-                creation_ok=creation_ok, reload_attempted=False, reload_domain=reload_domain,
-                message=f"Reload domain `{reload_domain}` is not allowed.",
-            )
-            return ApplyResult(
-                ok=False, config_check_ok=config_ok, config_id=config_id, domain=reload_domain,
-                creation_attempted=creation_attempted, creation_ok=creation_ok,
-                reload_attempted=False, reload_domain=reload_domain,
-                message="reload-blocked", report_path=report_path,
-            )
         client.post(f"/api/services/{reload_domain}/reload", {})
         reload_attempted = True
 

@@ -231,17 +231,23 @@ def main(argv: list[str] | None = None) -> int:
 
 def _list_domain(client: HomeAssistantClient, domain: str) -> list[dict[str, Any]]:
     states = client.get("/api/states")
-    return [
-        {
+    prefix = f"{domain}."
+    items: list[dict[str, Any]] = []
+    for s in states:
+        if not (isinstance(s, dict) and s.get("entity_id", "").startswith(prefix)):
+            continue
+        attrs = s.get("attributes") or {}
+        config_id = attrs.get("id")
+        items.append({
             "entity_id": s["entity_id"],
-            "id": (s.get("attributes") or {}).get("id"),
-            "alias": (s.get("attributes") or {}).get("friendly_name"),
+            "id": config_id,
+            "friendly_name": attrs.get("friendly_name"),
             "state": s.get("state"),
             "last_changed": s.get("last_changed"),
-        }
-        for s in states
-        if isinstance(s, dict) and s.get("entity_id", "").startswith(f"{domain}.")
-    ]
+            "deletable": config_id is not None,
+        })
+    items.sort(key=lambda item: item["entity_id"])
+    return items
 
 
 def _print_safety_audit_summary(summary: dict[str, Any]) -> None:
