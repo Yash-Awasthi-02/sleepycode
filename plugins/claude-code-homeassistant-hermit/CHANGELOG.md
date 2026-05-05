@@ -2,6 +2,56 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
+## [0.0.9] - 2026-05-05
+
+### Added
+
+- **`ha validate-apply` now pushes config to HA via REST** — `POST /api/config/{domain}/config/{id}` is called before the domain reload, fixing the silent failure where `reload_attempted: true` was returned but the automation never appeared in HA (PROP-005). The automation `id:` field is used as the REST config ID; if absent, it is derived from the alias or filename with a drift warning in the output.
+- **`ha delete-automation <id>` and `ha delete-script <id>`** — remove an automation or script config from HA via `DELETE /api/config/{domain}/config/{id}`. Output includes `ok`, `message`, and a report path.
+- **`ha list-automations` and `ha list-scripts`** — lightweight enumeration of live HA automations/scripts (entity_id, config id, friendly_name, state, deletable). Sorted by entity_id. The `deletable: false` flag identifies YAML-packaged automations that lack a numeric `id` and cannot be removed via REST. Intended as a quick lookup before delete, without the full policy audit of `audit-automations`.
+- **`ha-delete-config` skill** — operator-facing workflow for discovering a target automation/script, confirming deletion, and optionally triggering a reload.
+- **Structured HA error messages surfaced verbatim** — all HA error responses carry `{"message":"..."}`. This field is now extracted and included in apply/remove reports, replacing the opaque "Home Assistant request failed (status=400)".
+
+### Changed
+
+- **`validate-apply` JSON output** — includes three new fields: `config_id`, `creation_attempted`, `creation_ok`. The `creation_ok` field distinguishes a pushed-and-verified config from a reload-only operation (e.g. YAML mode fallback).
+- **`ApplyResult` dataclass** — extended with `config_id`, `domain`, `creation_attempted`, `creation_ok`.
+- **deps: bump core requirement to `>=1.0.30` / `^1.0.30`** — was `>=1.0.29`; `required_core_version` and `requires.claude-code-hermit` in `hermit-meta.json` and `dependencies[0].version` in `plugin.json` all updated together.
+
+### Fixed
+
+- **Apply flow no longer silently succeeds when HA never received the config** — previous behavior called `automation.reload` with no config push, returning success despite the automation being absent. Now reports `creation_ok: false` with a clear message in the YAML-mode fallback case.
+- **`ha-delete-config` skill**: removed erroneous advice to use `validate-apply` for post-delete reload (it would also push the supplied YAML as a new config). Step 5 now correctly points to HA Developer Tools → Services.
+- **`ha-build-automation` skill**: `id:` field is now required as the first field in generated YAML — without it, `validate-apply` derives a fragile ID from the alias that breaks on rename.
+- **CLI tests**: `_make_config` helper consolidated into a shared `make_mock_config` fixture in `conftest.py`; `test_cli_probe.py` and `test_cli_delete.py` both use it. Renamed `test_delete_automation_missing_id_exits_nonzero` → `test_delete_automation_not_found_exits_nonzero` (the old name conflated a missing CLI argument with a missing HA resource).
+- **`validate-apply` no longer pushes config when reload domain is disallowed** — the `can_reload_domain` authorization check now runs before the REST POST, not after. Previously the config could be pushed and then the result returned as `reload-blocked`, leaving HA state inconsistent with operator expectations. No-op in practice today (`_CONFIG_DOMAINS` and the reload allowlist are identical sets), but eliminates the latent footgun if those sets ever drift.
+- **`list-automations` / `list-scripts` output shape** — renamed `alias` → `friendly_name` (matches HA's actual `attributes.friendly_name` — HA never exposes the YAML `alias:` field via `/api/states`), added `deletable: bool` flag (`false` for YAML-packaged automations that lack a numeric `id` and cannot be removed via REST), and results are now sorted by `entity_id` for deterministic operator UX. Field rename is contained within this unreleased v0.0.9 — no operator scripting is impacted.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `src/ha_agent_lab/apply.py` | REST push (`POST /api/config/{domain}/config/{id}`) added before reload; `ApplyResult` extended with `config_id`, `domain`, `creation_attempted`, `creation_ok` |
+| `src/ha_agent_lab/cli.py` | `list-automations`, `list-scripts`, `delete-automation`, `delete-script` subcommands added |
+| `src/ha_agent_lab/ha_api.py` | `extract_ha_error_message` helper added; all error responses now surface HA's `{"message":"..."}` field |
+| `skills/ha-apply-change/SKILL.md` | Apply workflow updated to reflect REST push flow and new `creation_ok` output field |
+| `skills/ha-build-automation/SKILL.md` | `id:` field marked required as first field in generated YAML |
+| `skills/ha-delete-config/SKILL.md` | New skill: delete workflow with list → confirm → delete → optional reload |
+| `state-templates/CLAUDE-APPEND.md` | `ha-delete-config` row added to skills table |
+| `CLAUDE.md` | `list-automations`, `list-scripts`, `delete-automation`, `delete-script` CLI commands documented |
+| `.claude-plugin/hermit-meta.json` | `required_core_version` and `requires.claude-code-hermit` bumped `>=1.0.29` → `>=1.0.30` |
+| `.claude-plugin/plugin.json` | `dependencies[0].version` bumped `^1.0.29` → `^1.0.30`; manifest `version` bumped `0.0.8` → `0.0.9` |
+| `CHANGELOG.md` | New `[0.0.9]` entry |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Refresh skill files** — replace `skills/ha-apply-change/SKILL.md`, `skills/ha-build-automation/SKILL.md`, and `skills/ha-delete-config/SKILL.md` from this release.
+2. **Add `ha-delete-config` to the injected skills table** — in the operator project's `CLAUDE.md`, find the `### Skills` table under `## Home Assistant Workflow` and append: `| /claude-code-homeassistant-hermit:ha-delete-config | Discover and delete an automation/script config from HA |`
+
+No `config.json` changes required.
+
 ## [0.0.8] - 2026-05-04
 
 ### Added
