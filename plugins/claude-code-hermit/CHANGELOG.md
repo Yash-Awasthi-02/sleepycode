@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Removed
+
+- **`/docker-security` Prompt 2 (read-only root filesystem).** The toggle was breaking Claude Code auth: hermits with `read_only: true` 401'd with `Invalid authentication credentials` once the OAuth access token expired (~8h after `/login`), because the credential refresh write path failed silently under the current tmpfs / named-volume layout. The other three toggles (LAN containment, resource bounds, audit log) are unaffected and remain in the wizard.
+
 ### Fixed
 
 - **`hermit-start`: pass bootstrap as `claude` argv instead of `tmux send-keys`.**
@@ -15,6 +19,11 @@
 - **`hermit-docker restart` fails under the security overlay.** `docker compose restart` restarts services in parallel and ignores `depends_on`, so the hermit container tried to rejoin the netguard netns while netguard was briefly exited — producing "cannot join network namespace of a non running container". Fixed by replacing `compose restart` with `down && up -d`, which honors dependency order on start. Behavior is identical to `hermit-docker down && hermit-docker up`, which already worked.
 
 - **`/docker-setup` Step 8 `ackReaction` race.** The `set ackReaction` tmux command was sent immediately before the Step 8b shutdown, leaving no time for the in-container LLM turn to write the value to `access.json`. Replaced the tmux send-keys round-trip with a direct host-side edit of `.claude.local/channels/<plugin>/access.json` — the bind-mount makes it visible in the container immediately, with no race.
+
+### Upgrade Instructions
+
+- If `.claude-code-hermit/config.json` contains a `docker.security.read_only` key, delete it. The toggle was removed; the key is now inert and would otherwise surface as a stale `/hermit-doctor` warning.
+- If the deleted key had `enabled: true`, the live container is still running with `read_only: true`. Re-run `/claude-code-hermit:docker-security` (the read-only prompt no longer appears) and answer through the remaining prompts as you wish. Then `.claude-code-hermit/bin/hermit-docker down && .claude-code-hermit/bin/hermit-docker up`. Existing `claude-config` volume and credentials are preserved.
 
 ## [1.0.29] - 2026-05-04
 
