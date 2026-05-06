@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Remove quick-task gate from session-triggered scheduled checks** — the "no tasks created, under 5 minutes" skip caused `revise-claude-md` to miss short declarative operator corrections (e.g. "from now on never X"), which are exactly the sessions with the highest-signal CLAUDE.md updates.
+
 ### Changed
 
 - **`reflect` operator-value self-check now covers micro-proposals.** The dismiss-ratio tally in step 5 now counts `micro-resolved` events (approved / rejected / expired) alongside `responded` events. The self-check distinguishes `rejected` (noise signal — pare back output) from `expired` (timing signal — adjust question scheduling). Previously the check was blind to Tier 1/2 micro-approval traffic, which is reflect's highest-volume output.
