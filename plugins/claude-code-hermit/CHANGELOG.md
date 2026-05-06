@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **`reflect` operator-value self-check now covers micro-proposals.** The dismiss-ratio tally in step 5 now counts `micro-resolved` events (approved / rejected / expired) alongside `responded` events. The self-check distinguishes `rejected` (noise signal — pare back output) from `expired` (timing signal — adjust question scheduling). Previously the check was blind to Tier 1/2 micro-approval traffic, which is reflect's highest-volume output.
+
 ### Added
 
 - **Guild/group channel setup in `docker-setup` and `channel-setup`.** After DM pairing completes, both skills now offer an optional step to register one or more Discord server channels or Telegram group chats via `/<plugin>:access group add`. Each channel gets its own `requireMention` choice (default: true — require @mention, safer for noisy shared channels). Supports multiple channels per run via a loop; verification reads `access.json` once after all channels are added rather than on every iteration.
