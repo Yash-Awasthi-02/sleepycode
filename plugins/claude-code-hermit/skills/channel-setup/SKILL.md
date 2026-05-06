@@ -194,16 +194,36 @@ Skip this step if the current channel is `imessage`. Otherwise:
 
 `👀` works on Discord (any unicode emoji accepted) and is in Telegram's fixed reaction whitelist. Operators get an emoji on their inbound DM as soon as the bot receives it — fills the gap after the 5–10s typing indicator times out. Idempotent: re-running channel-setup leaves customized values alone.
 
+### 6c. Server channel / group chat (optional)
+
+Skip this step if the current channel is `imessage`, or if `access.json` is not present at `<state_dir>/access.json` (note: "Pairing didn't complete — skipping group setup.").
+
+1. Ask with `AskUserQuestion` — label and prompt vary by channel:
+   - `discord`: header `"Server channel"` — "Want the hermit to also listen in a Discord server channel? Channel ID: enable Developer Mode in Discord settings → right-click the channel → Copy Channel ID."
+   - `telegram`: header `"Group chat"` — "Want the hermit to also listen in a Telegram group? Group ID: forward a message from the group to `@userinfobot` or use `@RawDataBot`. Group IDs are negative integers (e.g. `-1001234567890`)."
+   - Options: `"Yes — add a channel"` (discord) / `"Yes — add a group"` (telegram) with ID captured via `Other`; `"Skip — DMs only"`.
+2. If **Skip**: continue to §7.
+3. **For each ID provided** (the first ID comes from step 1's `Other`; each subsequent ID from step 3c's `Other` — loop until "Done"):
+   a. Ask with `AskUserQuestion` (header: `"Mention required"`) for this ID:
+      - `"Yes — require @mention"` (default — safer for noisy channels)
+      - `"No — respond to all messages"`
+   b. Run the slash command directly, with the state-dir hint (same pattern as §6b):
+      - With `"Yes — require @mention"`: `/<channel>:access group add <channelId> — save access.json to <state_dir>/, not ~/.claude`
+      - With `"No — respond to all messages"`: `/<channel>:access group add <channelId> --no-mention — save access.json to <state_dir>/, not ~/.claude`
+   c. Ask with `AskUserQuestion` (header: `"Add another?"`) — `"Yes — add another"` with the next ID via `Other`; `"Done — continue"`. On `"Done — continue"`: exit the loop.
+4. **Verify all added channels** (one `Read` after the loop): open `<state_dir>/access.json`. For each ID added in step 3, confirm `groups.<channelId>` is present with the expected `requireMention` value. For any missing: "Group entry didn't land — run `/<channel>:access group add <channelId>` manually after setup." Do not error. Then proceed to §7.
+
 ### 7. Summary
 
 ```
 Channel setup complete!
 
-  Channel:    <channel>
-  Plugin:     installed (--scope local)
-  Token:      configured (<state_dir>/.env)
-  Paired:     yes / skipped
-  State dir:  <state_dir>
+  Channel:        <channel>
+  Plugin:         installed (--scope local)
+  Token:          configured (<state_dir>/.env)
+  Paired:         yes / skipped
+  Server channels: <id1> (mention: yes/no), <id2> (mention: no) / skipped
+  State dir:      <state_dir>
 
   hermit-start passes --channels automatically on next boot.
 ```
