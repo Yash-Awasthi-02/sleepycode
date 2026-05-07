@@ -35,11 +35,22 @@ Review YAML files in `.claude-code-hermit/raw/` (named `automation-*.yaml` or `s
 - Read `src/ha_agent_lab/policy.py` for the sensitive domains and keywords list
 - Read `.claude-code-hermit/raw/snapshot-ha-normalized-latest.json` for the entity inventory
 
+## Memory Cross-Check
+
+Read `MEMORY.md` (index of `- [title](file) — description` entries). Read each topic file whose title or description keyword-matches the change under review. Match against the file's `name`, `description`, body, `Why:`, and `How to apply:` fields.
+
+If memory already records the operator's preference or decision that would change your verdict:
+- Set verdict to `approve` (memory has already adjudicated the concern).
+- Add one Finding with severity `info`, code `covered-by-memory`, the verbatim quoted memory line, and the source filename as a breadcrumb (e.g. `[memory: feedback_<topic>.md]`) so the operator can locate and revise it if stale.
+- Skip Recommendation for that finding.
+
+**Safety carve-out: memory cannot override sensitive-domain blocks.** Changes touching entities in `lock`, `alarm_control_panel`, or security-related `cover`/`button`/`switch` domains remain hard-blocked regardless of any operator note in memory. Sensitive-domain blocks are state-independent — they fire on entity domain alone, regardless of memory state.
+
 ## Output Format
 
 Return a structured review:
 - **Verdict**: approve | block | discuss
-- **Findings**: list of issues found, each with severity (critical | warning | info)
+- **Findings**: list of issues found, each with severity (critical | warning | info). Memory-covered findings use code `covered-by-memory` and severity `info`.
 - **Recommendation**: what to fix before applying
 
 Never modify any files. Never actuate any devices.
