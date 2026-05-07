@@ -462,7 +462,30 @@ If the token is present, ask if already paired. If not:
    1. Use the `Read` tool on `<project_path>/.claude.local/channels/<plugin>/access.json` (host file). If `ackReaction` is already non-empty, skip — preserve operator customization.
    2. Otherwise use the `Edit` tool to set the `ackReaction` value to `"👀"` while preserving every other key in the file unchanged (read-modify-write a single field — do NOT overwrite the file with a fresh object). The bind-mount makes the change visible inside the container immediately — no tmux round-trip, no LLM turn, no race with the Step 8b shutdown.
    3. Idempotent: re-running docker-setup leaves customized values alone (sub-step 1 short-circuits when `ackReaction` is non-empty).
-7. Confirm: "Paired and locked down. If the bot doesn't respond to your first message, give it up to 2 minutes — the hermit may still be booting or running initial checks (plugin installs, workspace trust, auto-memory seeding)."
+7. **Server channel / group chat (optional)** (run even if `"Already paired"` was chosen; skip only if `imessage`, if `"Skip this channel"` was chosen, or if pairing returned `"No response"`):
+   1. Ask with `AskUserQuestion` — label and prompt vary by channel:
+      - `discord`: header `"Server channel"` — "Want the hermit to also listen in a Discord server channel? Channel ID: enable Developer Mode in Discord settings → right-click the channel → Copy Channel ID."
+      - `telegram`: header `"Group chat"` — "Want the hermit to also listen in a Telegram group? Group ID: forward a message from the group to `@userinfobot` or use `@RawDataBot`. Group IDs are negative integers (e.g. `-1001234567890`)."
+      - Options: `"Yes — add a channel"` (discord) / `"Yes — add a group"` (telegram) with ID captured via `Other`; `"Skip — DMs only"`.
+   2. If **Skip**: continue to sub-step 8.
+   3. **For each ID provided** (the first ID comes from step 1's `Other`; each subsequent ID from step 3d's `Other` — loop until "Done"):
+      a. Ask with `AskUserQuestion` (header: `"Mention required"`) for this ID:
+         - `"Yes — require @mention"` (default — safer for noisy channels)
+         - `"No — respond to all messages"`
+      b. Send `group add` into tmux using the **same two-call send-keys pattern** as sub-step 2 (text, `sleep 0.5`, `Enter`):
+         - With `"Yes — require @mention"`:
+           ```
+           docker compose -f docker-compose.hermit.yml exec -T hermit \
+             tmux send-keys -t <session> '/<plugin>:access group add <channelId> — save access.json to <project_path>/.claude.local/channels/<plugin>/ not ~/.claude'
+           sleep 0.5
+           docker compose -f docker-compose.hermit.yml exec -T hermit \
+             tmux send-keys -t <session> Enter
+           ```
+         - With `"No — respond to all messages"`: same but with `--no-mention` appended before the ` —` hint.
+      c. Confirm (text only): "Sent `group add` for `<channelId>`. Will verify after all channels are added."
+      d. Ask with `AskUserQuestion` (header: `"Add another?"`) — `"Yes — add another"` with the next ID via `Other`; `"Done — continue"`. On `"Done — continue"`: exit the loop.
+   4. **Verify all added channels** (one `Read` after the loop): open `<project_path>/.claude.local/channels/<plugin>/access.json`. For each ID added in step 3, confirm `groups.<channelId>` is present with the expected `requireMention` value. For any missing: run `docker compose exec -T hermit tmux capture-pane -t <session> -p`, surface the output, and warn — do not fail the whole setup. Then proceed to sub-step 8.
+8. Confirm: "Paired and locked down. If the bot doesn't respond to your first message, give it up to 2 minutes — the hermit may still be booting or running initial checks (plugin installs, workspace trust, auto-memory seeding)."
 
 If "skip": tell them to DM the bot later and run the commands manually.
 

@@ -26,7 +26,7 @@ This skill is **silent by default**. Only notify the operator (per the channel p
      - `adult` — `age_days ≥ 14`
    - Bind `$PHASE` for the rest of this run; it gates recurrence (Three-Condition Rule #1), sub-threshold surfacing (Outcomes), and the Progress Log annotation.
 
-5. Delegate the proposal scan to the built-in `Explore` subagent. Prompt: `List all .claude-code-hermit/proposals/PROP-*.md files. For each, extract id, status, title, source, created, accepted_date, related_sessions from YAML frontmatter (or **Status:**/**Title:** bullet fallback for pre-Observatory proposals). Return a compact JSON array — metadata only, no file bodies.` Also tail the last 100 lines of `state/proposal-metrics.jsonl` (inline, single read): count `responded` events by `action` (accept / defer / dismiss) — the dismissal ratio feeds the operator-value self-check below. Also count `triage-verdict` events by `verdict` (CREATE / SUPPRESS / DUPLICATE) — feeds the Component Health triage check below.
+5. Delegate the proposal scan to the built-in `Explore` subagent. Prompt: `List all .claude-code-hermit/proposals/PROP-*.md files. For each, extract id, status, title, source, created, accepted_date, related_sessions from YAML frontmatter (or **Status:**/**Title:** bullet fallback for pre-Observatory proposals). Return a compact JSON array — metadata only, no file bodies.` Also tail the last 100 lines of `state/proposal-metrics.jsonl` (inline, single read): count `responded` events by `action` (accept / defer / dismiss) and `micro-resolved` events by `action` (approved / rejected / expired) — both feed the operator-value self-check below. Also count `triage-verdict` events by `verdict` (CREATE / SUPPRESS / DUPLICATE) — feeds the Component Health triage check below.
 
 6. **Resolution Check** — check whether any accepted proposals can be marked resolved. **Cap: check up to 5 per reflect cycle, round-robin.**
 
@@ -70,7 +70,7 @@ Now reflect — ultrathink — using your memory and the context above:
 - Did I do something manually that a skill already covers?
 - Could a subagent have handled a repeating subtask within this session?
 - Was context bloat avoidable — did I load files I didn't need, or keep large content in context longer than necessary?
-- Am I producing value the operator actually uses? Cross-reference the `responded` event counts from step 3: a high `dismiss` ratio, proposals stacking in `deferred`, or compiled/brief outputs that go uncited in subsequent sessions are signals that some output is noise. If the signal is strong, treat it like the routine-silence check below and consider a Tier 1 micro-proposal to pare back the offending output.
+- Am I producing value the operator actually uses? Cross-reference the `responded` counts and `micro-resolved` counts from step 5: a high `dismiss` ratio on proposals, a high `rejected` rate on micro-proposals, or compiled/brief outputs that go uncited in subsequent sessions signal that some output is noise — consider a Tier 1 micro-proposal to pare it back. A high `expired` rate is a separate signal: questions are timed poorly rather than unwanted — consider a Tier 1 micro-proposal to adjust question scheduling rather than cutting volume.
 
 ## Three-Condition Rule
 
@@ -162,7 +162,7 @@ Only act on ACCEPT and DOWNGRADE verdicts.
 After reflecting and validating with `claude-code-hermit:reflection-judge`, choose exactly one outcome per observation:
 
 1. **No action** — pattern not strong enough, already handled, or already addressed by the Resolution Check above.
-2. **Memory update** — fact worth recording → update project memory directly
+2. **Memory update** — for sub-threshold patterns AND for **durable lessons** worth remembering for future sessions: operator-stated rules, preferences that recurred, decision rationales that may apply later, workflow patterns that worked. For any such observation, issue the standard "remember it" reflection — Claude's trained auto-memory flow handles the write. Use auto-memory's discipline (concise, MEMORY.md ≤ 200 lines / 25KB, topic files for detail, respect WHAT_NOT_TO_SAVE — no file paths, debugging recipes, or facts derivable from grep). Save nothing if nothing rises above noise.
 3. **Proposal candidate** — repeated pattern + clear consequence + operator-actionable
    → classify tier (see Proposal Tier Classification below):
    - Tier 1/2: gate with `claude-code-hermit:proposal-triage` first (see below), then queue micro-approval in `state/micro-proposals.json`
