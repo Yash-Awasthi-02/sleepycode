@@ -1,5 +1,23 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **`scripts/git-commit-quality-gate.js`** — new `PreToolUse` Bash hook that fires on `git commit`. In `standard` profile, injects an `additionalContext` reminder to run `/dev-quality` first. In `strict` profile, hard-blocks the commit (exit 2). Tokenizer-based argv parsing handles `git -C <path> commit`, env-var prefixes, and chained commands; avoids false positives on `git log --grep="commit"` and `git config commit.template`. Resolves [#30](https://github.com/gtapps/claude-code-hermit/issues/30).
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/git-commit-quality-gate.js` | New profile-gated PreToolUse hook script |
+| `scripts/git-commit-quality-gate.test.js` | Unit tests (tokenizer, both profile branches, false-positive cases) |
+| `hooks/hooks.json` | Second `PreToolUse` Bash entry registered |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill picks up the new hook automatically via plugin update — no `config.json` changes and no `/hatch` re-run required.
+
 ## [0.3.3] - 2026-05-03
 
 ### Added
