@@ -64,7 +64,7 @@ Then check whether the surviving set contains an entry where:
   claude plugin install <channel>@claude-plugins-official --scope local
   claude plugin enable  <channel>@claude-plugins-official --scope local
   ```
-  The explicit `enable` step covers the case where a project- or local-scope copy already exists but is disabled — the canonical filter excluded it (enabled-only), so `install` may no-op as already-installed without re-enabling. A user-scope install elsewhere does not satisfy this gate; channel tokens and access policy are project-local, so the plugin must be installed at project or local scope here too.
+  Explicit `enable` covers the disabled-but-installed-at-project/local case — the filter excluded such entries (enabled-only), and `install` is a separate command from `enable` per the CLI surface, so it may no-op without re-enabling. A user-scope install elsewhere does not satisfy this gate; channel tokens and access policy are project-local.
 
 After any install (or if already present): tell the operator to run `/reload-plugins` in this session to activate the plugin's configure and access commands before pairing.
 

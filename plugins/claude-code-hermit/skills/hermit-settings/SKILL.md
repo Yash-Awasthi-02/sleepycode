@@ -306,16 +306,13 @@ Update `permission_mode` in config.json.
 
   (or "No recommended plugins configured" if empty)
   ```
-  Display each entry as `[enabled/disabled]  <plugin> (<marketplace_name>)` — use `marketplace_name` in the parens, not the full `org/repo` field (reads cleaner; matches the right side of `@` in `claude plugin list` output).
+  Display each entry as `[enabled/disabled]  <plugin> (<marketplace>)` — show the `org/repo` (the `marketplace` field) in parens.
 - Ask: "Enable, disable, add, or remove recommended plugins? (e.g., 'enable claude-code-setup', 'add claude-code-setup', 'add superpowers obra/superpowers-marketplace', 'remove superpowers', or 'done') [done]"
 - Loop until operator says "done", "skip", or presses Enter:
   - `enable <PLUGIN>`: set `enabled: true` on matching entry
   - `disable <PLUGIN>`: set `enabled: false` on matching entry
   - `remove <PLUGIN>`: remove the entry entirely
-  - `add <PLUGIN> [<MARKETPLACE>]`: add new entry with `scope: "project"`, `enabled: true`. `<MARKETPLACE>` is an `org/repo` (e.g. `obra/superpowers-marketplace`) or omitted (defaults to official).
-    - If omitted: set `marketplace = "anthropics/claude-plugins-official"` and `marketplace_name = "claude-plugins-official"`.
-    - If `org/repo`: run `claude plugin marketplace list --json` and look up by `repo`. If found, set `marketplace = <repo>` and `marketplace_name = <name>`. If not found, prompt: "Marketplace `<repo>` is not registered locally. Add it with `claude plugin marketplace add <repo>` first, then re-try." Abort the add.
-    - **Dedupe rule**: an entry is a duplicate when an existing entry has the same `(plugin, marketplace_name)` pair — scope is NOT part of the key. If a duplicate is found, refuse: "An entry for `<plugin>@<marketplace_name>` already exists. Use `enable <PLUGIN>` to toggle it, or `remove <PLUGIN>` first to replace it."
+  - `add <PLUGIN> [<MARKETPLACE>]`: add new entry with `scope: "project"`, `enabled: true`. `<MARKETPLACE>` is an `org/repo` (e.g. `obra/superpowers-marketplace`) or omitted (defaults to `anthropics/claude-plugins-official`). If `<MARKETPLACE>` is provided but not registered locally, prompt: "Marketplace `<MARKETPLACE>` is not registered locally. Add it with `claude plugin marketplace add <MARKETPLACE>` first, then re-try." Abort the add. **Dedupe rule:** refuse the add if an existing entry has the same `(plugin, marketplace)` pair (scope is NOT part of the key) — operator should `enable` or `remove` first.
   - If input is just a plugin name without a verb: treat as `enable` if it exists, `add` if it doesn't
 - After changes, note: "Restart container to install new plugins: `.claude-code-hermit/bin/hermit-docker restart`"
 

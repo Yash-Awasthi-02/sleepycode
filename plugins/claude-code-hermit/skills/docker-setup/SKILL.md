@@ -215,7 +215,7 @@ Mirror host-installed plugins into the container so the container starts with th
 2. Filter out additionally:
    - `claude-code-hermit@claude-code-hermit` — the entrypoint already handles it unconditionally.
    - Any channel plugins already picked up via `config.channels` (they flow through the entrypoint's channel branch).
-3. Run `claude plugin marketplace list --json` and build a `marketplace_name → repo` map from each entry's `name` and `repo` fields. Split each plugin `id` as `<plugin>@<marketplace_name>` and look up `marketplace_name` in the map to get the corresponding `org/repo`. Both identifiers are recorded on every entry — the `org/repo` is what the entrypoint passes to `claude plugin marketplace add`, and the `marketplace_name` is what the entrypoint uses to build the install target and locate the on-disk cache directory.
+3. Run `claude plugin marketplace list --json` and build a `marketplace_name → repo` map from each entry's `name` and `repo` fields. Split each plugin `id` as `<plugin>@<marketplace_name>` and look up `marketplace_name` in the map to get the `org/repo`. Only the `org/repo` is recorded on each `docker.recommended_plugins` entry — the entrypoint resolves the canonical marketplace name at boot via the same `marketplace list --json` lookup, so storing it twice would just duplicate the source of truth.
    - If a marketplace entry has `source != "github"` or no `repo` field (e.g. a locally-added marketplace), ask: "What's the GitHub source for the `<marketplace_name>` marketplace? (e.g. `org/repo`)" before presenting the plugin list.
 
 4. **Validation gate — apply to every `org/repo` before it reaches the plugin list or `config.json`:**
@@ -227,18 +227,18 @@ Mirror host-installed plugins into the container so the container starts with th
 5. **Partition the filtered list using the safelist:**
 
    ```
-   def is_safelisted(marketplace, marketplace_name):
-       # Official: identified by canonical marketplace name.
-       if marketplace_name == "claude-plugins-official":
-           return True
-       # gtapps fleet: identified by org prefix on the org/repo.
-       return bool(marketplace) and marketplace.startswith("gtapps/")
+   def is_safelisted(marketplace):
+       # marketplace is always org/repo after the step 7b.3 lookup — no literal-name shortcut.
+       return (
+           marketplace == "anthropics/claude-plugins-official"
+           or marketplace.startswith("gtapps/")
+       )
    ```
 
-   The `marketplace_name` value passed to `is_safelisted` is the canonical name from the marketplace JSON; the `marketplace` value is the `org/repo`. Both come from step 7b.3. If you're about to pass `claude-code-homeassistant-hermit` to `is_safelisted` as the marketplace arg, you skipped the lookup — go back to step 3.
+   The `marketplace` value passed to `is_safelisted` is always the `org/repo` resolved in step 7b.3 — never the marketplace name and never the slug from the `<plugin>@<name>` id. If you're about to pass `claude-code-homeassistant-hermit` (a slug) to `is_safelisted`, you skipped the lookup — go back to step 3.
 
    Split into two groups:
-   - **SAFE** — `is_safelisted(marketplace, marketplace_name)` is `True`. Examples: `marketplace_name == "claude-plugins-official"` (regardless of `marketplace`), or `marketplace == "gtapps/claude-code-homeassistant-hermit"`.
+   - **SAFE** — `is_safelisted(marketplace)` is `True`. Examples: `anthropics/claude-plugins-official`, `gtapps/claude-code-homeassistant-hermit`.
    - **THIRD-PARTY** — everything else. Examples: `obra/superpowers-marketplace`, any non-`gtapps` `org/repo`, any locally-added marketplace without a GitHub source.
 
    The SAFE group can be accepted as a batch. The THIRD-PARTY group **must be confirmed one-by-one**. Do not bulk-accept third-party plugins for the operator's convenience — the host list is the **candidate** set, not the trusted set.
@@ -277,24 +277,18 @@ Mirror host-installed plugins into the container so the container starts with th
 9. After both groups are processed: any plugin not explicitly confirmed must **not** be written to `docker.recommended_plugins`. Write only confirmed entries with `enabled: true`.
 
 10. **Write-time assertion — run this before handing entries to step 7c.** For each confirmed entry:
-    - Assert `marketplace_name` is non-empty and matches `^[A-Za-z0-9][\w.-]*$`.
-    - Assert `marketplace` matches `^[A-Za-z0-9][\w.-]*/[A-Za-z0-9][\w.-]*$` (has a slash; is `org/repo`). This is now uniform — official entries store `anthropics/claude-plugins-official`, no more literal-name shortcut.
-    - If any entry fails: **stop, do not write config.** Re-derive both identifiers from the `claude plugin marketplace list --json` output (look up `marketplace_name → repo`). If the lookup cannot produce both valid values, prompt the operator (same prompt as step 3). Re-run the assertion. Only proceed to step 7c once every entry passes.
-    - The assertion is uniform across official and third-party entries — every `marketplace` written from this skill is an `org/repo`, so there is no special case to remember at write time. Legacy configs at boot are still normalized by the entrypoint backfill paths (see the "Re-run backfill" section below and the entrypoint's per-entry fallback).
+    - Assert `marketplace` matches `^[A-Za-z0-9][\w.-]*/[A-Za-z0-9][\w.-]*$` (has a slash; is `org/repo`). Uniform across official and third-party entries — official stores `anthropics/claude-plugins-official`, no more literal-name shortcut.
+    - If any entry fails: **stop, do not write config.** Re-derive the failing entry's `org/repo` from the `claude plugin marketplace list --json` output (look up the marketplace name from the plugin's `id` to get the `repo`). If the lookup cannot produce a valid `org/repo`, prompt the operator (same prompt as step 3). Re-run the assertion. Only proceed to step 7c once every entry passes.
 
 11. If the filtered list is **empty** (no extras installed on the host), skip silently — no prompt, no entries written.
 
 Record the confirmed selection as `docker.recommended_plugins`. Each entry has:
 ```json
-{"plugin": "<plugin-name>", "marketplace": "<org/repo>", "marketplace_name": "<marketplace-name>", "scope": "<scope>", "enabled": true}
+{"plugin": "<plugin-name>", "marketplace": "<org/repo>", "scope": "<scope>", "enabled": true}
 ```
-The entrypoint adds the marketplace (if needed) and installs every enabled entry on first boot. See [Recommended Plugins](../../docs/recommended-plugins.md) for the full policy.
+The entrypoint resolves the canonical marketplace name at boot via `claude plugin marketplace list --json` (no need to store it on the entry), adds the marketplace if missing, and installs every enabled entry on first boot. See [Recommended Plugins](../../docs/recommended-plugins.md) for the full policy.
 
-**Re-run backfill.** When docker-setup re-runs against an existing config that has `docker.recommended_plugins` entries written before this change (missing `marketplace_name`):
-1. If an entry already has `marketplace_name`, leave it.
-2. If `marketplace` contains `/` (treat as `org/repo`): look it up in `claude plugin marketplace list --json` by `repo`. If found, set `marketplace_name = name`. If not registered, run `claude plugin marketplace add <repo>` once and re-query. If still not found, prompt: "What is the marketplace name for `<repo>`? (e.g. `openai-codex`)"
-3. If `marketplace` has no `/` (legacy literal-name shortcut, almost certainly `claude-plugins-official`): treat it as `marketplace_name`. Look up by `name` in the list to get `repo`. Set `marketplace_name = name` and rewrite `marketplace = repo`. If not found, prompt: "What is the `org/repo` for marketplace `<name>`?"
-4. Re-run the Step 7b.10 assertion. Reject any entry where backfill could not produce both valid fields.
+**Legacy config note.** Re-running this skill against a pre-v1.0.34 config rebuilds `docker.recommended_plugins` from scratch from the current host plugin list — legacy entries (e.g. `marketplace == "claude-plugins-official"` literal) are replaced cleanly. The entrypoint warns and skips any legacy entry whose `marketplace` is not an `org/repo` until the operator re-runs this skill once.
 
 **On container-side `claude plugin marketplace add` / `plugin install` failure (either in entrypoint logs or when re-running the command manually after boot):** if the error mentions SSH auth, HTTPS credentials, `gh` not found, or `.gitconfig` read-only, **stop immediately — do not attempt workarounds inside the container.** The container has no SSH client, no `gh` CLI, and `.gitconfig` is bind-mounted read-only by design. Iterating on `GIT_CONFIG_NOSYSTEM`, `git config --global url...insteadOf`, or similar is guaranteed to fail and wastes the operator's time. Surface the error to the operator verbatim and move on — no retry unless the operator changes something host-side (makes the repo public, mirrors it, etc.) and asks to retry.
 

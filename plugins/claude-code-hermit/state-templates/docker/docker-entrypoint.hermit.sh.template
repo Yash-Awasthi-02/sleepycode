@@ -324,32 +324,39 @@ def audit(marketplace, plugin, scope):
     except Exception as e:
         print(f'[docker-entrypoint] Warning: audit log write failed: {e}', flush=True)
 
+# Resolve marketplace canonical names from the CLI's source of truth. We need the
+# 'name' field to build install targets (<plugin>@<name>) and check the on-disk
+# cache dir (which is keyed by name). Storing both name and org/repo in config
+# would just duplicate this lookup; one subprocess call here is cheaper than a
+# permanent schema bifurcation.
+def fetch_marketplace_names():
+    try:
+        result = subprocess.run(['claude', 'plugin', 'marketplace', 'list', '--json'],
+                                capture_output=True, text=True, check=False)
+        if result.returncode != 0:
+            return {}
+        return {m.get('repo'): m.get('name') for m in json.loads(result.stdout) if m.get('repo')}
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+name_by_repo = fetch_marketplace_names()
+
 for entry in plugins:
     plugin = entry['plugin']
     marketplace = entry.get('marketplace', 'anthropics/claude-plugins-official')
-    marketplace_name = entry.get('marketplace_name')
     scope = entry.get('scope', 'project')
 
-    if not marketplace_name:
-        # Backward-compat for configs written before marketplace_name was tracked.
-        if '/' in marketplace:
-            # Legacy org/repo entry: name happens to equal repo basename for gtapps/*.
-            marketplace_name = marketplace.split('/')[-1]
-            print(f'[docker-entrypoint] Warning: {plugin} entry missing marketplace_name, derived "{marketplace_name}" from repo basename — re-run /docker-setup to backfill', flush=True)
-        elif marketplace == 'claude-plugins-official':
-            # Pre-schema configs stored the bare marketplace name here instead of org/repo.
-            # Normalize marketplace to the real org/repo so the `marketplace add` call succeeds.
-            marketplace_name = 'claude-plugins-official'
-            marketplace = 'anthropics/claude-plugins-official'
-            print(f'[docker-entrypoint] Warning: {plugin} entry uses legacy official literal — normalized to "anthropics/claude-plugins-official"; re-run /docker-setup to backfill', flush=True)
-        else:
-            # Unresolvable: cannot safely guess which GitHub repo this name maps to.
-            # Attempting marketplace add with an unknown value risks cloning the wrong
-            # repo under bypassPermissions. Skip; operator must re-run /docker-setup.
-            print(f'[docker-entrypoint] Warning: {plugin} entry has unresolvable legacy marketplace "{marketplace}" — skipping. Re-run /docker-setup to backfill marketplace_name + marketplace.', flush=True)
-            continue
+    # Schema check: marketplace must be org/repo. Pre-v1.0.34 entries that stored
+    # the literal name (e.g. 'claude-plugins-official' instead of
+    # 'anthropics/claude-plugins-official') hit this path. One warning, skip,
+    # operator re-runs /docker-setup to rebuild config from the current host plugin list.
+    if '/' not in marketplace:
+        print(f'[docker-entrypoint] Warning: {plugin} entry has outdated marketplace \"{marketplace}\" (expected org/repo) — re-run /claude-code-hermit:docker-setup to rebuild config.', flush=True)
+        continue
 
-    if not os.path.isdir(os.path.join(marketplace_dir, marketplace_name)):
+    marketplace_name = name_by_repo.get(marketplace)
+    if not marketplace_name:
+        # Marketplace not yet registered in this container — add it, then re-fetch.
         print(f'[docker-entrypoint] Adding marketplace: {marketplace}', flush=True)
         try:
             result = subprocess.run(['claude', 'plugin', 'marketplace', 'add', marketplace], check=False)
@@ -358,6 +365,11 @@ for entry in plugins:
             continue
         if result.returncode != 0:
             print(f'[docker-entrypoint] Warning: failed to add marketplace {marketplace} — skipping {plugin}', flush=True)
+            continue
+        name_by_repo = fetch_marketplace_names()
+        marketplace_name = name_by_repo.get(marketplace)
+        if not marketplace_name:
+            print(f'[docker-entrypoint] Warning: marketplace {marketplace} added but name not resolvable — skipping {plugin}', flush=True)
             continue
 
     install_target = f'{plugin}@{marketplace_name}'
