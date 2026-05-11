@@ -6,7 +6,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from .config import AppConfig, normalized_context_path, save_env_file, save_operator_context
+from .config import AppConfig, HERMIT_OPERATOR_MD, normalized_context_path, save_env_file, save_operator_context
 from .ha_api import probe_home_assistant_url, select_home_assistant_url
 
 
@@ -41,14 +41,23 @@ class BootStatus:
 
 
 def _operator_md_path(root: Path) -> Path:
-    return root / ".claude-code-hermit" / "OPERATOR.md"
+    return root / HERMIT_OPERATOR_MD
+
+
+def _ha_section_body(text: str) -> str:
+    start = text.find(HA_SECTION_HEADING)
+    if start == -1:
+        return ""
+    after = start + len(HA_SECTION_HEADING)
+    next_section = text.find("\n## ", after)
+    return text[after:next_section] if next_section != -1 else text[after:]
 
 
 def read_language(root: Path) -> str | None:
     path = _operator_md_path(root)
     if not path.exists():
         return None
-    match = LANGUAGE_PATTERN.search(path.read_text(encoding="utf-8"))
+    match = LANGUAGE_PATTERN.search(_ha_section_body(path.read_text(encoding="utf-8")))
     return match.group(1).strip() if match else None
 
 
@@ -58,8 +67,11 @@ def write_language(root: Path, language: str) -> Path:
     line = f"- Language: {language}"
     if path.exists():
         text = path.read_text(encoding="utf-8")
-        if LANGUAGE_PATTERN.search(text):
-            text = LANGUAGE_PATTERN.sub(line, text, count=1)
+        section_body = _ha_section_body(text)
+        if LANGUAGE_PATTERN.search(section_body):
+            new_body = LANGUAGE_PATTERN.sub(line, section_body, count=1)
+            section_start = text.find(HA_SECTION_HEADING) + len(HA_SECTION_HEADING)
+            text = text[:section_start] + new_body + text[section_start + len(section_body):]
         elif HA_SECTION_HEADING in text:
             text = text.replace(HA_SECTION_HEADING, f"{HA_SECTION_HEADING}\n\n{line}", 1)
         else:

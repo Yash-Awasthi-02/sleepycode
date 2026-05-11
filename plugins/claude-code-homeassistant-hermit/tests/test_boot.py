@@ -59,8 +59,26 @@ def test_write_language_replaces_existing_language_line(tmp_path: Path) -> None:
     write_language(tmp_path, "pt-PT")
     text = _operator_md_path(tmp_path).read_text(encoding="utf-8")
     assert text.count("- Language:") == 1
+    assert text.count("## HA hermit") == 1
     assert "- Language: pt-PT" in text
     assert "- Language: en" not in text
+
+
+def test_write_language_ignores_language_line_in_other_section(tmp_path: Path) -> None:
+    operator_md = _operator_md_path(tmp_path)
+    operator_md.parent.mkdir(parents=True, exist_ok=True)
+    operator_md.write_text(
+        "# Operator Context\n\n## Other plugin\n\n- Language: not-a-locale\n\n## HA hermit\n\n- Language: en\n",
+        encoding="utf-8",
+    )
+
+    write_language(tmp_path, "pt-PT")
+
+    text = operator_md.read_text(encoding="utf-8")
+    assert "- Language: not-a-locale" in text
+    assert "- Language: pt-PT" in text
+    assert "- Language: en" not in text
+    assert read_language(tmp_path) == "pt-PT"
 
 
 def test_boot_preferences_store_operator_context(tmp_path: Path) -> None:

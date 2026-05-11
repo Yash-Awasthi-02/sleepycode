@@ -98,6 +98,7 @@ def save_operator_context(
 
 
 HERMIT_RAW = Path(".claude-code-hermit") / "raw"
+HERMIT_OPERATOR_MD = Path(".claude-code-hermit") / "OPERATOR.md"
 
 
 def normalized_context_path(root: Path) -> Path:
