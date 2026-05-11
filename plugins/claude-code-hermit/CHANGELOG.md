@@ -6,6 +6,12 @@
 
 - **`capability-brainstorm` skill (PROP-007).** On-demand hermit-voice brainstorm that synthesizes memory, available capabilities (MCPs, channels, fleet plugins), recent compiled artifacts, and codebase shape into at most 2 capability ideas. Each idea routes through the standard `proposal-triage` gate via a single `/proposal-create` call (`Evidence Source: capability-brainstorm`) before becoming a PROP — no double-triage. Emit-zero is a valid outcome. Zero-emit runs log a one-line note to SHELL.md Findings and skip the compiled artifact; non-empty runs write `compiled/capability-brainstorm-YYYY-MM-DD-HHMM.md`. Routing relies on Claude Code's skill-description auto-trigger (no explicit `channel-responder` block), with the description narrowed to capability-anchored phrases ("brainstorm capabilities", "what could you be doing for me?", "any capability ideas?") to avoid firing on bare "any ideas?" mid-task. Kill criteria documented in the skill: after ≥8 invocations, if triage-survival < 25% or PROP-acceptance < 30%, cut rather than tune.
 
+### Changed
+
+- **Collision-safe proposal IDs for multi-user hermits (PROP-008).** Proposal IDs now use the composite form `PROP-NNN-<slug>-HHMMSS` where the ID equals the filename stem (e.g. ID `PROP-009-capability-brainstorm-103612`, file `PROP-009-capability-brainstorm-103612.md`). The slug (up to 5 content words, kebab-cased; falls back to `proposal` if the title is all punctuation or non-ASCII) is part of the identity. It appears in Discord notifications, session-report cross-references, and channel messages so the operator can identify a proposal at a glance without opening it. The `HHMMSS` timestamp gives collision-safety. If a same-second collision fires, an `a` suffix is appended after the timestamp (`PROP-009-capability-brainstorm-103612a`); further collisions continue through `b`, `c`, …. The change is merge-safe in practice: operators on separate machines almost always produce different filenames (different slugs or different seconds), and both land cleanly. Identical-second collisions on offline machines surface as a normal git conflict, not a silent overwrite.
+- **`/proposal-act` uses anchored prefix-glob resolution** instead of exact-match file reads. `accept PROP-009` resolves both legacy `PROP-009.md` and new-format `PROP-009-*.md` files using two anchored patterns, never a bare `PROP-009*.md` (which would also match `PROP-0091.md` if proposal counts ever cross 1000). The operator can also type `accept PROP-009-103612` (timestamp-only) and the slug is bracketed with wildcards. If multiple files match (e.g. after a concurrent-creation merge), a disambiguation prompt lists each match's title. Existing short-form muscle memory (`accept PROP-NNN`) is unchanged.
+- **Legacy `PROP-NNN.md` files continue to work** — no migration, no rename. All resolution, listing, and cortex scripts accept both the old and new filename forms.
+
 ### Fixed
 
 - **`knowledge-schema.md.template`: declare `review` as a Work Product type (PROP-011).** The `weekly-review` routine writes compiled artifacts with `type: review`, but the template only declared `note` — so every freshly-hatched hermit running the weekly-review routine reported a permanent `Type \`review\` not declared in knowledge-schema.md ## Work Products` finding from the Knowledge Health checker. Adds a single bullet to the template's `## Work Products` section and provides upgrade instructions for `hermit-evolve` to surgical-patch existing hermits' on-disk schemas.
@@ -14,6 +20,21 @@
 
 | File | Change |
 |------|--------|
+| `skills/proposal-create/SKILL.md` | New ID generation (ID = filename stem `PROP-NNN-slug-HHMMSS`), slug algorithm with `proposal` fallback for empty slugs, collision `a`/`b`/… fallback |
+| `skills/proposal-act/SKILL.md` | Anchored prefix-glob resolution algorithm with disambiguation prompt (two-pattern no-suffix glob; bracketed-suffix glob) |
+| `docs/frontmatter-contract.md` | `id`/`proposal` field docs and proposal file pattern note both legacy and new forms |
+| `docs/artifact-naming.md` | Proposals naming entry notes both legacy and new forms |
+| `state-templates/CLAUDE-APPEND.md` | Quick-reference table updated to show the new proposal filename form |
+| `plugins/claude-code-hermit/CLAUDE.md` | Repo-internal quick-reference bullet updated to show the new form |
+| `skills/proposal-list/SKILL.md` | Example table updated to show new-format IDs alongside legacy |
+| `state-templates/PROPOSAL.md.template` | `id:` placeholder updated to `PROP-NNN-slug-HHMMSS` |
+| `agents/session-mgr.md` | `proposals_created` scan regex updated to capture full `PROP-NNN-slug-HHMMSS[a]` form |
+| `scripts/reflect-precheck.js` | Widened proposal filename regex to accept new-format files |
+| `scripts/build-cortex.js` | Widened proposal filename regex |
+| `scripts/cortex-refresh-stage.js` | Widened proposal filename regex |
+| `scripts/weekly-review.js` | Widened proposal filename regex |
+| `scripts/validate-frontmatter.js` | Widened proposal filename regex |
+| `scripts/doctor-check.js` | Widened proposal filename regex |
 | `state-templates/knowledge-schema.md.template` | Added `- review:` bullet under `## Work Products` |
 | `tests/run-scripts.sh` | Extended schema-empty fixture sed to also strip `- review:` starter bullet |
 
