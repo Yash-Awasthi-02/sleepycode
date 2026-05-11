@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`capability-brainstorm` skill (PROP-007).** On-demand hermit-voice brainstorm that synthesizes memory, available capabilities (MCPs, channels, fleet plugins), recent compiled artifacts, and codebase shape into at most 2 capability ideas. Each idea routes through the standard `proposal-triage` gate via a single `/proposal-create` call (`Evidence Source: capability-brainstorm`) before becoming a PROP — no double-triage. Emit-zero is a valid outcome. Zero-emit runs log a one-line note to SHELL.md Findings and skip the compiled artifact; non-empty runs write `compiled/capability-brainstorm-YYYY-MM-DD-HHMM.md`. Routing relies on Claude Code's skill-description auto-trigger (no explicit `channel-responder` block), with the description narrowed to capability-anchored phrases ("brainstorm capabilities", "what could you be doing for me?", "any capability ideas?") to avoid firing on bare "any ideas?" mid-task. Kill criteria documented in the skill: after ≥8 invocations, if triage-survival < 25% or PROP-acceptance < 30%, cut rather than tune.
+
 ### Fixed
 
 - **`knowledge-schema.md.template`: declare `review` as a Work Product type (PROP-011).** The `weekly-review` routine writes compiled artifacts with `type: review`, but the template only declared `note` — so every freshly-hatched hermit running the weekly-review routine reported a permanent `Type \`review\` not declared in knowledge-schema.md ## Work Products` finding from the Knowledge Health checker. Adds a single bullet to the template's `## Work Products` section and provides upgrade instructions for `hermit-evolve` to surgical-patch existing hermits' on-disk schemas.
