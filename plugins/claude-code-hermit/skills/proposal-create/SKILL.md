@@ -25,7 +25,7 @@ Respond: "Not enough evidence yet. Note it in SHELL.md Findings and revisit afte
 Before creating the proposal, call `claude-code-hermit:proposal-triage`. Pass `Evidence Source:` when known:
 ```
 Title: <proposal title>
-Evidence Source: <archived-session | current-session | scheduled-check/<id> | operator-request>
+Evidence Source: <archived-session | current-session | scheduled-check/<id> | operator-request | hermit-synthesis>
 Evidence: <one-paragraph evidence summary>
 ```
 

@@ -62,6 +62,10 @@ This is how the agent learns the DM channel ID for proactive outbound notificati
   - Invoke the matching skill, slash command, or subagent via the appropriate tool. Pass any remaining text as arguments/prompt.
   - If nothing matches, say so briefly.
 
+- **Capability brainstorm** ("what could you be doing for me?", "any ideas?", "brainstorm capabilities", "what could you do for me?", "what are you capable of?")
+  - Invoke `/claude-code-hermit:capability-brainstorm`
+  - The skill emits its own batch message; confirm via channel only if the skill does not find a DM channel ID.
+
 - **Status request** ("what are you working on?", "status", "progress")
   - If Status is `idle`: respond with session summary — tasks completed, cumulative cost, "ready for what's next"
   - If Status is `in_progress`: respond with a concise summary of SHELL.md: task, current step, blockers
