@@ -19,14 +19,14 @@ A Home Assistant domain layer for `claude-code-hermit`: skills, subagents, a saf
 - Never commit real HA URLs, tokens, or device inventories.
 - Actuation of sensitive domains (`lock`, `alarm_control_panel`, security-related `cover`/`button`/`switch`) is gated by `ha_safety_mode` in `.claude-code-hermit/config.json` (absent = `strict`). Under `strict` (default): never autonomously actuate — blocked work becomes a proposal. Under `ask`: the operator is prompted before any sensitive actuation (both YAML apply and direct MCP calls). When in doubt about a new domain, default to sensitive. See `SAFETY.md` for the full safety model.
 - Uncertain entities default to sensitive. Blocked work becomes a proposal.
-- Use the stored language from `MEMORY.md` for all user-facing output.
+- Use the stored language from OPERATOR.md (`## HA hermit` section) for all user-facing output.
 - Prefer the Python CLI over ad-hoc reasoning when a helper exists.
 - Don't overengineer.
 
 ## Memory Conventions
 
-- `MEMORY.md` (auto-loaded, max 200 lines): language, house profile, learned patterns, known issues.
-- `memory/*.md`: detailed topic files (entities, automation history).
+- **Auto memory** (`~/.claude/projects/<key>/memory/`): Claude-derived knowledge — learned patterns, house profile observations, known issues, cross-session suppression signals. Platform-managed; loaded automatically at each session start.
+- **`.claude-code-hermit/OPERATOR.md`** — operator-set config (locale today; future room defaults, alert preferences, etc.). Curated by the operator under a `## HA hermit` section. Read by the Python CLI and by skills/agents at session start.
 - `.claude-code-hermit/raw/` — HA context snapshots, normalized data, audits, staged automation YAML (ephemeral; aged out by retention).
 - `.claude-code-hermit/compiled/` — durable domain outputs (morning briefs, house profile) injected at session start.
 - `.claude-code-hermit/state/` — machine state (runtime, reflection, micro-proposals, alert state).
@@ -48,6 +48,7 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha simulate <artifact>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha validate-apply <artifact> [--reload automation|script]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha policy-check <entity_id_or_yaml>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha audit-automations
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha audit-scripts
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-automations
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-scripts
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-automation <id>

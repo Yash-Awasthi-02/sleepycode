@@ -6,12 +6,20 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 
 ### Added
 
+- **`ha audit-scripts` CLI command and `audit_scripts` function** — mirrors `audit-automations` for `script.*` entities. Uses `GET /api/config/script/config/{id}`, runs the same safety policy check, and writes artifacts to `.claude-code-hermit/raw/audit-ha-script-safety-*`. `ha-safety-audit` skill updated to run both commands and concatenate findings.
+- **Acknowledgement scaffold** — `_load_acknowledged` reads `automation_ids` and `script_ids` from `.claude-code-hermit/compiled/acknowledged-violations.md` frontmatter. Violations whose ids are listed there are routed to a new `acknowledged` bucket in the audit summary instead of `violations`, so repeat proposals are suppressed for operator-approved exceptions. `hatch` copies the template on first setup.
+- **`state-templates/compiled/acknowledged-violations.md`** — template for the per-project suppression list, copied by `hatch`.
 - **`ha_safety_mode` two-tier dial** — configurable behaviour for sensitive-domain actuation (`lock`, `alarm_control_panel`, security-related `cover`/`button`/`switch`). Two values:
   - `strict` (default, existing behaviour) — always block; work goes through a proposal.
   - `ask` — operator is prompted before any sensitive actuation. `ha-apply-change` uses `AskUserQuestion` before pushing; direct MCP calls emit `permissionDecision: "ask"` so Claude Code's permission system prompts the operator natively (matches the convention already used by `hooks/curl-host-gate.py`). Both paths are harness-enforced, not convention-driven.
   Set during `hatch` (new §7.5 question) or by editing `ha_safety_mode` in `.claude-code-hermit/config.json` directly. An unknown value (e.g. `permissive`) falls back to `strict`.
 - **`Severity` enum in `policy.py`** (`block` / `ask` / `allow`) — replaces the internal `bool` return from `classify_entity()`. `is_sensitive_entity()` kept as a backward-compatible shim (True for BLOCK or ASK, False for ALLOW). `evaluate_references()` `PolicyDecision` gains a `severity` field alongside the existing `blocked` bool.
 - **`severity` field in `ha policy-check` JSON output** — callers can now distinguish `block`, `ask`, and `allow` without re-implementing the policy logic.
+
+### Changed
+
+- **Migrated project-root `MEMORY.md` / `memory/` references to the right storage location for each value** — house profile, learned patterns, known issues, and cross-session suppression signals (in `ha-pattern-analyst` / `ha-safety-reviewer`) now live in Claude Code's platform auto memory (`~/.claude/projects/<key>/memory/`), which loads automatically at session start. The three agents (`ha-automation-builder`, `ha-pattern-analyst`, `ha-safety-reviewer`) already declared `memory: project` frontmatter — their body instructions now match. No more manual `MEMORY.md` reads/writes for Claude-derived knowledge.
+- **Locale now lives in `.claude-code-hermit/OPERATOR.md` under a `## HA hermit` section, not auto memory** — locale is operator-set config, not Claude-derived knowledge: it should survive project moves, be CLI-readable, and be visible to the operator. `boot status` reports the language again (`BootStatus.language` / `BootStatus.needs_language` restored); the setup checklist's `Language` entry points at `.claude-code-hermit/OPERATOR.md`. `boot store --language <locale>` writes to OPERATOR.md, creating the `## HA hermit` section on first use. Future HA operator preferences (room defaults, alert channels, etc.) belong under the same section.
 
 ### Design notes
 

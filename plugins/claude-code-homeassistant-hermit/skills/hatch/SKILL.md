@@ -49,8 +49,8 @@ Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status` and inspect the JSON ou
 
 Also check locale:
 
-- Read `MEMORY.md`. If a `Language` / locale entry already exists in the House Profile section, use it silently — do not re-ask.
-- If absent, ask: **Language / locale**: What language should the agent use for HA-facing output? (e.g. `en`, `pt`, `es`) Store it in `MEMORY.md` House Profile (create the section if missing).
+- Read `.claude-code-hermit/OPERATOR.md`. If a `## HA hermit` section has a `- Language:` entry, use it silently — do not re-ask.
+- If absent, ask: **Language / locale**: What language should the agent use for HA-facing output? (e.g. `en`, `pt`, `es`) Save it via `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot store --language <locale>` (writes to OPERATOR.md under `## HA hermit`).
 
 Do not collect or store the token — it stays in `.env` only.
 
@@ -152,6 +152,8 @@ Write the chosen value to `config.json` as `ha_safety_mode`. Default to `strict`
 ### 8. Stamp version and register routines
 
 Write `_hermit_versions["claude-code-homeassistant-hermit"]` into `.claude-code-hermit/config.json` with the current plugin version.
+
+**Compiled templates**: Copy `${CLAUDE_PLUGIN_ROOT}/state-templates/compiled/acknowledged-violations.md` to `.claude-code-hermit/compiled/acknowledged-violations.md` if that file does not already exist. Set `created` in the frontmatter to today's ISO date. This gives the operator a ready-to-use suppression list for the safety audit.
 
 **Boot skill registration**: Read `config.boot_skill` from `config.json`.
 

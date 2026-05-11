@@ -12,7 +12,7 @@ This project has the `claude-code-homeassistant-hermit` plugin installed. The ru
 - Never commit real HA URLs, tokens, or device inventories.
 - Actuation of sensitive domains (`lock`, `alarm_control_panel`, security-related `cover`/`button`/`switch`) is gated by `ha_safety_mode` in `.claude-code-hermit/config.json`. Default `strict` = always blocked. `ask` = operator is prompted before actuation (both YAML apply and direct MCP calls). Read the config before deciding whether to draft or block.
 - Uncertain entities default to sensitive. Blocked work becomes a proposal.
-- Use the stored language from `MEMORY.md` for all user-facing output.
+- Use the stored language from `.claude-code-hermit/OPERATOR.md` (`## HA hermit` section) for all user-facing output.
 
 ### Entry Flow
 
@@ -59,6 +59,7 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha simulate <artifact>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha validate-apply <artifact> [--reload automation|script]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha policy-check <entity_id_or_yaml>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha audit-automations
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha audit-scripts
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status [--probe]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot store --language <locale> --url <url> [--token <token>]
 ```
