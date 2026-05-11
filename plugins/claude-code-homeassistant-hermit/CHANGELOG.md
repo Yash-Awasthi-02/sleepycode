@@ -4,6 +4,12 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 
 ## [Unreleased]
 
+### Added
+
+- **`ha audit-scripts` CLI command and `audit_scripts` function** — mirrors `audit-automations` for `script.*` entities. Uses `GET /api/config/script/config/{id}`, runs the same safety policy check, and writes artifacts to `.claude-code-hermit/raw/audit-ha-script-safety-*`. `ha-safety-audit` skill updated to run both commands and concatenate findings.
+- **Acknowledgement scaffold** — `_load_acknowledged` reads `automation_ids` and `script_ids` from `.claude-code-hermit/compiled/acknowledged-violations.md` frontmatter. Violations whose ids are listed there are routed to a new `acknowledged` bucket in the audit summary instead of `violations`, so repeat proposals are suppressed for operator-approved exceptions. `hatch` copies the template on first setup.
+- **`state-templates/compiled/acknowledged-violations.md`** — template for the per-project suppression list, copied by `hatch`.
+
 ### Changed
 
 - **Migrated all project-root `MEMORY.md` / `memory/` references to platform auto memory** — skills, agents, `CLAUDE.md`, and `state-templates/CLAUDE-APPEND.md` no longer tell the LLM to manually read or write a project-root `MEMORY.md` file. Language, house profile, learned patterns, and known issues are now stored in and read from Claude Code's platform auto memory (`~/.claude/projects/<key>/memory/`), which loads automatically at session start. The three agents (`ha-automation-builder`, `ha-pattern-analyst`, `ha-safety-reviewer`) already declared `memory: project` frontmatter — their body instructions now match. `boot.py`'s `_setup_checklist` reports the language location as `auto-memory`; the `memory_path()` helper is removed.

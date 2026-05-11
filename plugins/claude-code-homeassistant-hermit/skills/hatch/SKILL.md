@@ -142,6 +142,8 @@ Check CLAUDE.md for the marker comment `<!-- claude-code-homeassistant-hermit: H
 
 Write `_hermit_versions["claude-code-homeassistant-hermit"]` into `.claude-code-hermit/config.json` with the current plugin version.
 
+**Compiled templates**: Copy `${CLAUDE_PLUGIN_ROOT}/state-templates/compiled/acknowledged-violations.md` to `.claude-code-hermit/compiled/acknowledged-violations.md` if that file does not already exist. Set `created` in the frontmatter to today's ISO date. This gives the operator a ready-to-use suppression list for the safety audit.
+
 **Boot skill registration**: Read `config.boot_skill` from `config.json`.
 
 The skill name format is `/<plugin-id>:<skill-id>`. Parse the plugin-id as the text between `/` and `:`.

@@ -51,7 +51,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     ha_subparsers.add_parser(
         "audit-automations",
-        help="Audit all live HA automations against the safety policy (plugin_check entry point).",
+        help="Audit all live HA automations against the safety policy.",
+    )
+
+    ha_subparsers.add_parser(
+        "audit-scripts",
+        help="Audit all live HA scripts against the safety policy.",
     )
 
     probe_parser = ha_subparsers.add_parser(
@@ -152,7 +157,19 @@ def main(argv: list[str] | None = None) -> int:
 
             client = HomeAssistantClient(config)
             summary = audit_automations(root, client)
-            _print_safety_audit_summary(summary)
+            _print_safety_audit_summary(summary, domain="automation")
+            return 0
+        except HomeAssistantError as exc:
+            print(str(exc))
+            return 1
+
+    if args.command == "ha" and args.ha_command == "audit-scripts":
+        try:
+            from .audits import audit_scripts
+
+            client = HomeAssistantClient(config)
+            summary = audit_scripts(root, client)
+            _print_safety_audit_summary(summary, domain="script")
             return 0
         except HomeAssistantError as exc:
             print(str(exc))
@@ -250,20 +267,24 @@ def _list_domain(client: HomeAssistantClient, domain: str) -> list[dict[str, Any
     return items
 
 
-def _print_safety_audit_summary(summary: dict[str, Any]) -> None:
+def _print_safety_audit_summary(summary: dict[str, Any], domain: str = "automation") -> None:
     violations = summary.get("violations", [])
-    total = summary.get("total_automations", 0)
+    acknowledged = summary.get("acknowledged", [])
+    total = summary.get(f"total_{domain}s", 0)
     unmanaged = summary.get("unmanaged", [])
     fetch_failures = summary.get("fetch_failures", [])
-    print(f"ha-safety-audit findings — {date.today().isoformat()}")
+    label = "ha-safety-audit" if domain == "automation" else f"ha-{domain}-safety-audit"
+    print(f"{label} findings — {date.today().isoformat()}")
     if not violations:
-        print(f"No actionable findings. ({total} automations scanned)")
+        print(f"No actionable findings. ({total} {domain}s scanned)")
     else:
         print(f"Policy violations: {len(violations)}")
         for v in violations:
             reasons = "; ".join(v.get("reasons", []))
             print(f"- {v.get('alias')} (`{v.get('id')}`): {reasons}")
-        print(f"No action needed: {summary['passed']} automations passed")
+        print(f"No action needed: {summary['passed']} {domain}s passed")
+    if acknowledged:
+        print(f"Acknowledged (suppressed): {len(acknowledged)}")
     if unmanaged:
         print(f"Skipped (no numeric id): {len(unmanaged)}")
     if fetch_failures:
