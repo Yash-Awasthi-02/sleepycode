@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
-from ha_agent_lab.boot import boot_status, save_boot_preferences, _command_prefix
+from ha_agent_lab.boot import boot_status, read_language, save_boot_preferences, write_language, _command_prefix, _operator_md_path
 from ha_agent_lab.config import load_config
 from ha_agent_lab.ha_api import HomeAssistantClient, HomeAssistantError, select_home_assistant_url
 
@@ -14,9 +14,59 @@ def _write_launcher(root: Path) -> None:
     launcher.write_text("#!/usr/bin/env bash\n", encoding="utf-8")
 
 
+def test_language_roundtrip(tmp_path: Path) -> None:
+    write_language(tmp_path, "pt-PT")
+    assert read_language(tmp_path) == "pt-PT"
+    assert _operator_md_path(tmp_path) == tmp_path / ".claude-code-hermit" / "OPERATOR.md"
+
+
+def test_write_language_creates_operator_md_with_ha_section(tmp_path: Path) -> None:
+    write_language(tmp_path, "en")
+    text = _operator_md_path(tmp_path).read_text(encoding="utf-8")
+    assert "# Operator Context" in text
+    assert "## HA hermit" in text
+    assert "- Language: en" in text
+
+
+def test_write_language_appends_section_when_operator_md_exists_without_ha_section(tmp_path: Path) -> None:
+    operator_md = _operator_md_path(tmp_path)
+    operator_md.parent.mkdir(parents=True, exist_ok=True)
+    operator_md.write_text("# Operator Context\n\n## Other plugin\n\n- Foo: bar\n", encoding="utf-8")
+
+    write_language(tmp_path, "en")
+
+    text = operator_md.read_text(encoding="utf-8")
+    assert "## Other plugin" in text
+    assert "- Foo: bar" in text
+    assert "## HA hermit" in text
+    assert "- Language: en" in text
+
+
+def test_write_language_appends_line_under_existing_ha_section(tmp_path: Path) -> None:
+    operator_md = _operator_md_path(tmp_path)
+    operator_md.parent.mkdir(parents=True, exist_ok=True)
+    operator_md.write_text("# Operator Context\n\n## HA hermit\n\n- Some other preference: x\n", encoding="utf-8")
+
+    write_language(tmp_path, "pt-PT")
+
+    text = operator_md.read_text(encoding="utf-8")
+    assert "- Language: pt-PT" in text
+    assert "- Some other preference: x" in text
+
+
+def test_write_language_replaces_existing_language_line(tmp_path: Path) -> None:
+    write_language(tmp_path, "en")
+    write_language(tmp_path, "pt-PT")
+    text = _operator_md_path(tmp_path).read_text(encoding="utf-8")
+    assert text.count("- Language:") == 1
+    assert "- Language: pt-PT" in text
+    assert "- Language: en" not in text
+
+
 def test_boot_preferences_store_operator_context(tmp_path: Path) -> None:
     save_boot_preferences(
         tmp_path,
+        language="en",
         local_url="http://ha.local:8123",
         remote_url="https://ha.example.com",
         token="secret-token",
@@ -25,11 +75,14 @@ def test_boot_preferences_store_operator_context(tmp_path: Path) -> None:
     assert config.ha_local_url == "http://ha.local:8123"
     assert config.ha_remote_url == "https://ha.example.com"
     assert config.ha_token == "secret-token"
+    assert read_language(tmp_path) == "en"
 
 
 def test_boot_status_detects_missing_context(tmp_path: Path) -> None:
+    write_language(tmp_path, "en")
     config = load_config(tmp_path)
     status = boot_status(config, probe=False)
+    assert status.language == "en"
     assert status.needs_context_refresh
     assert not status.context_exists
 
@@ -38,7 +91,7 @@ def test_boot_status_reports_missing_required_setup(tmp_path: Path) -> None:
     _write_launcher(tmp_path)
     status = boot_status(load_config(tmp_path), probe=False)
     fields = {item["field"] for item in status.setup_hints}
-    assert "Language" not in fields
+    assert "Language" in fields
     assert "HOMEASSISTANT_URL" in fields
     assert "HOMEASSISTANT_TOKEN" in fields
     assert status.command_prefix.endswith("/bin/ha-agent-lab")
@@ -55,7 +108,8 @@ def test_boot_status_exposes_single_pass_setup_checklist(tmp_path: Path) -> None
     _write_launcher(tmp_path)
     status = boot_status(load_config(tmp_path), probe=False)
     checklist = {item["field"]: item for item in status.setup_checklist}
-    assert "Language" not in checklist
+    assert checklist["Language"]["status"] == "missing"
+    assert checklist["Language"]["location"] == ".claude-code-hermit/OPERATOR.md"
     assert checklist["Home Assistant endpoint"]["status"] == "missing"
     assert checklist["HOMEASSISTANT_TOKEN"]["status"] == "missing"
     assert checklist["Context snapshot"]["status"] == "missing"

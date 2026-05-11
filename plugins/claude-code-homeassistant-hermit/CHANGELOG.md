@@ -12,11 +12,8 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 
 ### Changed
 
-- **Migrated all project-root `MEMORY.md` / `memory/` references to platform auto memory** — skills, agents, `CLAUDE.md`, and `state-templates/CLAUDE-APPEND.md` no longer tell the LLM to manually read or write a project-root `MEMORY.md` file. Language, house profile, learned patterns, and known issues are now stored in and read from Claude Code's platform auto memory (`~/.claude/projects/<key>/memory/`), which loads automatically at session start. The three agents (`ha-automation-builder`, `ha-pattern-analyst`, `ha-safety-reviewer`) already declared `memory: project` frontmatter — their body instructions now match.
-
-### Removed
-
-- **`boot store --language` flag and supporting helpers** — language is now exclusively managed via platform auto memory (set by `hatch` or directly by Claude in conversation). The `--language` flag wrote to project-root `MEMORY.md`, which the skills no longer read after the auto-memory migration; keeping it would have created orphan state. Dropped `read_language`, `write_language`, `LANGUAGE_PATTERN`, and the `Language` entry from `boot status`'s setup checklist and hints. `BootStatus.language` and `BootStatus.needs_language` are removed from the JSON output — operators relying on `boot status` to surface the language should query auto memory directly.
+- **Migrated project-root `MEMORY.md` / `memory/` references to the right storage location for each value** — house profile, learned patterns, known issues, and cross-session suppression signals (in `ha-pattern-analyst` / `ha-safety-reviewer`) now live in Claude Code's platform auto memory (`~/.claude/projects/<key>/memory/`), which loads automatically at session start. The three agents (`ha-automation-builder`, `ha-pattern-analyst`, `ha-safety-reviewer`) already declared `memory: project` frontmatter — their body instructions now match. No more manual `MEMORY.md` reads/writes for Claude-derived knowledge.
+- **Locale now lives in `.claude-code-hermit/OPERATOR.md` under a `## HA hermit` section, not auto memory** — locale is operator-set config, not Claude-derived knowledge: it should survive project moves, be CLI-readable, and be visible to the operator. `boot status` reports the language again (`BootStatus.language` / `BootStatus.needs_language` restored); the setup checklist's `Language` entry points at `.claude-code-hermit/OPERATOR.md`. `boot store --language <locale>` writes to OPERATOR.md, creating the `## HA hermit` section on first use. Future HA operator preferences (room defaults, alert channels, etc.) belong under the same section.
 
 ## [0.1.0] - 2026-05-07
 

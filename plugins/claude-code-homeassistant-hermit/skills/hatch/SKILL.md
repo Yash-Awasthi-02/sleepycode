@@ -49,8 +49,8 @@ Run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status` and inspect the JSON ou
 
 Also check locale:
 
-- Check your auto memory. If a stored language entry already exists, use it silently — do not re-ask.
-- If absent, ask: **Language / locale**: What language should the agent use for HA-facing output? (e.g. `en`, `pt`, `es`) Save it to your auto memory.
+- Read `.claude-code-hermit/OPERATOR.md`. If a `## HA hermit` section has a `- Language:` entry, use it silently — do not re-ask.
+- If absent, ask: **Language / locale**: What language should the agent use for HA-facing output? (e.g. `en`, `pt`, `es`) Save it via `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot store --language <locale>` (writes to OPERATOR.md under `## HA hermit`).
 
 Do not collect or store the token — it stays in `.env` only.
 

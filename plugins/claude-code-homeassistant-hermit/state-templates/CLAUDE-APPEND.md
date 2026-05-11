@@ -12,7 +12,7 @@ This project has the `claude-code-homeassistant-hermit` plugin installed. The ru
 - Never commit real HA URLs, tokens, or device inventories.
 - Never autonomously actuate: `lock`, `alarm_control_panel`, security-related `cover`/`button`/`switch`.
 - Uncertain entities default to sensitive. Blocked work becomes a proposal.
-- Use the stored language from your auto memory for all user-facing output.
+- Use the stored language from `.claude-code-hermit/OPERATOR.md` (`## HA hermit` section) for all user-facing output.
 
 ### Entry Flow
 
@@ -61,7 +61,7 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha policy-check <entity_id_or_yaml>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha audit-automations
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha audit-scripts
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status [--probe]
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot store --url <url> [--token <token>]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot store --language <locale> --url <url> [--token <token>]
 ```
 
 ### Environment

@@ -19,13 +19,14 @@ A Home Assistant domain layer for `claude-code-hermit`: skills, subagents, a saf
 - Never commit real HA URLs, tokens, or device inventories.
 - Never autonomously actuate sensitive domains: `lock`, `alarm_control_panel`, security-related `cover`/`button`/`switch`. These control real-world physical access; an autonomous mistake has no software undo. When in doubt about a new domain (e.g. `garage_door`, `gate`), default to sensitive and require operator approval. See `SAFETY.md` for the full safety model.
 - Uncertain entities default to sensitive. Blocked work becomes a proposal.
-- Use the stored language from your auto memory for all user-facing output.
+- Use the stored language from OPERATOR.md (`## HA hermit` section) for all user-facing output.
 - Prefer the Python CLI over ad-hoc reasoning when a helper exists.
 - Don't overengineer.
 
 ## Memory Conventions
 
-- **Auto memory** (`~/.claude/projects/<key>/memory/`): language, house profile, learned patterns, known issues. Platform-managed; loaded automatically at each session start. Write with your memory tools; no manual file reads needed.
+- **Auto memory** (`~/.claude/projects/<key>/memory/`): Claude-derived knowledge — learned patterns, house profile observations, known issues, cross-session suppression signals. Platform-managed; loaded automatically at each session start.
+- **`.claude-code-hermit/OPERATOR.md`** — operator-set config (locale today; future room defaults, alert preferences, etc.). Curated by the operator under a `## HA hermit` section. Read by the Python CLI and by skills/agents at session start.
 - `.claude-code-hermit/raw/` — HA context snapshots, normalized data, audits, staged automation YAML (ephemeral; aged out by retention).
 - `.claude-code-hermit/compiled/` — durable domain outputs (morning briefs, house profile) injected at session start.
 - `.claude-code-hermit/state/` — machine state (runtime, reflection, micro-proposals, alert state).
@@ -54,7 +55,7 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-automation <id>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha delete-script <id>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha probe <path>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status [--probe]
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot store --url <url> [--token <token>]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot store --language <locale> --url <url> [--token <token>]
 .venv/bin/pytest tests/ -v
 ```
 

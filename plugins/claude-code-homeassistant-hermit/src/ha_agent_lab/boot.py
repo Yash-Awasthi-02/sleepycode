@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -9,11 +10,14 @@ from .config import AppConfig, normalized_context_path, save_env_file, save_oper
 from .ha_api import probe_home_assistant_url, select_home_assistant_url
 
 
+LANGUAGE_PATTERN = re.compile(r"^- Language:\s*(.+?)\s*$", re.MULTILINE)
+HA_SECTION_HEADING = "## HA hermit"
 _PLUGIN_ROOT = Path(__file__).resolve().parents[2]
 
 
 @dataclass(slots=True)
 class BootStatus:
+    language: str | None
     token_configured: bool
     url: str | None
     local_url: str | None
@@ -23,6 +27,7 @@ class BootStatus:
     context_exists: bool
     context_age_hours: float | None
     context_fresh: bool
+    needs_language: bool
     needs_token: bool
     needs_endpoint: bool
     needs_context_refresh: bool
@@ -35,6 +40,37 @@ class BootStatus:
         return asdict(self)
 
 
+def _operator_md_path(root: Path) -> Path:
+    return root / ".claude-code-hermit" / "OPERATOR.md"
+
+
+def read_language(root: Path) -> str | None:
+    path = _operator_md_path(root)
+    if not path.exists():
+        return None
+    match = LANGUAGE_PATTERN.search(path.read_text(encoding="utf-8"))
+    return match.group(1).strip() if match else None
+
+
+def write_language(root: Path, language: str) -> Path:
+    path = _operator_md_path(root)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    line = f"- Language: {language}"
+    if path.exists():
+        text = path.read_text(encoding="utf-8")
+        if LANGUAGE_PATTERN.search(text):
+            text = LANGUAGE_PATTERN.sub(line, text, count=1)
+        elif HA_SECTION_HEADING in text:
+            text = text.replace(HA_SECTION_HEADING, f"{HA_SECTION_HEADING}\n\n{line}", 1)
+        else:
+            suffix = "\n" if text.endswith("\n") else "\n\n"
+            text = f"{text}{suffix}{HA_SECTION_HEADING}\n\n{line}\n"
+    else:
+        text = f"# Operator Context\n\n{HA_SECTION_HEADING}\n\n{line}\n"
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
 def _command_prefix() -> str:
     launcher = _PLUGIN_ROOT / "bin" / "ha-agent-lab"
     if launcher.exists():
@@ -44,6 +80,7 @@ def _command_prefix() -> str:
 
 def boot_status(config: AppConfig, probe: bool = False, staleness_hours: int = 24) -> BootStatus:
     root = config.root
+    language = read_language(root)
     command_prefix = _command_prefix()
     context_path = normalized_context_path(root)
     context_exists = context_path.exists()
@@ -66,6 +103,7 @@ def boot_status(config: AppConfig, probe: bool = False, staleness_hours: int = 2
         active_url, active_source = config.ha_remote_url, "remote"
 
     return BootStatus(
+        language=language,
         token_configured=bool(config.ha_token),
         url=config.ha_url,
         local_url=config.ha_local_url,
@@ -75,24 +113,29 @@ def boot_status(config: AppConfig, probe: bool = False, staleness_hours: int = 2
         context_exists=context_exists,
         context_age_hours=context_age_hours,
         context_fresh=context_fresh,
+        needs_language=language is None,
         needs_token=not bool(config.ha_token),
         needs_endpoint=not config.has_ha_endpoint,
         needs_context_refresh=not context_fresh,
         can_refresh_context=bool(config.ha_token and config.has_ha_endpoint),
         command_prefix=command_prefix,
-        setup_checklist=_setup_checklist(config, context_exists, context_fresh, command_prefix),
-        setup_hints=_setup_hints(config),
+        setup_checklist=_setup_checklist(config, language, context_exists, context_fresh, command_prefix),
+        setup_hints=_setup_hints(config, language),
     )
 
 
 def save_boot_preferences(
     root: Path,
+    language: str | None = None,
     url: str | None = None,
     local_url: str | None = None,
     remote_url: str | None = None,
     token: str | None = None,
 ) -> dict[str, str]:
     changes: dict[str, str] = {}
+    if language:
+        write_language(root, language)
+        changes["language"] = language
     env_updates: dict[str, str | None] = {}
     if token is not None:
         env_updates["HOMEASSISTANT_TOKEN"] = token
@@ -121,6 +164,7 @@ def probe_endpoint(url: str | None, config: AppConfig) -> bool:
 
 def _setup_checklist(
     config: AppConfig,
+    language: str | None,
     context_exists: bool,
     context_fresh: bool,
     command_prefix: str,
@@ -128,6 +172,14 @@ def _setup_checklist(
     endpoint_value = config.primary_url()
     context_status = "fresh" if context_fresh else "stale" if context_exists else "missing"
     return [
+        {
+            "field": "Language",
+            "required": True,
+            "configured": language is not None,
+            "status": "ok" if language is not None else "missing",
+            "location": ".claude-code-hermit/OPERATOR.md",
+            "next_step": f"{command_prefix} boot store --language <locale>",
+        },
         {
             "field": "Home Assistant endpoint",
             "required": True,
@@ -164,8 +216,15 @@ def _setup_checklist(
     ]
 
 
-def _setup_hints(config: AppConfig) -> list[dict[str, str]]:
+def _setup_hints(config: AppConfig, language: str | None) -> list[dict[str, str]]:
     hints: list[dict[str, str]] = []
+    if language is None:
+        hints.append(
+            {
+                "field": "Language",
+                "how_to_get": "Choose the locale you want the agent to use for conversation plus aliases and descriptions, for example `en` or `pt-PT`.",
+            }
+        )
     if not config.has_ha_endpoint:
         hints.append(
             {
