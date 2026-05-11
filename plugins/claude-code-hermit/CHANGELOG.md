@@ -11,6 +11,7 @@
 | File | Change |
 |------|--------|
 | `state-templates/knowledge-schema.md.template` | Added `- review:` bullet under `## Work Products` |
+| `tests/run-scripts.sh` | Extended schema-empty fixture sed to also strip `- review:` starter bullet |
 
 ### Upgrade Instructions
 
