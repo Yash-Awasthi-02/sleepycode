@@ -26,13 +26,13 @@ class SimulationResult:
         return not self.missing_entities and not self.policy_blocked
 
 
-def evaluate_yaml_policy(yaml_path: Path) -> tuple[list[str], list[str], PolicyDecision]:
+def evaluate_yaml_policy(yaml_path: Path, root: Path | None = None) -> tuple[list[str], list[str], PolicyDecision]:
     """Load a YAML file, extract references, and evaluate against safety policy."""
     data = yaml.safe_load(yaml_path.read_text(encoding="utf-8")) or {}
     raw_entities, raw_services = collect_references(data)
     entities = sorted(set(raw_entities))
     services = sorted(set(raw_services))
-    decision = evaluate_references(entities, services)
+    decision = evaluate_references(entities, services, root=root)
     return entities, services, decision
 
 

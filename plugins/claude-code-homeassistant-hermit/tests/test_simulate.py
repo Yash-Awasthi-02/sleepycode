@@ -1,4 +1,5 @@
-from ha_agent_lab.simulate import simulate_artifact
+from ha_agent_lab.policy import Severity
+from ha_agent_lab.simulate import evaluate_yaml_policy, simulate_artifact
 from helpers import write_artifact
 
 ARTIFACT_YAML = """
@@ -73,3 +74,13 @@ def test_simulation_invalid_under_strict_mode_with_sensitive_entity(make_ha_root
 
     assert not result.is_valid
     assert result.policy_blocked
+
+
+def test_evaluate_yaml_policy_honors_project_safety_mode(make_ha_config) -> None:
+    root = make_ha_config("ask")
+    artifact = write_artifact(root, ALARM_YAML, name="disarm.yaml")
+
+    _, _, decision = evaluate_yaml_policy(artifact, root=root)
+
+    assert not decision.blocked
+    assert decision.severity == Severity.ASK
