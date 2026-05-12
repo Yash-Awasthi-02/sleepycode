@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **Hooks: converted shell-form commands to exec form (`args: []`).** All 8 convertible hook entries (PreToolUse, PostToolUse, UserPromptSubmit, SessionStart, Stop) now use exec form. The dev-mode contract runner stays in shell form (uses stdin/jq/pipes); its `description` explains why. Fixes path-with-spaces fragility: installs at paths containing a space previously broke because `${CLAUDE_PLUGIN_ROOT}` expanded unquoted in shell form.
+- Added `tests/test-hook-registration-form.sh` contract test — guards against future regressions to naked shell-form interpolation across the plugin fleet.
+
+### Upgrade Instructions
+
+- **Requires Claude Code 2.1.139 or newer.** The `args: []` exec form was introduced in CC 2.1.139. Update Claude Code before pulling this release, or hooks will fail to register.
+
 ## [1.0.37] - 2026-05-11
 
 ### Added
