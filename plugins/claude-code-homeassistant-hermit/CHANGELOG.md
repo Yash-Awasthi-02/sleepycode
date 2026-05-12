@@ -2,6 +2,12 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
+## [Unreleased]
+
+### Fixed
+
+- **`SimulationResult.is_valid` no longer treats ASK-severity policy reasons as hard blocks** — regression missed when the `ask` tier was added in v0.1.1. **Operator action: if you added `alarm_control_panel.*` to `HA_SAFE_ENTITIES` as a workaround, remove it after updating.** Root causes: (1) `simulate_artifact` was calling `evaluate_references` without `root`, so `ha_safety_mode` was always read from `Path.cwd()` instead of the project config; (2) `is_valid` gated on `bool(blocked_reasons)`, but that list includes ASK-severity entries — only BLOCK entries should prevent apply. Fix adds `policy_blocked: bool` (sourced from `PolicyDecision.blocked`, True only for BLOCK) and threads `root` through to `evaluate_references`. Under `ha_safety_mode: ask` the YAML apply pipeline now proceeds after operator confirmation, matching the MCP hook and `ha-apply-change` skill.
+
 ## [0.1.1] - 2026-05-11
 
 ### Added
