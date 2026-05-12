@@ -2,7 +2,7 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
-## [Unreleased]
+## [0.1.2] - 2026-05-12
 
 ### Fixed
 
@@ -11,11 +11,25 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 
 ### Changed
 
-- **Hooks: converted `mcp-safety-gate` and `curl-host-gate` to exec form.** Aligns with core's exec-form sweep. Fixes path-with-spaces fragility on installs whose plugin dir contains a space.
+- **hooks: converted `mcp-safety-gate` and `curl-host-gate` to exec form** — aligns with core's exec-form sweep; fixes path-with-spaces fragility on installs whose plugin dir contains a space.
+- **deps: bump core requirement to `>=1.0.38` / `^1.0.38`** — was `>=1.0.37`; aligns with core v1.0.38 release.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `src/ha_agent_lab/simulate.py` | Add `policy_blocked` field to `SimulationResult`; `is_valid` gates on it instead of `blocked_reasons`; thread `root` into `evaluate_references` |
+| `src/ha_agent_lab/cli.py` | Thread `root` into `_handle_policy_check` and `evaluate_yaml_policy` |
+| `hooks/hooks.json` | Convert both hooks to exec form (`command` + `args` array) |
+| `.claude-plugin/hermit-meta.json` | Bump `required_core_version` and `requires` to `>=1.0.38` |
+| `.claude-plugin/plugin.json` | Bump `dependencies` to `^1.0.38` |
 
 ### Upgrade Instructions
 
-- **Requires Claude Code 2.1.139 or newer.** The `args: []` exec form was introduced in CC 2.1.139. Update Claude Code before pulling this release, or hooks will fail to register.
+1. **Update Claude Code to 2.1.139 or newer** — the exec-form hook syntax (`args: []`) was introduced in this version; hooks will fail to register on older clients.
+2. **Run `/claude-code-hermit:hermit-evolve`** — pulls the plugin update and applies the new hook configuration.
+
+No `config.json` changes required.
 
 ## [0.1.1] - 2026-05-11
 
