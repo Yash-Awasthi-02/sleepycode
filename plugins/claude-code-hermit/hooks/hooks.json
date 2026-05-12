@@ -53,7 +53,8 @@
           {
             "type": "command",
             "command": "node ${CLAUDE_PLUGIN_ROOT}/scripts/validate-config.js",
-            "timeout": 5
+            "timeout": 5,
+            "continueOnBlock": true
           }
         ],
         "description": "Validate config.json schema after edits"

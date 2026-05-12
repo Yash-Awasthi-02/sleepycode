@@ -6,4 +6,24 @@
 function safe(s) {
   return String(s ?? '').replace(/[\x00-\x1f\x7f-\x9f]/g, '?');
 }
-module.exports = { safe };
+
+// Known XML-like tag names used as Claude/CC context markers. Matching these
+// in hook rejection text (routed to Claude via continueOnBlock) would let an
+// adversarial config value impersonate system context. We bracket-wrap instead
+// of stripping so the tag name stays readable for debugging.
+const INJECTION_TAGS = [
+  'system-reminder', 'system', 'assistant', 'user',
+  'tool_use', 'tool_result', 'thinking', 'function_calls',
+];
+const INJECTION_RE = new RegExp(
+  `<(\\/?)(?:${INJECTION_TAGS.join('|')})(\\s[^>]*)?/?>`,
+  'gi'
+);
+
+// Like safe(), but also defuses prompt-injection tag patterns so hook rejection
+// text can be safely routed to Claude's context via continueOnBlock.
+function safeForLLM(s) {
+  return safe(s).replace(INJECTION_RE, (match) => '[' + match.slice(1, -1) + ']');
+}
+
+module.exports = { safe, safeForLLM };

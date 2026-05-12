@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **`safeForLLM()` sanitizer for LLM-bound rejection text (PROP-008).** Extends `scripts/lib/sanitize.js` with a second export that chains the existing `safe()` control-char strip with a tag-name allowlist guard. Known Claude/CC context marker tags (`system-reminder`, `system`, `assistant`, `user`, `tool_use`, `tool_result`, `thinking`, `function_calls`) are bracket-wrapped (`<system-reminder>` → `[system-reminder]`) so they are readable for debugging but cannot be interpreted as injected system context. Non-injection angle brackets (e.g. `3 < 5`, unrecognised tag names) are untouched.
+
+### Changed
+
+- **`validate-config.js` routes rejection text through `safeForLLM` (PROP-008).** Error and warning strings emitted to stderr now have user-controlled fields (escalation value, routine schedule, channel name, heartbeat time) sanitized before they reach Claude's context. This pairs with the `continueOnBlock` change below: without the sanitizer, a malicious `config.json` could inject fake `<system-reminder>` directives into Claude's context via the rejection message.
+- **`continueOnBlock: true` on the `validate-config.js` PostToolUse hook (PROP-008).** A config validation failure used to halt the turn entirely — in autonomous goal-loops this kills the whole loop and requires operator recovery. With `continueOnBlock`, the validation error is surfaced to Claude as feedback and the turn continues; Claude can read the specific errors and fix the config. Verified empirically against CC 2.1.139 before shipping.
+
 ## [1.0.37] - 2026-05-11
 
 ### Added

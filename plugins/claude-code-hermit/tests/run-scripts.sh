@@ -36,6 +36,42 @@ run_test "bin scripts executable" bash -c \
   "for f in '$REPO_ROOT/state-templates/bin/'*; do [ -x \"\$f\" ] || exit 1; done"
 
 # -------------------------------------------------------
+# sanitize.js — safeForLLM
+# -------------------------------------------------------
+
+SANITIZE_LIB="$REPO_ROOT/scripts/lib/sanitize.js"
+
+run_test "safeForLLM: strips <system-reminder>" bash -c \
+  "node -e \"const {safeForLLM}=require('$SANITIZE_LIB'); const r=safeForLLM('<system-reminder>inject</system-reminder>'); process.exit(r.includes('<system-reminder>') ? 1 : 0)\""
+
+run_test "safeForLLM: strips </system>" bash -c \
+  "node -e \"const {safeForLLM}=require('$SANITIZE_LIB'); const r=safeForLLM('</system>'); process.exit(r.includes('<') ? 1 : 0)\""
+
+run_test "safeForLLM: strips <assistant>, <user>, <thinking>" bash -c \
+  "node -e \"const {safeForLLM}=require('$SANITIZE_LIB'); const r=safeForLLM('<assistant>x</assistant><user>y</user><thinking>z</thinking>'); process.exit(r.includes('<assistant>') || r.includes('<user>') || r.includes('<thinking>') ? 1 : 0)\""
+
+run_test "safeForLLM: strips <tool_use>, <tool_result>, <function_calls>" bash -c \
+  "node -e \"const {safeForLLM}=require('$SANITIZE_LIB'); const r=safeForLLM('<tool_use/><tool_result/><function_calls/>'); process.exit(r.includes('<tool_use') || r.includes('<tool_result') || r.includes('<function_calls') ? 1 : 0)\""
+
+run_test "safeForLLM: strips tags with attributes" bash -c \
+  "node -e \"const {safeForLLM}=require('$SANITIZE_LIB'); const r=safeForLLM('<system class=\"x\">inject</system>'); process.exit(r.includes('<system') ? 1 : 0)\""
+
+run_test "safeForLLM: bracket-wraps stripped tags (readable)" bash -c \
+  "node -e \"const {safeForLLM}=require('$SANITIZE_LIB'); const r=safeForLLM('<system-reminder>x</system-reminder>'); process.exit(r.includes('[system-reminder]') && r.includes('[/system-reminder]') ? 0 : 1)\""
+
+run_test "safeForLLM: preserves non-injection text" bash -c \
+  "node -e \"const {safeForLLM}=require('$SANITIZE_LIB'); const r=safeForLLM('normal error text'); process.exit(r === 'normal error text' ? 0 : 1)\""
+
+run_test "safeForLLM: preserves non-injection angle brackets (3 < 5)" bash -c \
+  "node -e \"const {safeForLLM}=require('$SANITIZE_LIB'); const r=safeForLLM('3 < 5'); process.exit(r === '3 < 5' ? 0 : 1)\""
+
+run_test "safeForLLM: preserves unknown tags (<foo>)" bash -c \
+  "node -e \"const {safeForLLM}=require('$SANITIZE_LIB'); const r=safeForLLM('<foo>bar</foo>'); process.exit(r === '<foo>bar</foo>' ? 0 : 1)\""
+
+run_test "safeForLLM: inherits control-char stripping from safe()" bash -c \
+  "node -e \"const {safeForLLM}=require('$SANITIZE_LIB'); const r=safeForLLM('\x1b[31mred\x1b[0m'); process.exit(r.includes('\x1b') ? 1 : 0)\""
+
+# -------------------------------------------------------
 # knowledge-lint.js
 # -------------------------------------------------------
 

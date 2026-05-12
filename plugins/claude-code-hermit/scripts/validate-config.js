@@ -2,6 +2,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { safeForLLM } = require('./lib/sanitize');
 
 /**
  * PostToolUse hook — validates config.json after any Edit/Write to it.
@@ -233,7 +234,7 @@ function main() {
       try {
         config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
       } catch (e) {
-        process.stderr.write(`[config-validate] FAIL: config.json is not valid JSON — ${e.message}\n`);
+        process.stderr.write(`[config-validate] FAIL: config.json is not valid JSON — ${safeForLLM(e.message)}\n`);
         process.exit(2);
       }
 
@@ -241,12 +242,12 @@ function main() {
 
       if (warnings.length > 0) {
         process.stderr.write(`[config-validate] Warnings:\n`);
-        warnings.forEach(w => process.stderr.write(`  WARN  ${w}\n`));
+        warnings.forEach(w => process.stderr.write(`  WARN  ${safeForLLM(w)}\n`));
       }
 
       if (errors.length > 0) {
         process.stderr.write(`[config-validate] Errors:\n`);
-        errors.forEach(e => process.stderr.write(`  FAIL  ${e}\n`));
+        errors.forEach(e => process.stderr.write(`  FAIL  ${safeForLLM(e)}\n`));
         process.stderr.write(`[config-validate] Config validation failed — fix before proceeding\n`);
         process.exit(2);
       }
