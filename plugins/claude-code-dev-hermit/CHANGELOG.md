@@ -1,20 +1,40 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.6] - 2026-05-13
 
 ### Changed
 
 - **README and marketplace reframe: git-safety leads, workflow skills demoted to optional.** `git-push-guard` + CLAUDE-APPEND template are now the headline product. The three workflow skills (`/dev-pr`, `/dev-quality`, `/dev-test`) are consolidated into an "Optional workflow scaffolding" block in the README and grouped under "Optional workflow skills" in What's Included. Marketplace description updated to match. `/hatch`'s no-match default flipped from `standard` first to `safety` first — new installs on greenfield projects with no existing commit/PR/release skills detected now land in safety mode by default.
-- **Hooks: converted `git-push-guard` and `record-test-result` to exec form.** Aligns with core's exec-form sweep. Fixes path-with-spaces fragility on installs whose plugin dir contains a space.
+- **hooks: converted `git-push-guard` and `record-test-result` to exec form.** Aligns with core's exec-form sweep. Fixes path-with-spaces fragility on installs whose plugin dir contains a space.
+- **core requirement bumped to `>=1.0.38`** — aligns `required_core_version`, `requires`, and `dependencies` with the latest core release.
 
 ### Fixed
 
 - **`git-push-guard`: branches with a protected name as a path segment no longer false-positive blocked.** `git push origin feature/main` (and refspec forms like `HEAD:feature/main`) were blocked by the protected-branch regex because `/` was not treated as a word boundary. Guard now extracts the destination ref from each refspec before matching, and uses exact-match regexes for non-glob patterns. Glob patterns (e.g. `release/*`) retain the previous lookaround regex. Resolves PROP-015 item 1.
 - **`README.md` and `CLAUDE.md` now match the actual `--force-with-lease` policy.** Both previously stated `--force-with-lease` was blocked unconditionally. The code (and `docs/GIT-SAFETY.md`) have allowed it on non-protected branches with an explicit refspec since v0.3.0. Docs updated to reflect the real contract. Resolves PROP-015 item 2.
 
+### Files affected
+
+| File | Change |
+|------|--------|
+| `README.md` | Git-safety-first reframe; optional workflow scaffolding block |
+| `CLAUDE.md` | `--force-with-lease` policy aligned with actual code behavior |
+| `docs/GIT-SAFETY.md` | `--force-with-lease` prose aligned with actual code behavior |
+| `hooks/hooks.json` | `git-push-guard` and `record-test-result` converted to exec form |
+| `scripts/git-push-guard.js` | Protected-branch path-segment false-positive guard; refspec extraction |
+| `scripts/git-push-guard.test.js` | Tests for path-segment and refspec false-positive cases |
+| `skills/hatch/SKILL.md` | Safety-first default when no existing commit/PR/release skills detected |
+| `.claude-plugin/hermit-meta.json` | Core requirement bumped to `>=1.0.38` |
+| `.claude-plugin/plugin.json` | Core dependency bumped to `^1.0.38`; version bumped to 0.3.6 |
+
 ### Upgrade Instructions
 
-- **Requires Claude Code 2.1.139 or newer.** The `args: []` exec form was introduced in CC 2.1.139. Update Claude Code before pulling this release, or hooks will fail to register.
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Update Claude Code** to version 2.1.139 or newer before pulling this release — the exec hook form requires it.
+2. **Refresh hooks** — the updated `hooks.json` exec-form entries are installed on plugin update.
+
+No `config.json` changes required.
 
 ## [0.3.5] - 2026-05-07
 
