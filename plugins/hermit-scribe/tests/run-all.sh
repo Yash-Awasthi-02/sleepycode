@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+rc=0
+
+node "$SCRIPT_DIR/cli.test.js" || rc=$?
+
+exit $rc

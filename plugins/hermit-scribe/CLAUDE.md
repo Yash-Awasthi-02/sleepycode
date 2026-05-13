@@ -1,0 +1,46 @@
+# hermit-scribe
+
+A maintainer utility skill that files GitHub issues via a configured GitHub App bot identity. No server, no build, pure Node stdlib.
+
+## This Repo is a Plugin
+
+This repo is structured as a Claude Code plugin. It is NOT a standalone project; it gets installed into other projects via:
+
+```
+claude plugin marketplace add gtapps/claude-code-hermit
+claude plugin install hermit-scribe@claude-code-hermit --scope project
+```
+
+## Plugin Structure
+
+- `skills/hermit-scribe/SKILL.md`: the skill, namespaced as `/hermit-scribe:hermit-scribe`
+- `skills/hermit-scribe/file-issue.js`: Node stdlib script that signs the JWT, gets an install token, and POSTs the issue
+- `.claude-plugin/plugin.json`: plugin manifest
+
+## Required env vars
+
+Set these in your project `.env` (loaded by Docker hermit via `env_file:`) or in `.claude/settings.local.json` `env` block for interactive sessions:
+
+| Var | Description |
+|-----|-------------|
+| `HERMIT_GH_APP_ID` | GitHub App ID (shown on the App's settings page) |
+| `HERMIT_GH_APP_INSTALL_ID` | Installation ID (from the App's installation page URL) |
+| `HERMIT_GH_APP_KEY_FILE` | Absolute path to the `.pem` private key file |
+| `HERMIT_GH_REPO` | Optional override; target `owner/repo` (default: `gtapps/claude-code-hermit`) |
+
+Place the private key at `.claude/secrets/hermit-scribe-key.pem` (gitignored via `*.pem`).
+
+## Manual smoke test
+
+```bash
+# Should exit non-zero with a clear error message (missing key), not a crash
+HERMIT_GH_APP_ID=1 HERMIT_GH_APP_INSTALL_ID=2 HERMIT_GH_APP_KEY_FILE=/nonexistent \
+  node "$CLAUDE_PLUGIN_ROOT/skills/hermit-scribe/file-issue.js" /dev/null /dev/null
+```
+
+The script takes two positional file paths: title file (single line; trimmed) and body file (markdown). Both are read directly; nothing is interpolated into shell commands, so title content is safe from quoting issues.
+
+## Development constraints
+
+- **No npm dependencies, ever.** The script uses only Node stdlib (`crypto`, `https`, `fs`). Do not add `package.json` or `node_modules`.
+- Test locally against a target project without publishing: `claude --plugin-dir /path/to/plugins/hermit-scribe`

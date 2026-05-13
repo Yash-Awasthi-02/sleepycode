@@ -86,6 +86,27 @@
         "mcp",
         "gtapps"
       ]
+    },
+    {
+      "name": "hermit-scribe",
+      "source": "./plugins/hermit-scribe",
+      "description": "Maintainer tool: file GitHub issues via a configured GitHub App bot identity.",
+      "version": "0.0.1",
+      "category": "maintainer",
+      "author": {
+        "name": "gtapps",
+        "url": "https://github.com/gtapps"
+      },
+      "license": "MIT",
+      "homepage": "https://github.com/gtapps/claude-code-hermit",
+      "repository": "https://github.com/gtapps/claude-code-hermit",
+      "keywords": [
+        "github",
+        "issues",
+        "bot",
+        "maintainer",
+        "gtapps"
+      ]
     }
   ]
 }
