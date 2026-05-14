@@ -72,6 +72,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="Detect degraded HA integrations and write state/integration-health-degraded-domains.json.",
     )
 
+    fetch_history_parser = ha_subparsers.add_parser(
+        "fetch-history",
+        help="Fetch and aggregate HA history into a snapshot artifact.",
+    )
+    fetch_history_parser.add_argument("--window-days", type=int, default=7)
+    fetch_history_parser.add_argument("--entities", nargs="+", metavar="ENTITY")
+
     ha_subparsers.add_parser("list-automations", help="List all automation entity IDs and config IDs.")
     ha_subparsers.add_parser("list-scripts", help="List all script entity IDs and config IDs.")
 
@@ -143,6 +150,9 @@ def main(argv: list[str] | None = None) -> int:
         except HomeAssistantError as exc:
             print(str(exc))
             return 1
+
+    if args.command == "ha" and args.ha_command == "fetch-history":
+        return _handle_fetch_history(root, config, args.window_days, args.entities)
 
     if args.command == "ha" and args.ha_command == "simulate":
         from .simulate import simulate_artifact
@@ -253,6 +263,39 @@ def main(argv: list[str] | None = None) -> int:
 
     parser.error("Unsupported command.")
     return 1
+
+
+def _handle_fetch_history(root: Path, config: Any, window_days: int, entity_override: list[str] | None) -> int:
+    from .history import fetch_history_snapshot
+
+    try:
+        client = HomeAssistantClient(config)
+    except HomeAssistantError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    snapshot_path = normalized_context_path(root)
+    if not snapshot_path.exists():
+        try:
+            refresh_context(root, client)
+        except HomeAssistantError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+
+    try:
+        normalized = json.loads(snapshot_path.read_text(encoding="utf-8"))
+        payload = fetch_history_snapshot(root, client, normalized, window_days=window_days, entity_override=entity_override)
+    except (HomeAssistantError, OSError, json.JSONDecodeError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    print(json.dumps({
+        "status": "ok",
+        "entities": len(payload["requested_entities"]),
+        "events": payload["event_total"],
+        "window_days": window_days,
+    }))
+    return 0
 
 
 def _handle_integration_health(root: Path) -> int:
