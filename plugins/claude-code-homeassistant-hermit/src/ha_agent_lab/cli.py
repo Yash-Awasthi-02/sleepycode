@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import date
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +12,10 @@ from .artifacts import current_session_id, standard_metadata, utc_timestamp, wri
 from .boot import boot_status, save_boot_preferences
 from .config import load_config, normalized_context_path
 from .ha_api import HomeAssistantClient, HomeAssistantError
+from .history import fetch_history_snapshot
+from .integration_health import compute_degraded_domains, format_integration_health_stdout, write_degraded_domains_artifact
 from .policy import check_entity, normalize_entity_index
+from .silence import compute_silence_summary
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -65,6 +68,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     probe_parser.add_argument("path", help="HA REST path, e.g. /api/config/automation/config/1234")
 
+    ha_subparsers.add_parser(
+        "integration-health",
+        help="Detect degraded HA integrations and write state/integration-health-degraded-domains.json.",
+    )
+
+    fetch_history_parser = ha_subparsers.add_parser(
+        "fetch-history",
+        help=(
+            "Fetch and aggregate HA history into a snapshot artifact. "
+            "Requires a normalized snapshot; runs `refresh-context` first if none exists."
+        ),
+    )
+    fetch_history_parser.add_argument("--window-days", type=int, default=7)
+    fetch_history_parser.add_argument("--entities", nargs="+", metavar="ENTITY")
+
     ha_subparsers.add_parser("list-automations", help="List all automation entity IDs and config IDs.")
     ha_subparsers.add_parser("list-scripts", help="List all script entity IDs and config IDs.")
 
@@ -96,6 +114,9 @@ def main(argv: list[str] | None = None) -> int:
         changes = save_boot_preferences(root, language=args.language, url=args.url, local_url=args.local_url, remote_url=args.remote_url, token=args.token)
         print(json.dumps({"updated": changes}, indent=2))
         return 0
+
+    if args.command == "ha" and args.ha_command == "integration-health":
+        return _handle_integration_health(root)
 
     if args.command == "ha" and args.ha_command == "refresh-context":
         try:
@@ -133,6 +154,9 @@ def main(argv: list[str] | None = None) -> int:
         except HomeAssistantError as exc:
             print(str(exc))
             return 1
+
+    if args.command == "ha" and args.ha_command == "fetch-history":
+        return _handle_fetch_history(root, config, args.window_days, args.entities)
 
     if args.command == "ha" and args.ha_command == "simulate":
         from .simulate import simulate_artifact
@@ -245,6 +269,61 @@ def main(argv: list[str] | None = None) -> int:
     return 1
 
 
+def _handle_fetch_history(root: Path, config: Any, window_days: int, entity_override: list[str] | None) -> int:
+    try:
+        client = HomeAssistantClient(config)
+    except HomeAssistantError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    snapshot_path = normalized_context_path(root)
+    if not snapshot_path.exists():
+        try:
+            refresh_context(root, client)
+        except HomeAssistantError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+
+    try:
+        normalized = json.loads(snapshot_path.read_text(encoding="utf-8"))
+        payload = fetch_history_snapshot(root, client, normalized, window_days=window_days, entity_override=entity_override)
+    except (HomeAssistantError, OSError, json.JSONDecodeError) as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
+    print(json.dumps({
+        "status": "ok",
+        "entities": len(payload["requested_entities"]),
+        "events": payload["event_total"],
+        "window_days": window_days,
+    }))
+    return 0
+
+
+def _handle_integration_health(root: Path) -> int:
+    today = date.today().isoformat()
+    header = f"ha-integration-health findings — {today}"
+    snapshot_path = normalized_context_path(root)
+
+    try:
+        mtime = datetime.fromtimestamp(snapshot_path.stat().st_mtime, tz=UTC)
+        if datetime.now(UTC) - mtime > timedelta(hours=24):
+            print(f"{header}\nNo actionable findings. (skipped: snapshot stale or missing)")
+            return 0
+        normalized = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        print(f"{header}\nNo actionable findings. (skipped: snapshot stale or missing)")
+        return 0
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"{header}\nNo actionable findings. (skipped: snapshot unreadable — {exc})")
+        return 0
+
+    payload = compute_degraded_domains(normalized)
+    write_degraded_domains_artifact(root, payload)
+    print(format_integration_health_stdout(payload, today))
+    return 0
+
+
 def _list_domain(client: HomeAssistantClient, domain: str) -> list[dict[str, Any]]:
     states = client.get("/api/states")
     prefix = f"{domain}."
@@ -332,6 +411,7 @@ def refresh_context(root: Path, client: HomeAssistantClient) -> dict[str, Any]:
     write_json_artifact(root, ".claude-code-hermit/raw", "snapshot-ha-context", snapshot, latest_name="snapshot-ha-context-latest.json")
 
     normalized = normalize_context(states, services, components)
+    normalized["silence_summary"] = compute_silence_summary(normalized, root)
     write_json_artifact(root, ".claude-code-hermit/raw", "snapshot-ha-normalized", normalized, latest_name="snapshot-ha-normalized-latest.json")
     write_markdown_artifact(
         root,
@@ -406,6 +486,7 @@ def refresh_context_incremental(
         **baseline,
         "entity_index": merged_index,
         "unavailable_entities": unavailable_entities,
+        "silence_summary": compute_silence_summary({"entity_index": merged_index, "unavailable_entities": unavailable_entities}, root),
     }
 
     write_json_artifact(
