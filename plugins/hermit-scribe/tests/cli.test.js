@@ -115,13 +115,43 @@ test("HERMIT_GH_REPO with no slash is rejected", () => {
   );
 });
 
-test("missing key file produces ENOENT", () => {
+test("missing key file shows labeled error with var name and path", () => {
   assertFails(
     { ...fullEnv, HERMIT_GH_APP_KEY_FILE: "/nonexistent/key.pem" },
     [titleFile, bodyFile],
-    /ENOENT/
+    /HERMIT_GH_APP_KEY_FILE=.*does not exist/
   );
 });
+
+test("--check with no proposal id prints usage and exits 1", () => {
+  assertFails({}, ["--check"], /Usage: node file-issue\.js --check/);
+});
+
+test("--check with missing env var reports the var name", () => {
+  assertFails({}, ["--check", "PROP-001"], /Missing env var: HERMIT_GH_APP_ID/);
+});
+
+test("--check with missing key file shows labeled error", () => {
+  assertFails(
+    { ...fullEnv, HERMIT_GH_APP_KEY_FILE: "/nonexistent/key.pem" },
+    ["--check", "PROP-001"],
+    /HERMIT_GH_APP_KEY_FILE=.*does not exist/
+  );
+});
+
+// Requires real GitHub App credentials. Set HERMIT_GH_CHECK_LIVE=1 to run.
+if (process.env.HERMIT_GH_CHECK_LIVE) {
+  test("--check with unknown proposal id exits 2 with no match message", () => {
+    const liveEnv = {
+      HERMIT_GH_APP_ID: process.env.HERMIT_GH_APP_ID,
+      HERMIT_GH_APP_INSTALL_ID: process.env.HERMIT_GH_APP_INSTALL_ID,
+      HERMIT_GH_APP_KEY_FILE: process.env.HERMIT_GH_APP_KEY_FILE,
+    };
+    const r = run(liveEnv, ["--check", "PROP-NOTREAL-99999"]);
+    assertEqual(r.status, 2, "exit code");
+    assertMatch(r.stderr, /no match/, "stderr");
+  });
+}
 
 test("empty title file is rejected", () => {
   assertFails(fullEnv, [emptyTitleFile, bodyFile], /Title file is empty/);
