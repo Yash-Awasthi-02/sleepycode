@@ -27,15 +27,17 @@ If the operator named a proposal (`PROP-NNN`):
 
    **Pick type** from `category`:
    - `bug` → `fix`
+   - `infrastructure`, `investigation` → `chore`
    - `improvement`, `capability`, `routine`, `constraint` → `feat`
    - any other / unknown category → `feat`
 
    **Pick scope** with this priority:
-   1. Scan the raw `title` field from frontmatter and the proposal body (pre-translation) for either `plugins/<slug>/` path references, or whole-word occurrences of any known repo plugin slug — not substrings of a path component, URL, or longer identifier: `hermit-scribe`, `claude-code-hermit`, `claude-code-dev-hermit`, `claude-code-homeassistant-hermit`, `claude-code-fitness-hermit`. (Update this list when a new fleet plugin ships.) Collect the distinct slug set.
+   1. Read `.claude-code-hermit/config.json` and take the keys of `_hermit_versions` as the recognized slug set. (If config is missing or unreadable, omit scope.)
+   2. Scan the raw `title` field from frontmatter and the proposal body (pre-translation) for whole-word occurrences of any slug in the set, or for `plugins/<slug>/` path references where `<slug>` is in the set — not substrings of a path component, URL, or longer identifier. Collect the distinct matched slugs.
       - Exactly one slug → use it.
       - More than one slug → omit scope and stop (do NOT fall through; the signal is present but ambiguous).
-   2. Only if step 1 found **zero** slug mentions, read `.claude-code-hermit/config.json`. Look at `_hermit_versions`. Filter keys matching `^claude-code-.+-hermit$` excluding `claude-code-hermit`. If exactly one fleet hermit is activated → use it. (If config is missing or unreadable, skip silently.)
-   3. Otherwise omit scope.
+   3. If step 2 found **zero** matches, filter the slug set for keys matching `^claude-code-.+-hermit$` excluding `claude-code-hermit`. If exactly one fleet hermit remains → use it.
+   4. Otherwise omit scope.
 
    Strip a leading `claude-code-` from the chosen scope (e.g. `claude-code-homeassistant-hermit` → `homeassistant-hermit`).
 
