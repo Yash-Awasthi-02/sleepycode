@@ -81,7 +81,7 @@ DEFAULT_CONFIG = {
         'waiting_timeout': None,
     },
     'quality_gate': {
-        'enabled': True,
+        'tier': 'budget',
     },
     'knowledge': {
         'raw_retention_days': 14,

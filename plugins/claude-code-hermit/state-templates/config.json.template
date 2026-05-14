@@ -53,7 +53,7 @@
     "waiting_timeout": null
   },
   "quality_gate": {
-    "enabled": true
+    "tier": "budget"
   },
   "knowledge": {
     "raw_retention_days": 14,

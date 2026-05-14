@@ -30,7 +30,7 @@ View or modify the hermit configuration for this project.
 /claude-code-hermit:hermit-settings docker           — view/edit Docker packages
 /claude-code-hermit:hermit-settings scheduled-checks    — manage scheduled plugin skill checks
 /claude-code-hermit:hermit-settings boot-skill       — view/clear/change the always-on boot skill
-/claude-code-hermit:hermit-settings quality-gate     — toggle post-implementation /simplify review
+/claude-code-hermit:hermit-settings quality-gate     — set post-implementation /simplify gate tier (budget|balanced|quality)
 ```
 
 ## Plan
@@ -64,7 +64,7 @@ Operational:
   Idle budget:     $0.50          → any dollar amount (e.g. $0.25, $1.00)
   Heartbeat:       disabled       → yes | no  (interval, show_ok, active hours, stale threshold)
   Routines:        2 configured   → run: /claude-code-hermit:hermit-settings routines
-  Quality gate:    enabled        → yes | no
+  Quality gate:    budget         → budget | balanced | quality
   Permission mode: acceptEdits    → default | acceptEdits | auto | plan | dontAsk | bypassPermissions
   Auto session:    enabled        → read-only
   Boot skill:      /claude-code-hermit:session  → any namespaced skill | 'none' to reset to default
@@ -342,8 +342,18 @@ Update `permission_mode` in config.json.
 - Note: "Interval checks run during idle reflection. Session checks run at task completion. Changes take effect on the next cycle."
 
 **If argument is "quality-gate":**
-Ask: "Run a `/simplify` quality review automatically at the end of accepted-proposal implementations? Catches clarity issues, nested ternaries, and redundant complexity before resolve. Adds a few seconds and some token cost per implementation. (yes/no) [current]"
-Update `quality_gate.enabled` in config.json. If the `quality_gate` object is missing, create it as `{ "enabled": <value> }`.
+Ask the operator via `AskUserQuestion` to pick a tier. Show the current value in brackets if `quality_gate.tier` is set.
+
+Prompt: *"Quality-gate tier for accepted-proposal auto-implementations. Controls whether `/simplify` runs at step (e.5) of `/proposal-act`."*
+
+Options:
+- **Budget** (default; recommended): `/simplify` never runs. Cheapest. No post-implementation review.
+- **Balanced**: delegate the decision to the `quality-gate-judge` haiku subagent on each implementation; judge reads the proposal + touched files and decides `RUN` or `SKIP`. Costs ~$0.005 per judge call plus an occasional ~$0.25 `/simplify` run when the judge says RUN.
+- **Quality**: `/simplify` runs on every implementation, no judgment. ~$0.25-$0.35 per implementation in Sonnet pricing.
+
+Write the chosen value to `quality_gate.tier` in config.json. If the `quality_gate` object is missing, create it as `{ "tier": "<chosen>" }`. If a legacy `enabled` key is present, leave it in place (skill behavior reads `tier` only; legacy `enabled` is ignored).
+
+Note: if you have `claude-code-dev-hermit:dev-quality` installed and you commit autonomous-implementation diffs through it, consider **Budget** — `/dev-quality` already runs `/simplify` before commit, and any non-Budget tier here would double-fire `/simplify` (~$0.40-$0.70 of duplicated spend per committed implementation).
 
 ### 3. Write config
 
