@@ -30,8 +30,7 @@ The plugin requires a GitHub App with `Issues: Read & write` permission installe
 Store the key in a gitignored location:
 
 ```bash
-mkdir -p .claude/secrets
-mv ~/Downloads/<your-app>.*.pem .claude/secrets/hermit-scribe-key.pem
+mv ~/Downloads/<your-app>.*.pem .claude.local/hermit-scribe-key.pem
 ```
 
 ## Env vars
@@ -58,13 +57,27 @@ For proposal-backed issues: the skill globs `.claude-code-hermit/proposals/PROP-
 
 For ad-hoc: supply title and body directly.
 
-All issues get the `hermit-filed` label. No dedup; running twice creates two issues.
+All issues get the `hermit-filed` label.
+
+### Dedup
+
+Before filing, the skill runs `--check {id}` automatically. If a matching issue already exists (matched by `proposal={id}` in the footer), the skill shows the existing URL and asks whether to skip or proceed. Re-filing after overriding writes the new URL into the proposal's `gh_issue:` field (latest wins).
+
+### Privacy sanitization
+
+Before showing the preview, the skill passes the draft through the `issue-sanitizer` subagent. It strips anything personal or specific to the operator's machine and project unless it's clearly part of an upstream hermit plugin (`claude-code-hermit`, `claude-code-dev-hermit`, `claude-code-homeassistant-hermit`, `claude-code-fitness-hermit`, `hermit-scribe`) or the hermit state tree (`.claude-code-hermit/...`). Secrets, `.env` content, connection strings, internal hostnames/IPs, and non-public URLs are always stripped even when they look technical. Stripped content is replaced with `<redacted>`.
+
+The operator can un-redact specific items during the preview step if a particular value is load-bearing for the issue.
+
+### Operator preview
+
+The cleaned title and body are shown to the operator before filing. The operator can confirm, edit, or cancel.
 
 ## Errors
 
 | Error | Cause |
 |-------|-------|
-| `ENOENT` | Key file path wrong or missing |
+| `HERMIT_GH_APP_KEY_FILE='...' does not exist` | Key file path wrong or missing — check `.env` |
 | `GH 401: Bad credentials` | Wrong App ID, install ID, or key file |
 | `GH 404` | App not installed on target repo, or repo name typo |
 | `GH 422` | Empty title or GitHub validation error |
@@ -80,9 +93,11 @@ All issues get the `hermit-filed` label. No dedup; running twice creates two iss
 
 ```
 hermit-scribe/
+  ├── agents/
+  │     └── issue-sanitizer.md  redacts non-hermit content from draft body
   └── skills/hermit-scribe/
-        ├── SKILL.md        trigger phrases + filing instructions
-        └── file-issue.js   stdlib: JWT → install token → POST /issues
+        ├── SKILL.md            trigger phrases + filing flow
+        └── file-issue.js       stdlib: JWT → install token → POST /issues; --check flag
 ```
 
 `file-issue.js` is a single-shot Node script: signs an RS256 JWT from the App private key, exchanges it for an installation access token at `POST /app/installations/{id}/access_tokens`, then `POST /repos/{owner}/{repo}/issues` with the `hermit-filed` label. Two HTTPS round-trips per invocation. Node is required (Claude Code already provides it).

@@ -13,8 +13,9 @@ claude plugin install hermit-scribe@claude-code-hermit --scope project
 
 ## Plugin Structure
 
+- `agents/issue-sanitizer.md`: subagent that sanitizes draft issue content before filing — strips anything personal or specific to the operator's machine and project unless it's clearly part of an upstream hermit plugin. Tools: none (pure text transform).
 - `skills/hermit-scribe/SKILL.md`: the skill, namespaced as `/hermit-scribe:hermit-scribe`
-- `skills/hermit-scribe/file-issue.js`: Node stdlib script that signs the JWT, gets an install token, and POSTs the issue
+- `skills/hermit-scribe/file-issue.js`: Node stdlib script that signs the JWT, gets an install token, and POSTs the issue. Supports `--check <proposal-id>` to query existing issues before filing.
 - `.claude-plugin/plugin.json`: plugin manifest
 
 ## Required env vars
@@ -28,7 +29,7 @@ Set these in your project `.env` (loaded by Docker hermit via `env_file:`) or in
 | `HERMIT_GH_APP_KEY_FILE` | Absolute path to the `.pem` private key file |
 | `HERMIT_GH_REPO` | Optional override; target `owner/repo` (default: `gtapps/claude-code-hermit`) |
 
-Place the private key at `.claude/secrets/hermit-scribe-key.pem` (gitignored via `*.pem`).
+Place the private key at `.claude.local/hermit-scribe-key.pem` (`.claude.local/` is gitignored).
 
 ## Manual smoke test
 

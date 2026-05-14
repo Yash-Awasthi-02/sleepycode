@@ -52,13 +52,7 @@ function ghRequest(method, path, auth, body) {
   });
 }
 
-async function main() {
-  const [, , titleFile, bodyFile] = process.argv;
-  if (!titleFile || !bodyFile) {
-    process.stderr.write("Usage: node file-issue.js <title-file> <body-file>\n");
-    process.exit(1);
-  }
-
+function loadEnv() {
   const {
     HERMIT_GH_APP_ID,
     HERMIT_GH_APP_INSTALL_ID,
@@ -82,22 +76,85 @@ async function main() {
     process.stderr.write(`HERMIT_GH_REPO must be "owner/repo", got: ${HERMIT_GH_REPO}\n`);
     process.exit(1);
   }
-  const [owner, repo] = repoParts;
 
-  const pem = readFileSync(HERMIT_GH_APP_KEY_FILE, "utf8");
+  const [owner, repo] = repoParts;
+  return { HERMIT_GH_APP_ID, HERMIT_GH_APP_INSTALL_ID, HERMIT_GH_APP_KEY_FILE, owner, repo };
+}
+
+async function getInstallToken({ HERMIT_GH_APP_ID, HERMIT_GH_APP_INSTALL_ID, HERMIT_GH_APP_KEY_FILE }) {
+  let pem;
+  try {
+    pem = readFileSync(HERMIT_GH_APP_KEY_FILE, "utf8");
+  } catch {
+    process.stderr.write(
+      `HERMIT_GH_APP_KEY_FILE='${HERMIT_GH_APP_KEY_FILE}' does not exist (cwd=${process.cwd()}) — check .env\n`
+    );
+    process.exit(1);
+  }
+  const jwt = makeJWT(HERMIT_GH_APP_ID, pem);
+  const { token } = await ghRequest(
+    "POST",
+    `/app/installations/${HERMIT_GH_APP_INSTALL_ID}/access_tokens`,
+    `Bearer ${jwt}`
+  );
+  return token;
+}
+
+async function checkMode() {
+  const proposalId = process.argv[3];
+  if (!proposalId) {
+    process.stderr.write("Usage: node file-issue.js --check <proposal-id>\n");
+    process.exit(1);
+  }
+
+  const env = loadEnv();
+  const token = await getInstallToken(env);
+  const { owner, repo } = env;
+
+  let page = 1;
+  while (true) {
+    const issues = await ghRequest(
+      "GET",
+      `/repos/${owner}/${repo}/issues?labels=hermit-filed&state=open&per_page=100&page=${page}`,
+      `Bearer ${token}`
+    );
+    if (!Array.isArray(issues) || issues.length === 0) break;
+    const match = issues.find((i) => i.body && i.body.includes(`proposal=${proposalId}`));
+    if (match) {
+      process.stdout.write(match.html_url + "\n");
+      process.exit(0);
+    }
+    if (issues.length < 100) break;
+    page++;
+  }
+
+  process.stderr.write(`no match for ${proposalId}\n`);
+  process.exit(2);
+}
+
+async function main() {
+  if (process.argv[2] === "--check") {
+    await checkMode();
+    return;
+  }
+
+  const [, , titleFile, bodyFile] = process.argv;
+  if (!titleFile || !bodyFile) {
+    process.stderr.write("Usage: node file-issue.js <title-file> <body-file>\n");
+    process.exit(1);
+  }
+
+  const env = loadEnv();
+
   const title = readFileSync(titleFile, "utf8").trim();
   const issueBody = readFileSync(bodyFile, "utf8");
   if (!title) {
     process.stderr.write(`Title file is empty: ${titleFile}\n`);
     process.exit(1);
   }
-  const jwt = makeJWT(HERMIT_GH_APP_ID, pem);
 
-  const { token } = await ghRequest(
-    "POST",
-    `/app/installations/${HERMIT_GH_APP_INSTALL_ID}/access_tokens`,
-    `Bearer ${jwt}`
-  );
+  const token = await getInstallToken(env);
+  const { owner, repo } = env;
 
   const issue = await ghRequest(
     "POST",
