@@ -1,6 +1,10 @@
 # Changelog
 
-## [Unreleased]
+## [1.0.39] - 2026-05-14
+
+### Fixed
+
+- **`skills/proposal-act/SKILL.md` frontmatter parse error.** The new description added in this release introduces an unquoted internal colon (`how to proceed: start implementing`), which YAML treats as a mapping-key delimiter inside a plain scalar. The native `claude plugin validate` command failed with `YAML frontmatter failed to parse`, and at runtime the skill would have loaded with empty metadata (description silently dropped, breaking activation phrases). Wrapping the description in single quotes restores parseability without changing the prose.
 
 ### Changed
 
@@ -16,7 +20,7 @@
 
 | File | Change |
 |------|--------|
-| `skills/proposal-act/SKILL.md` | Three-option accept step 4; resolve wording; description string; tier-branched step (e.5); NEXT-TASK numbered-bullet ordering |
+| `skills/proposal-act/SKILL.md` | Three-option accept step 4; resolve wording; description string (single-quoted to escape internal colon); tier-branched step (e.5); NEXT-TASK numbered-bullet ordering |
 | `agents/quality-gate-judge.md` | **New** haiku subagent: reads proposal body + touched files, returns RUN/SKIP verdict for step (e.5) balanced tier |
 | `agents/hermit-config-validator.md` | Mirror enum check for `quality_gate.tier` in the validator's prose checklist |
 | `scripts/validate-config.js` | Add `quality_gate` to `REQUIRED_KEYS`; add enum validator for `quality_gate.tier` (matches existing `escalation` pattern) |
