@@ -34,7 +34,7 @@ claude plugin install claude-code-homeassistant-hermit@claude-code-hermit --scop
 
 **Drive it from anywhere.** Ask what's on, draft an automation, ask why the porch light fired at 3am — DM the hermit on Discord or Telegram, or jump into a live session from claude.ai/code on your phone. Replies are conversational; YAML drafts get isolated, simulated, and only applied after you approve.
 
-**It watches the house for you.** Daily integration health + automation error checks; weekly pattern analysis, automation suggestions, and safety re-audit. Anomalies surface as proposals you can act on — never silent edits.
+**It watches the house for you.** Daily integration health, silence detection (dead automations, sensors that stopped triggering, long-unavailable entities), and automation error checks; weekly pattern analysis, history-backed automation suggestions, and safety re-audit. Anomalies surface as proposals you can act on — never silent edits.
 
 **Safety is the default.** `lock`, `alarm_control_panel`, and security-tagged `cover`/`button`/`switch` domains are blocked outright. Vague targets (an area or device with no resolvable entity) fail closed. Every block becomes a proposal — never a surprise.
 
@@ -119,7 +119,7 @@ claude-code-homeassistant-hermit (this plugin)
   ├── agents/             HA subagents (safety-reviewer, automation-builder, pattern-analyst)
   ├── hooks/              mcp-safety-gate.py + hooks.json
   ├── bin/ha-agent-lab    Python CLI launcher
-  ├── src/ha_agent_lab/   Python package (REST client, policy, simulation, apply)
+  ├── src/ha_agent_lab/   Python package (REST client, policy, simulation, apply, history, silence)
   └── state-templates/    CLAUDE-APPEND.md (injected by hatch)
 
 claude-code-hermit (core, required ≥ 1.0.26)
