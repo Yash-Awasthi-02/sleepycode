@@ -47,6 +47,8 @@ Need a different cadence or a new routine? Just ask — hermit sets it up.
 
 **Read-only by design.** Write-class Strava tools (`star-segment`, `connect-strava`, `disconnect-strava`) are blocked at the settings layer. The hermit only reads — your Strava account is never modified.
 
+**Tracks how it felt.** After each synced activity, reply with your RPE (1–10) in the channel — `capture-activity-rpe` binds it to the activity. Use `/claude-code-fitness-hermit:set-rpe` for manual or retroactive entries. Subjective load surfaces in `activity-deep-dive` output and weekly summaries.
+
 **Everything is browsable.** Activity notes, weekly summaries, and load baselines flow into your hermit Cortex — the Obsidian vault hermit maintains — so your training history is greppable, linkable, and yours.
 
 ---
@@ -106,7 +108,7 @@ claude plugin update claude-code-fitness-hermit@claude-code-hermit --scope proje
 
 ```
 claude-code-fitness-hermit (this plugin)
-  ├── skills/             hatch + activity-deep-dive
+  ├── skills/             hatch, activity-deep-dive, capture-activity-rpe, set-rpe
   ├── agents/             strava-data-cruncher (Haiku bulk aggregator)
   ├── state-templates/    routine-*.md + CLAUDE-APPEND.md (injected by hatch)
   ├── docs/               knowledge-schema.md
