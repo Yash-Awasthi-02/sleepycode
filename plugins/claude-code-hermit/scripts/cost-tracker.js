@@ -323,18 +323,18 @@ avg_session_tokens: ${Math.round(avgSessionTokens)}
 ## Today
 - Sessions: ${todaySessions}
 - Cost: $${todayCost.toFixed(2)}
-- Tokens: ${formatTokens(todayTokens)}
+- Tokens: ${kStr(todayTokens)}K
 
 ## This Week
 - Sessions: ${weekSessionCount}
 - Cost: $${weekCost.toFixed(2)}
-- Tokens: ${formatTokens(weekTokens)}
+- Tokens: ${kStr(weekTokens)}K
 - Avg per session: $${weekAvg.toFixed(2)}
 
 ## All Time
 - Sessions: ${totalSessions}
 - Cost: $${totalCost.toFixed(2)}
-- Tokens: ${formatTokens(totalTokens)}
+- Tokens: ${kStr(totalTokens)}K
 - Avg per session: $${avgCost.toFixed(2)}
 
 ## Cost Trend (Last 7 Days)
