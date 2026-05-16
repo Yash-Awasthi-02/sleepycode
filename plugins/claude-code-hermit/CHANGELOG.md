@@ -20,9 +20,9 @@
 
 ### Upgrade Instructions
 
-**`gh` baseline install (Dockerfile + Compose).** Existing hermits have on-disk `docker/Dockerfile.hermit` and `docker/docker-compose.hermit.yml` files that plugin updates won't touch. Two surgical patches are needed before rebuilding:
+**`gh` baseline install (Dockerfile + Compose).** Existing hermits have on-disk `Dockerfile.hermit` and `docker-compose.hermit.yml` at the project root that plugin updates won't touch. Two surgical patches are needed before rebuilding:
 
-**Step 1 — Dockerfile.** Open `.claude-code-hermit/docker/Dockerfile.hermit`. Check whether it already contains `apt-get install -y --no-install-recommends gh`. If it does, skip to Step 2. If not, locate the line:
+**Step 1 — Dockerfile.** Open `Dockerfile.hermit` at the project root. If the file does not exist, Docker has not been set up — skip to Step 3. Check whether it already contains `apt-get install -y --no-install-recommends gh`. If it does, skip to Step 2. If not, locate the line:
 
 ```
     apt-get install -y --no-install-recommends nodejs && \
@@ -42,7 +42,7 @@ Replace the continuation (the `rm -rf` line that follows it) with:
     rm -rf /var/lib/apt/lists/*
 ```
 
-**Step 2 — docker-compose.hermit.yml.** Open `.claude-code-hermit/docker/docker-compose.hermit.yml`. Check whether it already contains `GH_TOKEN=`. If it does, skip to Step 3. If not, find the line starting with `      - AGENT_HOOK_PROFILE=` and add immediately after it:
+**Step 2 — docker-compose.hermit.yml.** Open `docker-compose.hermit.yml` at the project root. If the file does not exist, skip to Step 3. Check whether it already contains `GH_TOKEN=`. If it does, skip to Step 3. If not, find the line starting with `      - AGENT_HOOK_PROFILE=` and add immediately after it:
 
 ```
       - GH_TOKEN=${HERMIT_GH_TOKEN:-}
