@@ -1,10 +1,32 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.7] - 2026-05-16
 
 ### Changed
 
 - **Surface `/dev-pr` as the sanctioned push path in §Git Safety.** Both CLAUDE-APPEND templates and `docs/GIT-SAFETY.md` now end the "Never `git push`" rule with a pointer to `/claude-code-dev-hermit:dev-pr` as the operator-sanctioned alternative, and soften "The operator pushes" to "Stop and ask the operator." Resolves the discoverability gap where downstream LLMs offered manual-push workarounds instead of invoking the skill. `skills/dev-pr/SKILL.md` description updated with the inverse note. `tests/hatch-mode.test.js` drops the "no /dev-pr in safety template" assertion (no longer correct) and adds named positive assertions for both templates. `docs/WORKFLOW.md` updated to match the new voice. Closes PROP-027.
+- **core requirement bumped to `>=1.0.40`** — aligns `required_core_version`, `requires`, and `dependencies` with the latest core release.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/CLAUDE-APPEND.md` | §Git Safety push rule now names `/dev-pr` as sanctioned alternative |
+| `state-templates/CLAUDE-APPEND-SAFETY.md` | Same §Git Safety update |
+| `docs/GIT-SAFETY.md` | Push rule prose aligned with templates |
+| `docs/WORKFLOW.md` | Push rule sentence updated to match |
+| `skills/dev-pr/SKILL.md` | Description updated: named as operator-sanctioned push primitive |
+| `tests/hatch-mode.test.js` | Replaced "no /dev-pr in safety" assertion with positive named assertions for both templates |
+| `.claude-plugin/hermit-meta.json` | Core requirement bumped to `>=1.0.40` |
+| `.claude-plugin/plugin.json` | Core dependency bumped to `^1.0.40`; version bumped to 0.3.7 |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Refresh the CLAUDE-APPEND block** — re-run `/claude-code-dev-hermit:hatch` in each target project to pick up the updated §Git Safety rule in the injected CLAUDE.md block.
+
+No `config.json` changes required.
 
 ## [0.3.6] - 2026-05-13
 
