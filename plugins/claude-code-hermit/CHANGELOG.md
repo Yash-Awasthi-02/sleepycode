@@ -1,5 +1,36 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **New skills: `/brain`, `/evolution`, `/health`.** Three on-demand channel-friendly analytics skills that replace the retired Obsidian Cortex surface. `/brain` synthesises fragile zones, stale accepted proposals, and recent learnings from session history and reflect output. `/evolution` shows cost trend, autonomy delta, and proposal-resolution times across recent weekly reviews. `/health` shows alert state, proposal queue depth, routine engagement, and channel availability. All three emit ≤1500-char channel-optimised markdown. When invoked via a channel-arrived message they reply via the channel (per PROP-037 §0); terminal invocations emit to conversation.
+
+### Changed
+
+- **Cortex generation moves from cron-driven file regeneration to on-demand skill dispatch.** `/brain`, `/evolution`, `/health` read hermit state directly and emit fresh analyses per invocation. No pre-built file artifact.
+- **`weekly-review` now appends a deterministic "This week's evolution" block** (cost, autonomy, proposal counts with week-over-week Δ) and sends the combined summary via the configured channel. The block is computed from `compiled/review-weekly-*.md` frontmatter — no extra LLM call at routine time.
+- **`weekly-review` routine default changed to `enabled: true`** for new installs. Existing operators retain their current setting; to receive the new channel-friendly weekly evolution summary, enable the `weekly-review` routine via `/claude-code-hermit:hermit-settings`.
+- **Frontmatter contract softened from strict (enforced by `validate-frontmatter.js`) to convention.** Include `title`, `created`, `tags`, `source`, `session` (if applicable) on artifacts you create. See `docs/frontmatter-contract.md`.
+
+### Removed
+
+- **Skills:** `/claude-code-hermit:obsidian-setup`, `:cortex-refresh`, `:cortex-sync`
+- **Scripts:** `build-cortex.js`, `cortex-refresh-stage.js`, `validate-frontmatter.js`
+- **Templates:** `state-templates/obsidian/` (six Cortex page templates)
+- **Templates:** `state-templates/cortex-manifest.json.template`
+- **Docs:** `docs/obsidian-setup.md`
+- **Stop-hook stage:** cortex-refresh stage removed from `scripts/stop-pipeline.js`
+- **Weekly-review:** `Latest Review.md` pointer write removed from `scripts/weekly-review.js`
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve` after `/plugin update`. It will:
+
+1. **Detect existing `obsidian/` directory** — leave it untouched (operators may have customised it). Logs a SHELL.md Findings note: `"obsidian/ no longer maintained by hermit; safe to delete or keep as personal vault."` The `cortex-manifest.json` file is also left in place for the same reason.
+2. **`weekly-review` default.** The template now ships `enabled: true` for new installs. Your current setting is not auto-flipped. To opt in to the new channel-friendly weekly evolution summary, run `/claude-code-hermit:hermit-settings` and enable the `weekly-review` routine.
+3. **`/obsidian-setup`, `/cortex-refresh`, `/cortex-sync`** disappear on next `/plugin update`; no migration required for existing operators.
+
 ## [1.0.40] - 2026-05-16
 
 ### Added

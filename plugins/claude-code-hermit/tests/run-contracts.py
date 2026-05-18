@@ -911,10 +911,7 @@ class TestProposalIdScheme(unittest.TestCase):
 
     SCRIPTS_WITH_PROPOSAL_GLOB = [
         'reflect-precheck.js',
-        'build-cortex.js',
-        'cortex-refresh-stage.js',
         'weekly-review.js',
-        'validate-frontmatter.js',
         'doctor-check.js',
     ]
 
