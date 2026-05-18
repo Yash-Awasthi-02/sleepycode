@@ -990,15 +990,18 @@ class TestChannelResolverContract(unittest.TestCase):
     VALIDATOR = SCRIPTS / 'validate-config.js'
 
     def _run_resolver(self, config_obj):
-        with tempfile.TemporaryDirectory() as d:
-            hermit_dir = Path(d) / '.claude-code-hermit'
-            hermit_dir.mkdir()
-            (hermit_dir / 'config.json').write_text(json.dumps(config_obj))
-            r = subprocess.run(
-                ['node', str(self.RESOLVER), str(hermit_dir)],
-                capture_output=True, text=True
-            )
-            return r.returncode, json.loads(r.stdout.strip())
+        """Call resolve() in-process via node -e; bypasses tempdir + fs read.
+        For CLI-path coverage (missing config, exit codes) see
+        test_missing_config_returns_read_error which spawns the CLI directly."""
+        channels = config_obj.get('channels', {})
+        js = (
+            f"const m = require('{self.RESOLVER}');"
+            f"const r = m.resolve({json.dumps(channels)});"
+            f"process.stdout.write(JSON.stringify(r === null ? {{error:'no_reachable_channel'}} : r));"
+            f"process.exit(r === null ? 1 : 0);"
+        )
+        r = subprocess.run(['node', '-e', js], capture_output=True, text=True, timeout=5)
+        return r.returncode, json.loads(r.stdout.strip())
 
     def _run_validator(self, config_obj):
         js = f"""
@@ -1011,48 +1014,59 @@ class TestChannelResolverContract(unittest.TestCase):
         return json.loads(r.stdout)
 
     def test_primary_set_and_reachable(self):
-        """channels.primary picks the named channel when eligible."""
+        """channels.primary picks the named channel when eligible — wins over config order."""
+        # telegram is listed first; primary points at discord — discord must win.
         config = {'channels': {
-            'primary': 'telegram',
+            'primary': 'discord',
+            'telegram': {'enabled': True, 'dm_channel_id': 'T1'},
             'discord': {'enabled': True, 'dm_channel_id': 'D1'},
+        }}
+        code, result = self._run_resolver(config)
+        self.assertEqual(code, 0)
+        self.assertEqual(result.get('id'), 'discord')
+        self.assertEqual(result.get('chat_id'), 'D1')
+
+    def test_primary_set_but_no_dm_channel_id_falls_through(self):
+        """primary channel missing dm_channel_id falls through to first eligible in config order."""
+        config = {'channels': {
+            'primary': 'discord',
+            'discord': {'enabled': True, 'dm_channel_id': None},
             'telegram': {'enabled': True, 'dm_channel_id': 'T1'},
         }}
         code, result = self._run_resolver(config)
         self.assertEqual(code, 0)
         self.assertEqual(result.get('id'), 'telegram')
-        self.assertEqual(result.get('chat_id'), 'T1')
 
-    def test_primary_set_but_no_dm_channel_id_falls_through(self):
-        """primary channel missing dm_channel_id falls through to fixed priority."""
+    def test_primary_unset_uses_config_order(self):
+        """No primary — first eligible entry in operator's config order wins (no hardcoded slug list)."""
+        # telegram listed first should win — proves there's no built-in preference for discord.
         config = {'channels': {
-            'primary': 'telegram',
-            'discord': {'enabled': True, 'dm_channel_id': 'D1'},
-            'telegram': {'enabled': True, 'dm_channel_id': None},
-        }}
-        code, result = self._run_resolver(config)
-        self.assertEqual(code, 0)
-        self.assertEqual(result.get('id'), 'discord')
-
-    def test_primary_unset_uses_fixed_priority(self):
-        """No primary — fixed order discord → telegram → imessage."""
-        config = {'channels': {
-            'discord': {'enabled': True, 'dm_channel_id': 'D1'},
             'telegram': {'enabled': True, 'dm_channel_id': 'T1'},
+            'discord': {'enabled': True, 'dm_channel_id': 'D1'},
         }}
         code, result = self._run_resolver(config)
         self.assertEqual(code, 0)
-        self.assertEqual(result.get('id'), 'discord')
+        self.assertEqual(result.get('id'), 'telegram')
+
+    def test_unknown_channel_slug_is_eligible(self):
+        """A future/third-party channel slug is picked up without resolver changes."""
+        config = {'channels': {
+            'whatsapp': {'enabled': True, 'dm_channel_id': 'W1'},
+        }}
+        code, result = self._run_resolver(config)
+        self.assertEqual(code, 0)
+        self.assertEqual(result.get('id'), 'whatsapp')
 
     def test_primary_disabled_falls_through(self):
         """primary channel with enabled:false is skipped (policy gate)."""
         config = {'channels': {
-            'primary': 'telegram',
-            'discord': {'enabled': True, 'dm_channel_id': 'D1'},
-            'telegram': {'enabled': False, 'dm_channel_id': 'T1'},
+            'primary': 'discord',
+            'discord': {'enabled': False, 'dm_channel_id': 'D1'},
+            'telegram': {'enabled': True, 'dm_channel_id': 'T1'},
         }}
         code, result = self._run_resolver(config)
         self.assertEqual(code, 0)
-        self.assertEqual(result.get('id'), 'discord')
+        self.assertEqual(result.get('id'), 'telegram')
 
     def test_validator_rejects_primary_referencing_missing_channel(self):
         """channels.primary pointing to a non-existent channel is an error."""
@@ -1069,6 +1083,59 @@ class TestChannelResolverContract(unittest.TestCase):
         result = self._run_validator(config)
         primary_errors = [e for e in result.get('errors', []) if 'primary' in e]
         self.assertEqual(primary_errors, [], f'unexpected primary errors: {primary_errors}')
+
+    def test_empty_allowed_users_falls_through(self):
+        """allowed_users: [] disables the channel for proactive sends."""
+        config = {'channels': {
+            'discord': {'enabled': True, 'dm_channel_id': 'D1', 'allowed_users': []},
+            'telegram': {'enabled': True, 'dm_channel_id': 'T1'},
+        }}
+        code, result = self._run_resolver(config)
+        self.assertEqual(code, 0)
+        self.assertEqual(result.get('id'), 'telegram')
+
+    def test_missing_config_returns_read_error(self):
+        """Missing config.json: exit 1, JSON error on stdout with detail+path."""
+        r = subprocess.run(
+            ['node', str(self.RESOLVER), '/nope/missing-dir'],
+            capture_output=True, text=True
+        )
+        self.assertEqual(r.returncode, 1)
+        payload = json.loads(r.stdout.strip())
+        self.assertEqual(payload.get('error'), 'config_read_failed')
+        self.assertIn('detail', payload, 'detail missing from error payload')
+        self.assertIn('/nope/missing-dir', payload.get('path', ''))
+
+    def test_primary_self_reference_falls_through(self):
+        """channels.primary: 'primary' would point at the string itself — falls through."""
+        config = {'channels': {
+            'primary': 'primary',
+            'discord': {'enabled': True, 'dm_channel_id': 'D1'},
+        }}
+        code, result = self._run_resolver(config)
+        self.assertEqual(code, 0)
+        self.assertEqual(result.get('id'), 'discord')
+
+    def test_validator_rejects_primary_referencing_non_object(self):
+        """channels.primary pointing at the string 'primary' (self) is rejected."""
+        config = {'channels': {
+            'primary': 'primary',
+            'discord': {'dm_channel_id': 'D1'},
+        }}
+        result = self._run_validator(config)
+        self.assertTrue(
+            any('primary' in e and 'channel-config object' in e for e in result.get('errors', [])),
+            f'expected non-object reference error, got {result}',
+        )
+
+    def test_validator_rejects_non_string_primary(self):
+        """channels.primary must be a string."""
+        config = {'channels': {'primary': 42, 'discord': {'dm_channel_id': 'D1'}}}
+        result = self._run_validator(config)
+        self.assertTrue(
+            any('primary' in e and 'string' in e for e in result.get('errors', [])),
+            f'expected non-string primary error, got {result}',
+        )
 
 
 if __name__ == '__main__':

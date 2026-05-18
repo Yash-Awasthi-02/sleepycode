@@ -49,7 +49,7 @@ Object keyed by channel name. Built-in channels (`"discord"`, `"telegram"`, `"im
 
 | Top-level key | Type | Default | Description |
 |---------------|------|---------|-------------|
-| `primary` | string | _(absent)_ | Preferred channel for proactive outbound sends (e.g. `"telegram"`). When set and the named channel is reachable, it takes priority over the fixed fallback order (`discord` → `telegram` → `imessage`). Must name an existing channel key. |
+| `primary` | string | _(absent)_ | Preferred channel for proactive outbound sends (e.g. `"discord"`). When set and the named channel is reachable, it takes priority. When absent, the resolver returns the first eligible entry in `channels` in operator's config order — no hardcoded slug list. Must name an existing channel key. |
 
 Per-channel keys (under `channels.<name>`):
 

@@ -16,8 +16,10 @@
 
 Hermit uses proactive channel sends for heartbeat alerts, morning briefs, and idle transition notifications. If messages aren't arriving:
 
-- **Check `channels.<name>.allowed_users` in config.json:** Proactive sends require exactly one allowed user for the active channel. If absent, empty, or multiple users configured, there's no unambiguous outbound target. Add your user ID via `/hermit-settings channels`.
-- **Check `channels.<name>.dm_channel_id`:** Outbound Discord DM notifications require the DM channel ID, not the user ID. This is learned automatically from the first inbound message. If it's `null`, send any message to the bot to populate it.
+- **Check `channels.<name>.dm_channel_id`:** Outbound DM notifications require the channel-side DM ID, not the operator's user ID. This is learned automatically from the first inbound message. If it's `null`, send any message to the bot to populate it. A channel with no `dm_channel_id` is not eligible for proactive sends and the resolver will skip it.
+- **Check `channels.<name>.allowed_users`:** A channel with `allowed_users: []` (explicit empty array) is treated as disabled for proactive sends and skipped by the resolver. Omitting the field, or listing one or more user IDs, both make the channel eligible. Edit via `/hermit-settings channels`.
+- **Check `channels.<name>.enabled`:** `enabled: false` skips the channel. Default (omitted) is treated as enabled.
+- **Verify resolver output:** run `node ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.js .claude-code-hermit`. On success it prints `{"id":"<channel>","chat_id":"<id>"}` (exit 0). On miss it prints `{"error":"no_reachable_channel"}` (exit 1). When `channels.primary` is unset the resolver returns the first eligible entry in `channels` (operator's config order); set `channels.primary: "<name>"` in `config.json` to pin a preferred channel.
 - **Verify the `reply` tool is available:** Channels must be started with `--channels` for the plugin's `reply` tool to be accessible. Check boot output.
 - **`channel-send-unavailable` alert:** If sends are failing, heartbeat records this as a deduped alert. Check SHELL.md Findings for the unsent message content.
 - **Always-on vs interactive:** In interactive mode, channel plugins may not be running. Proactive sends only work when Claude Code is launched with `--channels`.

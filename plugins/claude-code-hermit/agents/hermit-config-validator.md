@@ -56,7 +56,7 @@ For each channel in `channels`:
 `channels.primary` (optional):
 
 - Must be a string if present
-- Must name an existing key in `channels` (i.e. `channels[primary]` must exist)
+- Must name an existing key in `channels` and that key must reference a channel-config object (not a string or array)
 
 ### 5. Heartbeat structure
 
