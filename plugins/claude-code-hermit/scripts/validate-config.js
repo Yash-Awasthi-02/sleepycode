@@ -140,6 +140,10 @@ function validate(config) {
 
   if (config.channels && typeof config.channels === 'object') {
     for (const [name, ch] of Object.entries(config.channels)) {
+      // channels.primary is a magic string key (preferred-channel pointer), not a
+      // channel-config object. Skip object-shape validation here; the primary-specific
+      // checks below handle it.
+      if (name === 'primary') continue;
       if (typeof ch !== 'object' || ch === null) {
         errors.push(`channels.${name}: must be an object`);
         continue;
@@ -149,6 +153,19 @@ function validate(config) {
       }
       if (ch.dm_channel_id !== undefined && ch.dm_channel_id !== null && typeof ch.dm_channel_id !== 'string') {
         errors.push(`channels.${name}.dm_channel_id: must be string or null`);
+      }
+    }
+    if (config.channels.primary !== undefined) {
+      const primary = config.channels.primary;
+      if (typeof primary !== 'string') {
+        errors.push('channels.primary: must be a string channel name');
+      } else {
+        const referenced = config.channels[primary];
+        if (referenced === undefined) {
+          errors.push(`channels.primary: references unknown channel "${primary}"`);
+        } else if (typeof referenced !== 'object' || referenced === null || Array.isArray(referenced)) {
+          errors.push(`channels.primary: "${primary}" must reference a channel-config object`);
+        }
       }
     }
   }

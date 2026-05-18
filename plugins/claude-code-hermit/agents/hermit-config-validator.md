@@ -53,6 +53,11 @@ For each channel in `channels`:
 - `dm_channel_id` must be string or null if present
 - `enabled` should be boolean
 
+`channels.primary` (optional):
+
+- Must be a string if present
+- Must name an existing key in `channels` and that key must reference a channel-config object (not a string or array)
+
 ### 5. Heartbeat structure
 
 - `enabled` (boolean)

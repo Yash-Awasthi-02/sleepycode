@@ -120,21 +120,24 @@ Ask: "Sign-off line for channel messages and briefs? (e.g., 'Atlas out.', '— A
 Update `sign_off` in config.json. Set to `null` if operator says "none" or "clear".
 
 **If argument is "channels":**
-Show current channel configuration from `config.json` → `channels` object:
+Show current channel configuration from `config.json` → `channels` object. The `channels.primary` key (if set) is a magic pointer to the preferred outbound channel, not a channel itself — display it on its own line above the channel list:
 ```
 Channels:
+  Primary: discord    (or "none — falls back to first eligible channel in config order")
   discord  enabled  allowed_users: [123456789]  morning_brief: 07:00  state_dir: /abs/path/...
   (or "No channels configured")
 ```
-Ask: "Add, remove, or edit a channel? (add discord / add telegram / remove <name> / edit <name> / done) [done]"
+Ask: "Add, remove, edit, or set primary? (add discord / add telegram / remove <name> / edit <name> / primary <name> / primary clear / done) [done]"
 Loop until operator says "done":
 - **add <name>:** Create entry `channels.<name>: { "enabled": true, "dm_channel_id": null }`. Prompt for `allowed_users` (paste user ID or skip) and `state_dir` (relative or absolute path — defaults to `.claude.local/channels/<name>`). Set `state_dir` in the channel entry. Note: "Configure the channel token next: Docker → `/claude-code-hermit:docker-setup`; tmux or interactive → `/claude-code-hermit:channel-setup`."
-- **remove <name>:** Delete `channels.<name>` from config.json.
+- **remove <name>:** Delete `channels.<name>` from config.json. If `channels.primary === <name>`, also delete `channels.primary` (a dangling pointer would fail validation) and tell the operator: "Also cleared `channels.primary` (was pointing at the removed channel)."
 - **edit <name>:** Sub-menu — "What to change? (allowed_users / morning_brief / enabled / done)"
   - **allowed_users:** "Paste user IDs (space-separated), or 'clear' to allow everyone, or 'block' for empty array." Update `channels.<name>.allowed_users`.
   - **morning_brief:** "Enable morning brief for this channel? (yes <time> / no) [current]". If yes: `channels.<name>.morning_brief = { "enabled": true, "time": "<HH:MM>" }`. If no: set to `null`.
   - **enabled:** Toggle `channels.<name>.enabled`.
-Note: "Channel changes take effect on next `hermit-start` run."
+- **primary <name>:** Validate `<name>` exists as a key in `channels` (and is not `primary` itself). If valid, set `channels.primary = "<name>"`. If invalid, reject: "No channel named `<name>` configured. Add it first with `add <name>`."
+- **primary clear:** Delete `channels.primary`. Outbound sends will fall back to the default `discord` → `telegram` → `imessage` order.
+Note: "Channel changes take effect on next `hermit-start` run. `channels.primary` is consulted live by `scripts/resolve-outbound-channel.js` on every proactive send — no restart needed for that key alone."
 
 **If argument is "remote":**
 Ask: "Enable remote control? Connect from a browser or phone via claude.ai/code.
