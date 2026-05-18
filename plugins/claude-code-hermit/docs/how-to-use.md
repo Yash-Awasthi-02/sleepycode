@@ -231,7 +231,7 @@ Or just ask Hermit: "What permissions do you need?" — it'll tell you exactly w
 
 ---
 
-## All 22 Skills
+## Skills at a Glance
 
 Most common actions auto-trigger from natural language — just say what you mean. Slash commands (`/claude-code-hermit:*`) are the precision fallback for when auto-triggers don't fire.
 

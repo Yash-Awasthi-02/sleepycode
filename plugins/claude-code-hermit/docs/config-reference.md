@@ -75,7 +75,7 @@ Example:
 }
 ```
 
-Manage with `/hermit-settings channels` and `/hermit-settings brief`.
+Manage with `/hermit-settings channels` (subcommands include `primary <name>` and `primary clear` to set/clear the primary outbound channel) and `/hermit-settings brief`.
 
 ---
 

@@ -28,7 +28,7 @@ A Claude Code plugin that turns any Claude Code instance into a self-improving p
                                  |
  +-------------------------------v----------------------------------+
  |                    LAYER 4: SKILLS + HOOKS                       |
- |   26 skills    3 hook phases    3 profiles (minimal/standard/strict)   |
+ |   30 skills    3 hook phases    3 profiles (minimal/standard/strict)   |
  +-------------------------------|----------------------------------+
                                  |
  +-------------------------------v----------------------------------+

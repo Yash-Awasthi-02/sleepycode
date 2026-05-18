@@ -79,18 +79,18 @@ hermit-start -> [in_progress] -> task done -> [idle] -> new task -> [in_progress
 
 ### Close modes
 
-|                     | Idle Transition (task boundary)                                            | Waiting (blocked on input)     | Full Shutdown (`/session-close`) |
-| ------------------- | -------------------------------------------------------------------------- | ------------------------------ | -------------------------------- |
-| **When**            | Work done — automatic                                                      | Blocked on operator input      | You explicitly close             |
-| **Report archived** | Yes                                                                        | No (session stays open)        | Yes                              |
-| **Reflection runs** | Yes                                                                        | No                             | Yes                              |
-| **Heartbeat**       | Keeps running (or starts)                                                  | Runs (skips stale checks)      | Stopped                          |
-| **Monitors**        | Keep running                                                               | Keep running                   | Stopped (TaskStop + registry cleared) |
-| **Channels**        | Keep running (always-on only)                                              | Keep running                   | Stopped                          |
-| **SHELL.md**        | Reset in-place to `idle`, Monitoring & Summary compacted if over threshold | Status set to `waiting`        | Replaced with fresh template     |
-| **Applies to**      | Both interactive and always-on                                             | Both interactive and always-on | Both interactive and always-on   |
+|                     | Idle Transition (task boundary)                                            | Waiting (blocked on input)     | Auto-Close (12h idle)                  | Full Shutdown (`/session-close`) |
+| ------------------- | -------------------------------------------------------------------------- | ------------------------------ | -------------------------------------- | -------------------------------- |
+| **When**            | Work done — automatic                                                      | Blocked on operator input      | SHELL.md mtime >12h, heartbeat-driven  | You explicitly close             |
+| **Report archived** | Yes                                                                        | No (session stays open)        | Yes (frontmatter `closed_via: auto`)   | Yes                              |
+| **Reflection runs** | Yes                                                                        | No                             | No (auto-archived reports are skipped) | Yes                              |
+| **Heartbeat**       | Keeps running (or starts)                                                  | Runs (skips stale checks)      | Keeps running                          | Stopped                          |
+| **Monitors**        | Keep running                                                               | Keep running                   | Keep running                           | Stopped (TaskStop + registry cleared) |
+| **Channels**        | Keep running (always-on only)                                              | Keep running                   | Keep running                           | Stopped                          |
+| **SHELL.md**        | Reset in-place to `idle`, Monitoring & Summary compacted if over threshold | Status set to `waiting`        | Replaced with fresh template           | Replaced with fresh template     |
+| **Applies to**      | Both interactive and always-on                                             | Both interactive and always-on | Both interactive and always-on         | Both interactive and always-on   |
 
-Default: idle transition when work finishes. Waiting when blocked on operator input (configurable `waiting_timeout` auto-transitions to idle). Full shutdown only via explicit `/session-close` or `hermit-stop`.
+Default: idle transition when work finishes. Waiting when blocked on operator input (configurable `waiting_timeout` auto-transitions to idle). Auto-close after 12h of SHELL.md idle (heartbeat-driven, no configuration). Full shutdown only via explicit `/session-close` or `hermit-stop`.
 
 ### How sessions compound
 
