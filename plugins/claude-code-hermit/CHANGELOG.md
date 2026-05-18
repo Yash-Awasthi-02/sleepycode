@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.1.0] - 2026-05-18
 
 ### Added
 
@@ -36,13 +36,41 @@
 - **Stop-hook stage:** cortex-refresh stage removed from `scripts/stop-pipeline.js`
 - **Weekly-review:** `Latest Review.md` pointer write removed from `scripts/weekly-review.js`
 
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/resolve-outbound-channel.js` | New: primary channel resolver CLI |
+| `scripts/channel-reply-reminder.js` | New: UserPromptSubmit hook for channel reply reminder |
+| `scripts/weekly-review.js` | Evolution block; use resolver for channel send |
+| `scripts/heartbeat-precheck.js` | New `AUTO_CLOSE` verdict; SHELL.md mtime check |
+| `scripts/validate-config.js` | Special-case `channels.primary` optional string |
+| `skills/hermit-brain/SKILL.md` | New analytics skill |
+| `skills/hermit-evolution/SKILL.md` | New analytics skill |
+| `skills/hermit-health/SKILL.md` | New analytics skill |
+| `skills/heartbeat/SKILL.md` | AUTO_CLOSE branch; step ordering fix |
+| `skills/session-close/SKILL.md` | `--auto` flag to bypass operator-summary prompt |
+| `skills/hermit-settings/SKILL.md` | `primary` verbs; channels list shows primary |
+| `skills/hermit-evolve/SKILL.md` | Fix `obsidian/` path; add `min_claude_code_version` gate |
+| `skills/reflect/SKILL.md` | Tier 1 + `current-session` accepted at any hermit phase |
+| `skills/weekly-review/SKILL.md` | Evolution block; channel send |
+| `skills/channel-responder/SKILL.md` | §0 reply-via-channel contract |
+| `state-templates/CLAUDE-APPEND.md` | Updated Operator Notification protocol; Quick Reference |
+| `state-templates/config.json.template` | Add `channels.primary` optional string |
+| `hooks/hooks.json` | Add `channel-reply-reminder` UserPromptSubmit entry |
+| `skills/obsidian-setup/`, `cortex-refresh/`, `cortex-sync/` | Removed |
+| `scripts/build-cortex.js`, `cortex-refresh-stage.js`, `validate-frontmatter.js` | Removed |
+| `state-templates/obsidian/`, `cortex-manifest.json.template` | Removed |
+
 ### Upgrade Instructions
 
-Run `/claude-code-hermit:hermit-evolve` after `/plugin update`. It will:
+Run `/claude-code-hermit:hermit-evolve` after `/plugin update`. The evolve skill handles:
 
-1. **Detect existing project-root `obsidian/` directory** — leave it untouched (operators may have customised it). Logs a SHELL.md Findings note: `"obsidian/ no longer maintained by hermit; safe to delete or keep as personal vault."` The `.claude-code-hermit/cortex-manifest.json` file is also left in place for the same reason.
-2. **`weekly-review` default.** The template now ships `enabled: true` for new installs. Your current setting is not auto-flipped. To opt in to the new channel-friendly weekly evolution summary, run `/claude-code-hermit:hermit-settings` and enable the `weekly-review` routine.
-3. **`/obsidian-setup`, `/cortex-refresh`, `/cortex-sync`** disappear on next `/plugin update`; no migration required for existing operators.
+1. **Detect** existing project-root `obsidian/` directory — leave it untouched. Log a Findings note: `"obsidian/ no longer maintained by hermit; safe to delete or keep as personal vault."` Leave `.claude-code-hermit/cortex-manifest.json` in place.
+2. **Inform** the operator: `weekly-review` template default is now `enabled: true` for new installs; your current setting is not auto-flipped. To receive the new channel-friendly weekly evolution summary, run `/claude-code-hermit:hermit-settings` and enable the `weekly-review` routine.
+3. **Note** that `/obsidian-setup`, `/cortex-refresh`, and `/cortex-sync` have been removed — no migration required.
+
+No config.json changes required.
 
 ## [1.0.40] - 2026-05-16
 
