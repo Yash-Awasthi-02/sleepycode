@@ -123,10 +123,11 @@ Only update files in `templates/`:
 
 ### 5a. Migrate obsidian/ surface
 
-If `.claude-code-hermit/obsidian/` exists in the target project:
+If `<project-root>/obsidian/` exists in the target project:
 
-- Leave it untouched — operators may have customised it.
-- Append to SHELL.md Findings: `"obsidian/ no longer maintained by hermit; safe to delete or keep as personal vault."`
+- Leave the directory untouched — operators may have customised it.
+- Append to `.claude-code-hermit/sessions/SHELL.md` Findings: `"obsidian/ no longer maintained by hermit; safe to delete or keep as personal vault."`
+- Also leave `.claude-code-hermit/cortex-manifest.json` in place if present — operator-managed.
 
 ### 5b. Update boot script wrappers
 

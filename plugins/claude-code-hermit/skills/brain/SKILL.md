@@ -1,6 +1,6 @@
 ---
 name: brain
-description: "Show fragile zones, stale accepted proposals, and recent learnings drawn from session history, proposals, and reflect output. Activates on messages like 'what's stuck', 'any fragile zones', 'show me what's blocked', 'recent learnings', 'brain', 'what have you learned lately', 'knowledge health', 'where are the weak spots'."
+description: "Show fragile zones, stale accepted proposals, and recent learnings drawn from session history, proposals, and reflect output. Activates on messages like 'what's stuck', 'any fragile zones', 'show me what's blocked', 'recent learnings', 'brain', 'what have you learned lately', 'where are the weak spots'."
 ---
 # Brain
 

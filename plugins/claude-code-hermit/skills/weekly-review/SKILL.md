@@ -15,10 +15,10 @@ Generates the weekly review for the current ISO week.
 
 2. Report the result. On success, output the review filename. If a **Knowledge Health** section appears in the review output, summarize the issues to the operator.
 
-2.5. Build the weekly evolution block from the freshly-written review file:
+3. Build the weekly evolution block from the freshly-written review file:
    - Read `.claude-code-hermit/compiled/review-weekly-<current-week>.md` frontmatter (just written in step 1).
    - Also read the prior week's `compiled/review-weekly-*.md` frontmatter (sort by `week` descending, take the second file).
-   - Format a deterministic block (compute directly from frontmatter values — no synthesis or inference needed):
+   - Compute deltas directly from frontmatter values (no synthesis or inference) and format:
      ```
      ## This week's evolution
      - Cost: $X.XX (vs $Y.YY prior week, Δ+/-N%)
@@ -29,12 +29,12 @@ Generates the weekly review for the current ISO week.
    - If no prior week file exists: omit the "vs" comparisons and show this week's numbers only.
    - If the current-week file is missing (script failed): skip the evolution block entirely.
 
-3. Channel-send the combined weekly summary:
-   - Compose the message: one-line review headline (session count, cost, self-directed rate from frontmatter) followed by the evolution block from step 2.5.
-   - Iterate `config.json → channels`; send via the **first** channel entry that has `dm_channel_id` set, using that channel's reply tool.
-   - If no channel has `dm_channel_id` configured: append a single Findings line to `.claude-code-hermit/sessions/SHELL.md`: `"weekly-review: no dm_channel_id configured, channel-send skipped"`. Only log this once per session to avoid noise. Do **not** emit a `channel-send-unavailable` alert issue.
+4. Channel-send the combined weekly summary:
+   - Compose the message: one-line review headline (session count, cost, self-directed rate from frontmatter) followed by the evolution block from step 3.
+   - Pick the destination channel using this fixed priority order: `discord`, `telegram`. For each in turn, if `config.json.channels.<id>.dm_channel_id` is set, send via that channel's reply tool (`mcp__plugin_<id>_<id>__reply` with `{ chat_id: dm_channel_id, text: <message> }`) and stop. Operator override via a `channels.primary` field is on the roadmap (tracked separately).
+   - If no listed channel has `dm_channel_id` configured: append a single Findings line to `.claude-code-hermit/sessions/SHELL.md`: `"weekly-review: no dm_channel_id configured, channel-send skipped"`. Only log this once per session to avoid noise. Do **not** emit a `channel-send-unavailable` alert issue.
 
-4. Archive expired raw artifacts:
+5. Archive expired raw artifacts:
    ```
    node ${CLAUDE_PLUGIN_ROOT}/scripts/archive-raw.js .claude-code-hermit
    ```
