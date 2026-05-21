@@ -73,7 +73,7 @@ Do **not** invoke `/code-review:code-review` autonomously — operator decision 
 
 **Tests fail:**
 
-Read `state/last-test.json` and include `likely_cause` in the failure message if present. FAIL with `"tests regressed after /code-review (exit <N>[, likely OOM|timeout|user-interrupt]) — investigate before committing"` and the last 20 lines of stderr. Leave the working tree as-is (post-simplify state) — the agent or operator decides whether to fix forward or revert the code-review pass manually (`git checkout -- <files>`).
+Read `state/last-test.json` and include `likely_cause` in the failure message if present. FAIL with `"tests regressed after /code-review (exit <N>[, likely OOM|timeout|user-interrupt]) — investigate before committing"` and the last 20 lines of stderr. Leave the working tree as-is (post-code-review state) — the agent or operator decides whether to fix forward or revert the code-review pass manually (`git checkout -- <files>`).
 
 ## Output
 
