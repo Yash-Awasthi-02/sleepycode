@@ -267,4 +267,75 @@ out="$(cd "$workdir" && echo '{"prompt":"<channel source=discord chat_id=x>hi</c
 run_test "hook smoke: <channel inbound → file NOT written by hook" bash -c "[ ! -f '$workdir/.claude-code-hermit/state/last-operator-action.json' ]"
 cleanup
 
+# -------------------------------------------------------
+# j. hook smoke: bare /loop re-fire of /pulse → file NOT written
+# -------------------------------------------------------
+workdir="$(mktemp -d)"
+mkdir -p "$workdir/.claude-code-hermit/state"
+out="$(cd "$workdir" && echo '{"prompt":"/claude-code-hermit:pulse"}' | node "$RECORD_HOOK")"
+run_test "hook smoke: bare /claude-code-hermit:pulse (loop re-fire) → file NOT written" bash -c "[ ! -f '$workdir/.claude-code-hermit/state/last-operator-action.json' ]"
+cleanup
+
+# -------------------------------------------------------
+# k. hook smoke: operator-typed /pulse (command-message wrapper) → file IS written
+# -------------------------------------------------------
+workdir="$(mktemp -d)"
+mkdir -p "$workdir/.claude-code-hermit/state"
+cd "$workdir"
+printf '{"prompt":"<command-message>claude-code-hermit:pulse</command-message>\\n<command-name>/claude-code-hermit:pulse</command-name>"}' | node "$RECORD_HOOK"
+run_test "hook smoke: operator-typed /pulse (command-message wrapper) → file IS written" bash -c "[ -f '$workdir/.claude-code-hermit/state/last-operator-action.json' ]"
+cd "$ORIG_DIR"
+cleanup
+
+# -------------------------------------------------------
+# l. hook smoke: bare arbitrary slash command (any future loop re-fire) → file NOT written
+# -------------------------------------------------------
+workdir="$(mktemp -d)"
+mkdir -p "$workdir/.claude-code-hermit/state"
+out="$(cd "$workdir" && echo '{"prompt":"/some-future-plugin:some-cmd --flag"}' | node "$RECORD_HOOK")"
+run_test "hook smoke: bare /some-future-plugin:some-cmd → file NOT written" bash -c "[ ! -f '$workdir/.claude-code-hermit/state/last-operator-action.json' ]"
+cleanup
+
+# -------------------------------------------------------
+# m. SessionStart (no payload) + absent file → file IS written (cold-start seed)
+# -------------------------------------------------------
+workdir="$(mktemp -d)"
+mkdir -p "$workdir/.claude-code-hermit/state"
+cd "$workdir" && : | node "$RECORD_HOOK"
+run_test "SessionStart with absent state file → file IS written (cold-start seed)" bash -c "[ -f '$workdir/.claude-code-hermit/state/last-operator-action.json' ]"
+cd "$ORIG_DIR"
+cleanup
+
+# -------------------------------------------------------
+# n. SessionStart (no payload) + existing file → timestamp preserved (no mask on restart)
+# -------------------------------------------------------
+workdir="$(mktemp -d)"
+mkdir -p "$workdir/.claude-code-hermit/state"
+echo '{"at":"2026-05-20T09:00:00.000Z"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
+cd "$workdir" && : | node "$RECORD_HOOK"
+run_test "SessionStart with existing state file → timestamp preserved (restart doesn't reset clock)" bash -c "grep -q '2026-05-20T09:00:00' '$workdir/.claude-code-hermit/state/last-operator-action.json'"
+cd "$ORIG_DIR"
+cleanup
+
+# -------------------------------------------------------
+# o. --force invocation (channel-responder post-auth path) → file IS written
+# -------------------------------------------------------
+workdir="$(mktemp -d)"
+mkdir -p "$workdir/.claude-code-hermit/state"
+cd "$workdir" && node "$RECORD_HOOK" --force
+run_test "--force → file IS written (channel-responder post-auth)" bash -c "[ -f '$workdir/.claude-code-hermit/state/last-operator-action.json' ]"
+cd "$ORIG_DIR"
+cleanup
+
+# -------------------------------------------------------
+# p. --force overwrites existing file (channel inbound = fresh operator activity)
+# -------------------------------------------------------
+workdir="$(mktemp -d)"
+mkdir -p "$workdir/.claude-code-hermit/state"
+echo '{"at":"2026-05-20T09:00:00.000Z"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
+cd "$workdir" && node "$RECORD_HOOK" --force
+run_test "--force overwrites existing file (channel inbound bumps clock)" bash -c "! grep -q '2026-05-20T09:00:00' '$workdir/.claude-code-hermit/state/last-operator-action.json'"
+cd "$ORIG_DIR"
+cleanup
+
 print_results

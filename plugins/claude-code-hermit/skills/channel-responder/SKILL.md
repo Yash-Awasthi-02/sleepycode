@@ -69,7 +69,13 @@ The allowlist is per-channel inside the `channels` object in config.json:
 
 ## 1d. Record Operator Activity
 
-After authorization passes, write `state/last-operator-action.json` with `{"at": "<now ISO>"}` (full overwrite — no merge). This tells `heartbeat-precheck.js` that a real operator interaction occurred, resetting the 12h AUTO_CLOSE quiet window. The `UserPromptSubmit` hook skips channel inbound prompts to avoid unauthorized DMs suppressing AUTO_CLOSE; this step is the authorized write site.
+After authorization passes, run:
+
+```
+node ${CLAUDE_PLUGIN_ROOT}/scripts/record-operator-action.js --force
+```
+
+This writes `state/last-operator-action.json` with the current timestamp, resetting the 12h AUTO_CLOSE quiet window. The `UserPromptSubmit` hook deliberately skips `<channel` prompts (it can't see the allowlist); this step is the authorized write site.
 
 ## 1e. Persist Chat ID
 

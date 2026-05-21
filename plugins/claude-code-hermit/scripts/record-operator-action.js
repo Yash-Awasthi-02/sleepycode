@@ -6,14 +6,20 @@ process.stdout.on('error', () => {});
 // Writes state/last-operator-action.json so heartbeat-precheck.js can gate AUTO_CLOSE
 // on genuine operator silence rather than SHELL.md mtime (which routine writes reset).
 //
-// Filtered (not operator activity):
+// Invocation modes:
+//   (stdin) UserPromptSubmit — JSON payload with `prompt`. Filter applied, write if kept.
+//   (stdin) SessionStart     — no `prompt` field. Seeds file only if absent (cold start).
+//                              Avoids unattended restarts masking a vanished operator.
+//   --force                  — unconditional write. Used by skills that know they're
+//                              handling a genuine operator action (e.g. channel-responder
+//                              after the allowlist check passes).
+//
+// Filtered prompts (not operator activity):
 //   [hermit-routine:…   — cron-delivered routine prompts (hermit-routines/SKILL.md:43-54)
-//   /claude-code-hermit:heartbeat run (bare, no <command-message>) — /loop re-fires
+//   /<anything> (bare, no <command-message>) — /loop re-fires, cron injections,
+//                          programmatic slash invocations
 //   <channel…           — unauthorized DMs arrive here before channel-responder's allowlist
 //                          check; recording them would let bot traffic suppress AUTO_CLOSE
-//
-// SessionStart has no payload.prompt — writes unconditionally to give each session
-// a fresh 12h AUTO_CLOSE window regardless of prior operator-quiet time.
 
 const fs = require('fs');
 const path = require('path');
@@ -33,9 +39,10 @@ function isRoutinePrompt(prompt) {
   if (prompt.startsWith('[hermit-routine:')) return true;
   const t = prompt.trimStart();
   if (t.startsWith('<channel')) return true;
-  // /loop re-fires arrive as a bare command string; operator-typed invocations carry
-  // a <command-message>…</command-message> wrapper — pass those through.
-  if (t.startsWith('/claude-code-hermit:heartbeat run') && !prompt.includes('<command-message>')) return true;
+  // /loop re-fires and other programmatic slash injections arrive as bare strings.
+  // Operator-typed slash commands always carry a <command-message> wrapper (verified
+  // across CC v2.1.119–v2.1.145 transcripts). Drop any bare `/...` prompt.
+  if (t.startsWith('/') && !prompt.includes('<command-message>')) return true;
   return false;
 }
 
@@ -44,9 +51,19 @@ function main(raw) {
   try {
     const payload = JSON.parse(raw);
     if (payload && typeof payload.prompt === 'string') prompt = payload.prompt;
-  } catch { /* not JSON or empty — SessionStart path; treat as operator activity */ }
+  } catch { /* not JSON or empty — SessionStart path */ }
 
-  if (prompt === null || !isRoutinePrompt(prompt)) write();
+  if (prompt === null) {
+    if (!fs.existsSync(STATE_PATH)) write();
+    return;
+  }
+
+  if (!isRoutinePrompt(prompt)) write();
+}
+
+if (process.argv.includes('--force')) {
+  write();
+  process.exit(0);
 }
 
 try {
