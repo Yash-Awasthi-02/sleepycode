@@ -8,8 +8,7 @@
 
 ### Changed
 
-- **`/hatch` Step 3 is now self-healing (GH #111 follow-up).** Before writing the CLAUDE-APPEND block, the skill detects the marker in both target and non-target files and branches on the (in_target, in_other) tuple. The stray-block case (marker only in non-target file) prompts **Move** / **Keep in `<other_file>`** / **Skip** with mode-mismatch and hand-edit detection; the duplicate-block case (marker in both files) prompts **Remove from `<other_file>`** / **Manual** / **Skip**. On Keep, Skip, or Manual the skill exits without writing to the target file — avoiding the duplicate-block bug that prompted this fix. The selected mode template is read once and reused across the diff comparison and the eventual write.
-- **First-write `hatch-options.json` schema completed.** When dev-hermit hatch stamps the file before core hatch has run, it now writes all five canonical fields (`target`, `core_install_scope`, `stamped_at`, `stamped_by`, `version`) so a later core hatch run can apply its 1.1.1 preservation logic faithfully. The Visibility prompt also presents the scope-derived default at position 0 (recommended), matching core hatch's voice.
+- **`/hatch` Step 3 is now target-aware (GH #111 follow-up).** Reads `.claude-code-hermit/state/hatch-options.json` written by core hatch and writes the CLAUDE-APPEND block to `CLAUDE.local.md` (when `target = "local"`) or `CLAUDE.md` (when `target = "committed"`). If core hatch hasn't run yet (operator's core hermit predates 1.1.1), the skill detects `core_install_scope` from `claude plugin list --json` and presents the scope-derived default at position 0 of the Visibility prompt, then stamps `hatch-options.json` with the canonical 5-field schema (`target`, `core_install_scope`, `stamped_at`, `stamped_by`, `version`). Stray-block migration is handled one-shot by the Upgrade Instructions below — hatch itself stays focused on target-aware setup and steady-state refresh.
 
 ### Upgrade Instructions
 
@@ -19,7 +18,7 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill executes the following
 
 2. **Identify the non-target file.** `non_target = (hatch_target == "local") ? "CLAUDE.md" : "CLAUDE.local.md"`.
 
-3. **If the marker is present in `non_target`:** detect hand-edits inside the marker by comparing the block content against the canonical template at this plugin version (`${CLAUDE_PLUGIN_ROOT}/state-templates/CLAUDE-APPEND.md` if the prior block has `## Implementation Flow`, else `state-templates/CLAUDE-APPEND-SAFETY.md`). Treat mode-mismatch (different section list) as expected, not as hand-edits.
+3. **If the marker is present in `non_target`:** detect hand-edits inside the marker by comparing the block content against the canonical template at this plugin version (`<installPath>/state-templates/CLAUDE-APPEND.md` if the prior block has `## Implementation Flow`, else `<installPath>/state-templates/CLAUDE-APPEND-SAFETY.md`, where `<installPath>` is the sibling plugin's install path that `hermit-evolve` Step 7 already iterates over). Treat mode-mismatch (different section list) as expected, not as hand-edits.
    - If hand-edits exist, ask the operator: **Carry forward** (merge hand-edits into the canonical template, write the merged block to `hatch_target` file, then strip the block from `non_target`) / **Drop** (strip the block from `non_target`; let Step 7's sync re-append the clean canonical template to `hatch_target`).
    - If no hand-edits: silently strip the block from `non_target`. Step 7's sync handles `hatch_target`.
 

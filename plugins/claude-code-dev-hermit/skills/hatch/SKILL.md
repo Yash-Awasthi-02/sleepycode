@@ -70,7 +70,7 @@ Read the plugin version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`.
 **Resolve target file:** Read `.claude-code-hermit/state/hatch-options.json`. Use the `"target"` field:
 - `"local"` → `target_file = CLAUDE.local.md`
 - `"committed"` or absent → `target_file = CLAUDE.md`
-- If the file doesn't exist (operator ran dev-hermit hatch before core hatch): detect `core_install_scope` from `claude plugin list --json` using the same precedence rules core hatch's Step 1.5 item 2 uses (filter to entries where plugin name is `claude-code-hermit` and `enabled == true`; apply precedence `local` > `project` (both require `projectPath == project root`) > `user` (any `projectPath`) > `null`; map `project` → `committed`, `local`/`user`/`null` → `local` as the scope-derived default). Ask with `AskUserQuestion` (header: "Visibility") — present the scope-derived default at position 0 with `(recommended)` in the label: **`.local` files** (gitignored — operator-personal) / **Committed files** (shared with teammates). Record the choice and write `.claude-code-hermit/state/hatch-options.json` with the full schema:
+- If the file doesn't exist (no `hatch-options.json` yet — operator's core hermit predates 1.1.1): detect `core_install_scope` from `claude plugin list --json` using the same precedence rules core hatch's Step 1.5 item 2 uses (filter to entries where plugin name is `claude-code-hermit` and `enabled == true`; apply precedence `local` > `project` (both require `projectPath == project root`) > `user` (any `projectPath`) > `null`; map `project` → `committed`, `local`/`user`/`null` → `local` as the scope-derived default). Ask with `AskUserQuestion` (header: "Visibility") — present the scope-derived default at position 0 with `(recommended)` in the label: **`.local` files** (gitignored — operator-personal) / **Committed files** (shared with teammates). Record the choice and write `.claude-code-hermit/state/hatch-options.json` with the full schema:
 
   ```json
   {
@@ -84,32 +84,14 @@ Read the plugin version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json`.
 
   This matches the canonical schema core hatch Step 9b writes, so when core hatch later runs its 1.1.1 preservation logic keeps `stamped_at`/`stamped_by` intact and adds `last_updated_at`/`last_updated_by`.
 
-Compute `other_file = (target == "local") ? "CLAUDE.md" : "CLAUDE.local.md"`.
+Read `target_file` (treat a missing file as marker-absent — Edit will create the file in the append branch). Look for the marker `<!-- claude-code-dev-hermit: Development Workflow -->` and extract the stamped version from the existing block (if present).
 
-**Select mode template and read it once:**
-- `safety` → `template = ${CLAUDE_PLUGIN_ROOT}/state-templates/CLAUDE-APPEND-SAFETY.md`
-- `standard` → `template = ${CLAUDE_PLUGIN_ROOT}/state-templates/CLAUDE-APPEND.md`
+Compare against the run's chosen mode (from Step 2's answer this run) and the existing `hatch_mode` value read from `config.json` at Step 1 (the **prior** value, before Step 5 overwrites it):
 
-The marker is `<!-- claude-code-dev-hermit: Development Workflow -->`. Detect presence in both files: `in_target = marker present in target_file`; `in_other = marker present in other_file`. Then branch on the (in_target, in_other) tuple:
+- **Marker present, stamped version matches plugin version, AND Step 2's mode equals the prior `hatch_mode`**: skip — block is current. Do not read the template.
+- **All other cases** (marker absent, stamped version stale, OR mode changed): read the mode template — `safety` → `${CLAUDE_PLUGIN_ROOT}/state-templates/CLAUDE-APPEND-SAFETY.md`; `standard` → `${CLAUDE_PLUGIN_ROOT}/state-templates/CLAUDE-APPEND.md` — and either append (marker absent) or replace the marked block (marker present). The template is the source of truth; no operator prompt is needed.
 
-**Case A — (false, false), marker absent in both:** append `template` to `target_file`. No prompt.
-
-**Case B — (true, false), marker only in target_file (steady state):**
-- Stamped version in target block matches plugin version AND mode is unchanged from config: skip — block is current.
-- Otherwise: silently replace the existing block in `target_file` with `template`. No prompt (template is the source of truth).
-
-**Case C — (false, true), marker only in other_file (the migration case):**
-- Compare the block content in `other_file` against `template`. Surface mode mismatch and hand-edits separately:
-  - If the prior block's mode (detect by section list — e.g. `## Implementation Flow` absent → safety) differs from the currently selected mode, label the diff as "mode switch: <prior> → <current>" — not as hand-edits.
-  - Any remaining diff inside the marker is hand-edits.
-- Ask with `AskUserQuestion` (header: "Migrate dev block") — options, matching core hermit-evolve voice: **Move** (recommended; removes block from `<other_file>`, writes `template` to `<target_file>`, drops any hand-edits unless operator carries them) / **Keep in `<other_file>`** (leaves the block where it is; does NOT write to `target_file`) / **Skip** (no changes this run; does NOT write to `target_file`).
-- If hand-edits exist, ask a follow-up: carry them across or drop them. If carry: merge into `template` before writing to `target_file`.
-- On Move: remove the marked block from `other_file`, then write the (possibly-merged) template to `target_file`.
-- On Keep or Skip: do NOT fall through to Case A — that would append a fresh block to `target_file` and recreate the duplicate-block bug. Just exit Step 3.
-
-**Case D — (true, true), marker in both files (diagnostic state, e.g. partial migration):**
-- Report the state to the operator. Ask with `AskUserQuestion` (header: "Resolve duplicate") — options: **Remove from `<other_file>`** (recommended; strips the stray block, then proceeds as Case B on `target_file`) / **Manual** (exits Step 3 with no changes; operator cleans up themselves) / **Skip** (exits Step 3 with no changes).
-- On Remove: strip the marker block from `other_file`, then run Case B's logic on `target_file`.
+Stray-block migration (block stranded in the non-target file after a target flip) is handled one-shot by the Upgrade Instructions in this version's CHANGELOG entry, executed by `hermit-evolve` Step 7. Hatch itself stays focused on target-aware setup and steady-state refresh.
 
 ### 4. Ask about remaining settings
 
