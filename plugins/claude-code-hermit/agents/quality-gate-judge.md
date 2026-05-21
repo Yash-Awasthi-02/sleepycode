@@ -1,6 +1,6 @@
 ---
 name: quality-gate-judge
-description: "Decides whether `/simplify` should run at step (e.5) of `/proposal-act` accept flow. Reads the proposal body and the implementation-touched files (or git diff fallback), returns RUN | SKIP with a one-line reason. Only invoked when `quality_gate.tier: \"balanced\"`."
+description: "Decides whether `/code-review` should run at step (e.5) of `/proposal-act` accept flow. Reads the proposal body and the implementation-touched files (or git diff fallback), returns RUN | SKIP with a one-line reason. Only invoked when `quality_gate.tier: \"balanced\"`."
 model: haiku
 effort: low
 maxTurns: 5
@@ -58,7 +58,7 @@ Filter out session-bookkeeping paths that the implementing LLM did not author as
 - `.claude-code-hermit/tasks-snapshot.md` (auto-generated)
 - `.claude-code-hermit/sessions/SHELL.md`, `.claude-code-hermit/proposals/PROP-*.md`
 
-Any remaining paths are candidates for `/simplify` review.
+Any remaining paths are candidates for `/code-review` review.
 
 ## Step 3 — Decide
 

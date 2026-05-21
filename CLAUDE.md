@@ -19,7 +19,7 @@ Always launch Claude Code from this repo's root, not from inside a plugin dir. A
 
 ## Commits
 
-- **Use `/commit` for every commit in this repo.** It detects which plugin's scope the diff belongs to, routes the CHANGELOG entry to that plugin's `CHANGELOG.md`, and path-scopes staging (never `git add -A`). The skill enforces "one plugin per commit" — cross-plugin changes are split into separate `/commit` runs. Run `/dev-quality` before `/commit` — it handles the simplify pass.
+- **Use `/commit` for every commit in this repo.** It detects which plugin's scope the diff belongs to, routes the CHANGELOG entry to that plugin's `CHANGELOG.md`, and path-scopes staging (never `git add -A`). The skill enforces "one plugin per commit" — cross-plugin changes are split into separate `/commit` runs. Run `/dev-quality` before `/commit` — it handles the code-review pass.
 - Root-scope edits (CI, root README, `.claude/`, `.claude-plugin/marketplace.json`) skip the CHANGELOG step entirely — they don't ship to operators. `/commit` handles that automatically.
 - Releases still go through `/release <slug>`, which promotes a plugin's `[Unreleased]` section to a real version. `/commit` accumulates those entries during day-to-day work.
 - **Where these skills live**: `/commit`, `/release`, `/release-status`, `/fleet-release`, `/test-run`, `/tackle-issue` are repo-internal skills under `.claude/skills/` — they're not shipped to operators, only used during monorepo dev. Use `/release-status` for a read-only pipeline snapshot before any release session; use `/fleet-release` when multiple plugins change together on one branch (handles dep ordering and `required_core_version` sync automatically).
@@ -78,7 +78,7 @@ Always launch Claude Code from this repo's root, not from inside a plugin dir. A
 - `proposal-triage` (Haiku) — pre-creation gate: deduplicates proposals and applies the three-condition rule before queuing
 - `reflection-judge` (Sonnet) — post-reflect validator: verifies cross-session evidence citations exist before proposals are queued
 - `hermit-config-validator` (Haiku) — lightweight config.json validator: checks required keys, types, routine times, channel structure, env naming. Use after hermit-settings, hermit-evolve, or any config mutation.
-- `quality-gate-judge` (Haiku) — decides whether `/simplify` should run at step (e.5) of `/proposal-act` accept flow; reads proposal body + touched files, returns RUN/SKIP verdict. Only invoked when `quality_gate.tier: "balanced"`.
+- `quality-gate-judge` (Haiku) — decides whether `/code-review` should run at step (e.5) of `/proposal-act` accept flow; reads proposal body + touched files, returns RUN/SKIP verdict. Only invoked when `quality_gate.tier: "balanced"`.
 
 ## Watches
 

@@ -67,7 +67,17 @@ The allowlist is per-channel inside the `channels` object in config.json:
 }
 ```
 
-## 1d. Persist Chat ID
+## 1d. Record Operator Activity
+
+After authorization passes, run:
+
+```
+node ${CLAUDE_PLUGIN_ROOT}/scripts/record-operator-action.js --force
+```
+
+This writes `state/last-operator-action.json` with the current timestamp, resetting the 12h AUTO_CLOSE quiet window. The `UserPromptSubmit` hook deliberately skips `<channel` prompts (it can't see the allowlist); this step is the authorized write site.
+
+## 1e. Persist Chat ID
 
 After authorization passes, store the inbound `chat_id` to `config.json` → `channels.<channel>.dm_channel_id` (e.g. `channels.discord.dm_channel_id`) if it differs from the currently stored value or hasn't been stored yet.
 
@@ -75,7 +85,7 @@ This is how the agent learns the DM channel ID for proactive outbound notificati
 
 ## 2. Classify the Message
 
-- **Slash command** (message starts with `/`, e.g. `/simplify`, `/plugin:command`)
+- **Slash command** (message starts with `/`, e.g. `/code-review`, `/plugin:command`)
   - Invoke the matching skill, slash command, or subagent via the appropriate tool. Pass any remaining text as arguments/prompt.
   - If nothing matches, say so briefly.
 
