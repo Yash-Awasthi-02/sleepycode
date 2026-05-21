@@ -47,7 +47,7 @@ When installed in a target project, state lives in `.claude-code-hermit/`:
 
 ## Hatch target routing
 
-`hatch` routes operator-personal outputs based on the plugin's install scope (read from `claude plugin list --json`): `scope=local` → `CLAUDE.local.md` + `.claude/settings.local.json`; `scope=project` → `CLAUDE.md` + `.claude/settings.json`. The chosen target is persisted to `.claude-code-hermit/state/hatch-options.json` and read by `hermit-evolve`, `docker-setup`, and `claude-code-dev-hermit:hatch`. `hermit-evolve` Steps 6, 7, 8 are target-aware and will not re-add committed files after a `.local` migration.
+`hatch` routes operator-personal outputs based on the plugin's install scope (read from `claude plugin list --json`): `scope=local` → `CLAUDE.local.md` + `.claude/settings.local.json`; `scope=project` → `CLAUDE.md` + `.claude/settings.json`; `scope=user` or no detectable scope → `.local` files (safer default). Advanced mode lets the operator override the scope-derived default via the Visibility prompt. The chosen target is persisted to `.claude-code-hermit/state/hatch-options.json` and read by `hermit-evolve`, `docker-setup`, and `claude-code-dev-hermit:hatch`. `hermit-evolve` Steps 6, 7, 8 are target-aware and will not re-add committed files after a `.local` migration.
 
 ## Migrations
 

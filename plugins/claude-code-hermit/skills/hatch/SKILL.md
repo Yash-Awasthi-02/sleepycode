@@ -326,7 +326,7 @@ questions: [
 
 #### Phase 6 — Deployment (AskUserQuestion batch, 3 questions)
 
-The Visibility question uses the scope-derived `hatch_target` to recommend an option. Reorder options so the recommended one is always at position 0 (which `AskUserQuestion` preselects):
+The Visibility question uses the scope-derived `hatch_target` to recommend an option. Place the recommended option at index 0 with `(recommended)` in the label so the recommendation is clear:
 
 - If `hatch_target == "local"` (scope=local or scope=user): `.local files` is position 0 with `(recommended)`.
 - If `hatch_target == "committed"` (scope=project): `Committed files` is position 0 with `(recommended)`.
@@ -370,7 +370,7 @@ questions: [
 ]
 ```
 
-The recommended option is always at index 0 — `AskUserQuestion` preselects it. When `hatch_target == "local"`, `.local files` is index 0; when `hatch_target == "committed"`, `Committed files` is index 0. Substitute `<scope>` with the actual `core_install_scope` value.
+The recommended option is always at index 0 with `(recommended)` in the label. When `hatch_target == "local"`, `.local files` is index 0; when `hatch_target == "committed"`, `Committed files` is index 0. Substitute `<scope>` with the actual `core_install_scope` value.
 
 Record the operator's Visibility choice as `hatch_target` (overrides scope-derived default if different).
 
@@ -686,7 +686,9 @@ Do NOT include `Bash(docker *)`, `Bash(kubectl *)`, `Bash(ssh *)` in hatch — t
 
 ### 9b. Persist hatch options
 
-After Steps 6–9 complete, write `.claude-code-hermit/state/hatch-options.json`:
+After Steps 6–9 complete, write `.claude-code-hermit/state/hatch-options.json`.
+
+**If the file does not exist**, write:
 
 ```json
 {
@@ -694,6 +696,20 @@ After Steps 6–9 complete, write `.claude-code-hermit/state/hatch-options.json`
   "core_install_scope": "<project|local|user|null>",
   "stamped_at": "<current ISO 8601 timestamp with timezone offset>",
   "stamped_by": "claude-code-hermit:hatch",
+  "version": "<current plugin version from ${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json>"
+}
+```
+
+**If the file already exists** (e.g. `claude-code-dev-hermit:hatch` stamped it first), preserve the original `stamped_by` and `stamped_at` and update the rest:
+
+```json
+{
+  "target": "<local|committed>",
+  "core_install_scope": "<project|local|user|null>",
+  "stamped_at": "<original value — do not overwrite>",
+  "stamped_by": "<original value — do not overwrite>",
+  "last_updated_at": "<current ISO 8601 timestamp with timezone offset>",
+  "last_updated_by": "claude-code-hermit:hatch",
   "version": "<current plugin version from ${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json>"
 }
 ```
@@ -912,7 +928,6 @@ Updated:
   {CLAUDE.local.md | CLAUDE.md} — session discipline block appended
   .gitignore — hermit entries added
   {.claude/settings.local.json | .claude/settings.json} — plugin permissions added
-  .claude/settings.local.json — task list ID set (always)
   .claude-code-hermit/state/hatch-options.json — target stamped
 
   Flip target by re-running /hatch (Advanced) and choosing the other Visibility option.
