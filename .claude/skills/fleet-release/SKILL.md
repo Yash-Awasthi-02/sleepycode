@@ -21,7 +21,7 @@ Orchestrate a multi-plugin release: determines order, runs each plugin's `/relea
 
 ### 1. Validate branch
 
-Run `git branch --show-current`. If on `main` or the repo's default branch: stop — "Fleet release is for branch prep. Switch to a non-default branch and re-run."
+Run `git branch --show-current`. If not on `main` or the repo's default branch: stop.
 
 ### 2. Determine target plugins
 

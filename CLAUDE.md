@@ -49,102 +49,7 @@ Always launch Claude Code from this repo's root, not from inside a plugin dir. A
 
 - Always use Context7 for library/API documentation, code generation, and setup/configuration steps — don't wait for an explicit request.
 - Don't overengineer.
-- **This hermit is the plugin-dev special case.** When reasoning about utility of features in `plugins/claude-code-hermit/` (the shipped hermit), don't use this hermit's session history as evidence — the operator here maintains the plugin source. Target users are downstream operators who interact via Discord/Telegram and don't open `feat/PROP-NNN-*` branches.---
-
-<!-- claude-code-hermit: Session Discipline -->
-
-## Session Discipline (claude-code-hermit)
-
-- On startup, check `.claude-code-hermit/sessions/SHELL.md`
-- If active (`in_progress`/`waiting`): resume — read task, check plan via `TaskList`, check blockers
-- If `idle`: ask what to help with
-- If none: ask what to help with
-- Use `/claude-code-hermit:session-start` and `/claude-code-hermit:session-close`
-
-## Agent State
-
-| Path                       | Contents                                                        |
-| -------------------------- | --------------------------------------------------------------- |
-| `sessions/SHELL.md`        | Live working document                                           |
-| `sessions/S-NNN-REPORT.md` | Archived reports                                                |
-| `proposals/PROP-NNN-<slug>-HHMMSS.md` | Improvement proposals                                           |
-| `state/`                   | Runtime state (alert dedup, reflection, routine queue, metrics) |
-| `state/monitors.runtime.json` | Active watch registry — cleared on each session start       |
-| `OPERATOR.md`              | Human-curated context — draft changes, confirm before writing |
-
-## Subagents
-
-- `session-mgr` (Sonnet) — session lifecycle (open, archive, idle transitions)
-- `proposal-triage` (Haiku) — pre-creation gate: deduplicates proposals and applies the three-condition rule before queuing
-- `reflection-judge` (Sonnet) — post-reflect validator: verifies cross-session evidence citations exist before proposals are queued
-- `hermit-config-validator` (Haiku) — lightweight config.json validator: checks required keys, types, routine times, channel structure, env naming. Use after hermit-settings, hermit-evolve, or any config mutation.
-- `quality-gate-judge` (Haiku) — decides whether `/code-review` should run at step (e.5) of `/proposal-act` accept flow; reads proposal body + touched files, returns RUN/SKIP verdict. Only invoked when `quality_gate.tier: "balanced"`.
-
-## Watches
-
-Config-defined watches auto-register on session start. Ad-hoc watches via `/watch <instruction>`.
-Registry: `state/monitors.runtime.json` (sole truth — not SHELL.md). Use `/watch status` to check, `/watch stop` to halt.
-
-Two classes:
-- **Stream (truly event-driven):** Source pushes events — `tail -f <file> | grep --line-buffered "<pat>"`, WebSocket subscriptions, `fswatch <path>` (macOS) / `inotifywait -m <path>` (Linux, needs inotify-tools)
-- **Poll (quieter polling, not event-driven):** `while true; do <check> && echo <event>; sleep <N>; done`
-
-Rules:
-- Always use `grep --line-buffered` in pipes — without it, buffering delays events by minutes
-- Add `|| true` after API calls in poll loops — one failed request shouldn't kill the watch
-- Be selective with stdout — noisy watches are auto-stopped by CC
-- All 4 CC Monitor tool params are required: `description`, `command`, `timeout_ms`, `persistent`. Always pass `timeout_ms` even when `persistent: true` (required by schema; ignored when persistent).
-- `$CLAUDE_PLUGIN_ROOT` is **NOT available** in the watch subprocess. `$PWD` is project root. Resolve plugin paths at registration time (skill execution context has the var).
-- Watch dies with the session — for scheduled work, use `/claude-code-hermit:hermit-routines` (re-registered on every always-on launch by `hermit-start.py`)
-
-## Quick Reference
-
-`/session-start` `/session` `/session-close` `/pulse` `/brief` `/heartbeat` `/watch` `/reflect` `/reflect-scheduled-checks` `/hermit-routines` `/hermit-settings` `/proposal-list` `/proposal-act` `/proposal-create` `/capability-brainstorm` `/hermit-evolve` `/channel-setup` `/channel-responder` `/docker-setup` `/docker-security` `/hatch` `/smoke-test` `/obsidian-setup` `/cortex-refresh` `/cortex-sync` `/weekly-review` `/migrate` `/knowledge` `/hermit-doctor`
-(All prefixed with `/claude-code-hermit:`)
-
-## Operator Notification
-
-When you need to notify the operator proactively:
-
-- If no channels are configured, respond in conversation.
-- If channels are configured, resolve the outbound target by running:
-  ```
-  node ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.js .claude-code-hermit
-  ```
-  Parse stdout as JSON. A channel is eligible if `enabled !== false`, `allowed_users` is not `[]`, and `dm_channel_id` is set. Resolution order: `channels.primary` (if set and eligible), then the first eligible entry in `channels` (operator's config order — no hardcoded slug list, so newly added channel plugins are picked up automatically).
-  - **On success** (`"id"` and `"chat_id"` in result): call `mcp__plugin_<id>_<id>__reply` with `{ chat_id, text: <message> }`.
-  - **On miss** (non-zero exit or `{"error":"no_reachable_channel"}`): the DM channel ID is unknown. Log the unsent content to SHELL.md Findings and record a deduped `channel-send-unavailable` issue — do not use the user ID as a substitute (it will fail for Discord DMs).
-- If outbound send fails, or if there is no unambiguous outbound target:
-  - Log the unsent content to SHELL.md Findings
-  - Record a deduped `channel-send-unavailable` issue if appropriate
-  - Continue without retry spam
-
-## Knowledge Discipline
-
-Auto-memory handles all learning. `compiled/` is for durable domain outputs and records the operator may want surfaced across sessions and in Cortex. Don't duplicate lessons into `compiled/`.
-
-**Memory-first for suggestions.** Before any skill or subagent declares a finding novel — `brief`, `reflect`, `weekly-review`, `proposal-create`, `session-start`, and the `proposal-triage` / `reflection-judge` subagents — consult auto-memory first and suppress the suggestion if memory already covers the same operator decision, preference, or pattern. This applies only to suggestion-generating paths; skills acting on a decided intent (`session-close`, `proposal-act`, `hermit-routines`, `hatch`) are exempt — they execute, not suggest. When memory covers the candidate, suppress with the canonical code `covered-by-memory` and quote the matching memory line.
-
-- Domain inputs go to `raw/<type>-<slug>-<date>.md` with frontmatter (`title`, `type`, `created`, `tags` required).
-- Domain outputs go to `compiled/<type>-<slug>-<date>.md` with frontmatter. Max 150 lines, self-contained. Add `session: S-NNN` when inside a session. Cite source in frontmatter (`source: raw/<type>-<slug>-<date>.md`).
-- **`type` in frontmatter is the discriminator — never a folder.** Do not create subdirectories inside `raw/` or `compiled/`, and do not create new top-level directories inside `.claude-code-hermit/` (e.g. `audits/`, `reports/`, `reviews/`, `memory/`, `tmp/`). Artifacts outside `raw/` and `compiled/` are invisible to session injection and retention.
-- On session start: scan `compiled/` for recent and foundational artifacts likely to be useful. If two compiled artifacts share a `type`, the newest wins.
-- On recurring routines that produce domain output: write to `compiled/` instead of ad-hoc paths. Consult `knowledge-schema.md` for what this hermit produces and in what format.
-- Raw inputs are retained per `config.json knowledge.raw_retention_days`. Expired raw artifacts are archived to `raw/.archive/` by the weekly review.
-- Tag a compiled artifact `foundational` when it describes a stable pattern worth injecting at every session start.
-
-## Rules
-
-- **Rate limits:** Log pause/resume in Progress Log. Never silently stall.
-- **Self-awareness:** If stuck — say so, log it, alert via channel. Don't push through silently.
-- **Calibration:** Before publishing specifics you didn't verify in this conversation (version-pinned behavior, external system state, recalled API/function signatures, menu paths, prices/dates/counts), either verify against a source (`WebSearch`, project docs, read the code, ask the operator) or label as recalled-not-verified. Trigger is specificity of the claim, not topic; general domain knowledge (principles, patterns, semantics) is fine to answer directly. `OPERATOR.md` can tighten or relax.
-- **Secrets:** Never log API keys, tokens, passwords, or credentials to SHELL.md, reports, or proposals. Session files may be committed to git.
-- **OPERATOR.md:** Never edit autonomously. If you notice stale or contradictory context, draft the minimal change, show a diff, and apply only after the operator confirms. In always-on mode, flag it via channel instead — the operator edits directly.
-- **Proposals mandatory:** Every improvement goes through `/proposal-create` → operator accepts → implement. Trivial fixes (typos, one-liners) exempt. **Never hand-write `proposals/PROP-*.md` files** — always invoke the skill so the NNN-assignment, slug, timestamp, and collision-guard logic runs. Manually-assigned ids reuse NNNs across parallel sessions and produce short-form ids that violate the canonical `PROP-NNN-<slug>-HHMMSS` schema.
-- **Tasks:** Use `TaskCreate`/`TaskUpdate` for multi-step work. `tasks-snapshot.md` is auto-generated — don't edit.
-- **Artifact frontmatter:** Any `.md` file you create outside `.claude-code-hermit/` must include YAML frontmatter with at least `title` (string) and `created` (ISO 8601 with timezone). If inside a hermit session, add `session: S-NNN`. Optionally add `proposal`, `source` (`session` | `interactive` | `routine` | `manual`), and `tags` (array of strings). Files without frontmatter appear as "Unlinked" in the Cortex. Full contract: `docs/frontmatter-contract.md`.
-- **Tag discipline:** Add `tags` to every session report, proposal, and artifact you create. Before tagging, scan the last 5 session reports and proposals for the existing vocabulary and reuse — introduce new tags only when nothing fits. Keep tags lowercase and hyphenated (1–2 per document).
-
+- **This hermit is the plugin-dev special case.** When reasoning about utility of features in `plugins/claude-code-hermit/` (the shipped hermit), don't use this hermit's session history as evidence — the operator here maintains the plugin source. Target users are downstream operators who interact via Discord/Telegram and don't open `feat/PROP-NNN-*` branches.
 ---
 <!-- claude-code-dev-hermit: Development Workflow -->
 
@@ -191,20 +96,20 @@ After making code changes:
 1. Run the configured test command (`claude-code-dev-hermit.commands.test`, set via `/claude-code-dev-hermit:hatch`). If unset, ask the operator for the command and offer to save it via `hatch`.
 2. If tests fail, fix the failures or surface them in the response — **do not declare the task done with broken tests**.
 3. If the task is non-trivial and `/feature-dev:feature-dev` is installed, run it first when the code path is unfamiliar (framework lifecycle hooks, ORM internals, build-tool plugins, auth middleware). The trigger is **unfamiliarity, not urgency**. Skip for: doc/prompt/config edits, single-line fixes, code paths you've already read end-to-end.
-4. Before declaring the task done: run `/claude-code-dev-hermit:dev-quality`. It runs `/simplify` on the diff and re-runs `commands.test` if configured. If tests regress, investigate before committing. If `/code-review:code-review` is installed (`code-review@claude-plugins-official`), the skill will tell you to suggest it to the operator — do not invoke that skill autonomously. **Nested git repo?** If your work is happening inside a nested git repo (true submodule, Composer path package, npm/pnpm path workspace, vendored dep edited in place), pass `--cwd <relative/path>` so `/dev-quality` scopes git ops, `/simplify`, and the test re-run to that repo. State still lives under the parent's `.claude-code-hermit/`, but the captured SHA is the child's HEAD.
+4. Before declaring the task done: run `/claude-code-dev-hermit:dev-quality`. It runs `/code-review` on the diff and re-runs `commands.test` if configured. If tests regress, investigate before committing. If `/code-review:code-review` is installed (`code-review@claude-plugins-official`), the skill will tell you to suggest it to the operator — do not invoke that skill autonomously. **Nested git repo?** If your work is happening inside a nested git repo (true submodule, Composer path package, npm/pnpm path workspace, vendored dep edited in place), pass `--cwd <relative/path>` so `/dev-quality` scopes git ops, `/code-review`, and the test re-run to that repo. State still lives under the parent's `.claude-code-hermit/`, but the captured SHA is the child's HEAD.
 
 ## Tests Before PR
 
 If the project defines its own pre-PR validation (e.g. a custom test runner, CI gate, or PR-creation skill that handles testing internally), follow that. The steps below are the fallback.
 
-1. Run `/claude-code-dev-hermit:dev-quality` — handles `/simplify` + test re-run (see §Implementation Flow step 4). For nested-repo workflows, pass `--cwd <path>`.
+1. Run `/claude-code-dev-hermit:dev-quality` — handles `/code-review` + test re-run (see §Implementation Flow step 4). For nested-repo workflows, pass `--cwd <path>`.
 2. Commit.
 3. If you committed after `/dev-quality` ran and `commands.test` is configured, re-run it once — `/dev-pr` Gate 0 checks `last-test.json` against the current HEAD sha.
 4. Run `/claude-code-dev-hermit:dev-pr`. Gate 0 reads `last-test.json` and refuses if missing, on a stale sha, or with a non-pass status. Pass `--cwd <path>` if you used it for `/dev-quality` — the PR opens against the child repo's remote.
 
 ## Technical Constraints
 
-Subagents cannot invoke skills (`/simplify`, `/batch`, etc.) — those must run in the main session only.
+Subagents cannot invoke skills (`/code-review`, `/batch`, etc.) — those must run in the main session only.
 
 Session state (`in_progress`/`waiting`/`idle`/`dead_process`) lives in `.claude-code-hermit/state/runtime.json` (`.session_state`). SHELL.md `Status:` is cosmetic — never parse it for programmatic checks.
 
@@ -246,7 +151,7 @@ Tier mapping:
 - Mid-task test run + cache warm: `/claude-code-dev-hermit:dev-test` (supports `--cwd <path>`)
 - Pre-wrap quality gate: `/claude-code-dev-hermit:dev-quality` (supports `--cwd <path>`)
 - Open the PR: `/claude-code-dev-hermit:dev-pr` (supports `--cwd <path>`)
-- Cleanup: `/simplify` (built-in)
+- Cleanup: `/code-review` (built-in)
 - Parallel changes across many files: `/batch` (built-in)
 - Diagnostics: `/debug` (built-in)
-- High-stakes review: `/code-review` (from `code-review@claude-plugins-official`, recommended companion)
+- High-stakes review: `/code-review:code-review` (from `code-review@claude-plugins-official`, recommended companion)

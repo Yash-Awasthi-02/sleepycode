@@ -1,44 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git diff:*)",
-      "Bash(git status:*)",
-      "Bash(git log:*)",
       "Bash(gh issue:*)",
-      "Bash(node */scripts/cost-tracker.js*)",
-      "Bash(node */scripts/suggest-compact.js*)",
-      "Bash(node */scripts/run-with-profile.js*)",
-      "Bash(node */scripts/evaluate-session.js*)",
-      "Bash(node */scripts/append-metrics.js*)",
-      "Bash(node */scripts/generate-summary.js*)",
-      "Bash(node */scripts/update-reflection-state.js*)",
-      "Bash(node */scripts/heartbeat-precheck.js*)",
-      "Bash(node */scripts/reflect-precheck.js*)",
-      "Bash(node */scripts/cron-tz-shift.js*)",
-      "Bash(node */scripts/archive-shell.js*)",
-      "Bash(node */skills/hermit-scribe/file-issue.js*)",
-      "Bash(bash -c 'AGENT_DIR=\".claude-code-hermit\"*)",
-      "Edit(.claude-code-hermit/**)",
-      "Write(.claude-code-hermit/**)"
+      "Bash(node */skills/hermit-scribe/file-issue.js*)"
     ],
-    "deny": [
-      "Bash(rm -rf *)",
-      "Bash(chmod 777*)",
-      "Bash(*sudo *)",
-      "Bash(*> /etc/*)",
-      "Bash(curl * | bash*)",
-      "Bash(wget * | bash*)",
-      "Bash(env)",
-      "Bash(printenv)",
-      "Bash(cat .env*)",
-      "Bash(cat */.env*)",
-      "Bash(cat ~/.ssh/*)",
-      "Bash(cat ~/.aws/*)",
-      "Bash(*API_KEY*)",
-      "Bash(*SECRET*)",
-      "Bash(*TOKEN*)",
-      "Bash(*> *.claude-code-hermit/OPERATOR.md*)"
-    ]
+    "deny": []
   },
   "enabledPlugins": {
     "claude-code-hermit@claude-code-hermit": true,
