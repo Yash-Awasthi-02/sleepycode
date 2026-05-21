@@ -152,11 +152,7 @@ Read the source file (using Read tool), then check if the destination exists (`.
   }
   ```
 
-Read `target_file`. Search for the opening marker:
-
-```
-<!-- claude-code-fitness-hermit: Fitness Workflow -->
-```
+Read `target_file`. Search for the opening marker `<!-- claude-code-fitness-hermit: Fitness Workflow -->`. The matching closing marker is `<!-- /claude-code-fitness-hermit: Fitness Workflow -->`.
 
 - **`target_file` does not exist** (greenfield `CLAUDE.local.md` is common) → treat as marker-absent and proceed to the append branch; Edit will create the file.
 - **Marker absent** → append the full contents of `${CLAUDE_PLUGIN_ROOT}/state-templates/CLAUDE-APPEND.md` to `target_file` using Edit.
