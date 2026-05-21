@@ -6,7 +6,7 @@ Language-agnostic safety layer for any agent doing dev work in a hermit project.
 
 - `skills/hatch/` — one-time setup wizard. Idempotent, re-runnable, defaults to strict hook profile.
 - `skills/dev-pr/` — push the current feature branch and open a PR with an inline-assembled body. Refuses on protected branches, dirty trees, or zero commits ahead.
-- `skills/dev-quality/` — pre-wrap quality gate: runs `/simplify` on the working-tree diff and re-runs `commands.test` if configured. Surfaces failures; suggests `/code-review:code-review` when installed.
+- `skills/dev-quality/` — pre-wrap quality gate: runs `/code-review` on the working-tree diff and re-runs `commands.test` if configured. Surfaces failures; suggests `/code-review:code-review` when installed.
 - `skills/dev-test/` — run the configured test suite and record the result to `state/last-test.json`. Useful for mid-task verification and warming the `/dev-pr` test cache.
 - `scripts/git-push-guard.js` — strict-profile-only `PreToolUse` hook for Bash. Blocks `--no-verify`, `--force`/`-f` (always), `--force-with-lease` on protected branches or without an explicit refspec, `--mirror`/`--all`, and direct push to any branch in `claude-code-dev-hermit.protected_branches`.
 - `hooks/hooks.json` — registers `git-push-guard.js`.
@@ -19,7 +19,7 @@ Language-agnostic safety layer for any agent doing dev work in a hermit project.
 
 ## Constraints
 
-- Before implementing any new capability, check Claude Code docs (https://code.claude.com/docs) and plugins (https://claude.com/plugins) for native features that already cover it. If overlap exists, delegate — don't build. Specifically: built-in skills (`/simplify`, `/batch`, `/debug`) and the `code-review@claude-plugins-official` plugin already cover common surfaces; link to them from CLAUDE-APPEND or this README rather than reimplementing.
+- Before implementing any new capability, check Claude Code docs (https://code.claude.com/docs) and plugins (https://claude.com/plugins) for native features that already cover it. If overlap exists, delegate — don't build. Specifically: built-in skills (`/code-review`, `/batch`, `/debug`) and the `code-review@claude-plugins-official` plugin already cover common surfaces; link to them from CLAUDE-APPEND or this README rather than reimplementing.
 
 ## Hook Profiles
 

@@ -5,7 +5,7 @@ description: Tidy, changelog, and commit — lightweight motion for day-to-day p
 
 # Commit
 
-Detect which plugin's scope this change belongs to, simplify the diff (unless docs-only), append a changelog line in that plugin's CHANGELOG, then commit. No push, no tag, no version bump — that's `/release`'s job.
+Detect which plugin's scope this change belongs to, code-review the diff (unless docs-only), append a changelog line in that plugin's CHANGELOG, then commit. No push, no tag, no version bump — that's `/release`'s job.
 
 ## Guardrails (check before starting)
 
@@ -34,11 +34,11 @@ Then decide:
 
 The rest of this skill branches on `$SCOPE`.
 
-### 1. Run /simplify
+### 1. Run /code-review
 
-Invoke the `simplify` skill via the Skill tool. Let it review the changed content for reuse, quality, and efficiency, and fix any issues it finds. Its edits become part of this commit. Run it on every commit — including markdown-only diffs (docs and CHANGELOG entries benefit from a clarity/dedup pass too).
+Invoke the `code-review` skill via the Skill tool. Let it review the changed content for reuse, quality, and efficiency, and fix any issues it finds. Its edits become part of this commit. Run it on every commit — including markdown-only diffs (docs and CHANGELOG entries benefit from a clarity/dedup pass too).
 
-After `/simplify` runs, re-run the step 0 detection — its edits may have added new paths. If they fall outside `$SCOPE`, halt and surface them to the user.
+After `/code-review` runs, re-run the step 0 detection — its edits may have added new paths. If they fall outside `$SCOPE`, halt and surface them to the user.
 
 ### 2. Review the diff
 
