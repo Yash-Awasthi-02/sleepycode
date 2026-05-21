@@ -1,12 +1,37 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.8] - 2026-05-21
 
 ### Changed
 
 - **Adapted to CC 2.1.146 `/simplify` → `/code-review` rename.** All runtime invocations (`dev-quality` Gate 1, Gate 0 NOTICE text, output format labels), state templates (`CLAUDE-APPEND.md`, `CLAUDE-APPEND-SAFETY.md`), and descriptive references updated. `min_claude_code_version: ">=2.1.146"` added to `hermit-meta.json` so `/hermit-evolve` Step 0 blocks upgrades on stale CC versions. The marketplace `/code-review:code-review` plugin (`code-review@claude-plugins-official`) is now consistently prefixed throughout to disambiguate it from the built-in. **Requires Claude Code 2.1.146+.** After upgrading, run `/claude-code-dev-hermit:hatch` to refresh your project's CLAUDE-APPEND content.
 - **Post-rename polish.** Fixes one missed `simplify` reference in `docs/WORKFLOW.md`. Re-pads `dev-quality` output blocks (`skills/dev-quality/SKILL.md`) to a 13-col label width so the longer `code-review:` label aligns with the other rows. Reword "code-review pass" → "built-in `/code-review` pass" in `docs/HOW-TO-USE.md` and `docs/WORKFLOW.md` only where the marketplace `/code-review:code-review` plugin is referenced in the same paragraph, to disambiguate; elsewhere the term stays "`/code-review` pass" so it matches the Gate 1 name used in the same skill.
 - **`/hatch` Step 3 is now target-aware (GH #111).** Reads `.claude-code-hermit/state/hatch-options.json` written by core hatch and writes the CLAUDE-APPEND block to `CLAUDE.local.md` (when `target = "local"`) or `CLAUDE.md` (when `target = "committed"`). If core hatch hasn't run yet, prompts the operator for a Visibility choice and stamps the file. Both `CLAUDE-APPEND.md` (standard mode) and `CLAUDE-APPEND-SAFETY.md` (safety mode) targets follow the same routing.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/dev-quality/SKILL.md` | `/simplify` → `/code-review` rename; 13-col label re-padding |
+| `skills/hatch/SKILL.md` | Step 3 reads `hatch-options.json` to route CLAUDE-APPEND to correct target file |
+| `state-templates/CLAUDE-APPEND.md` | `/simplify` references replaced with `/code-review` throughout |
+| `state-templates/CLAUDE-APPEND-SAFETY.md` | Same `/code-review` rename pass |
+| `docs/HOW-TO-USE.md` | "built-in `/code-review`" disambiguation where marketplace plugin referenced nearby |
+| `docs/WORKFLOW.md` | Stale `simplify` ref fixed; same disambiguation rewording |
+| `docs/RECOMMENDED-PLUGINS.md` | `/code-review:code-review` plugin reference updated |
+| `.claude-plugin/hermit-meta.json` | `min_claude_code_version: ">=2.1.146"` added |
+| `CLAUDE.md` | Hatch target-routing section added; `/code-review` references updated |
+| `CONTRIBUTING.md` | Minor reference updates |
+| `README.md` | `/code-review` reference updates |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Update Claude Code** to version 2.1.146 or newer — `/code-review` is a built-in available from that version.
+2. **Refresh the CLAUDE-APPEND block** — re-run `/claude-code-dev-hermit:hatch` in each target project to pick up the updated `/code-review` references and the target-aware routing fix.
+
+No `config.json` changes required.
 
 ## [0.3.7] - 2026-05-16
 
