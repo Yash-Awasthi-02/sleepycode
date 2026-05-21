@@ -30,7 +30,7 @@ View or modify the hermit configuration for this project.
 /claude-code-hermit:hermit-settings docker           — view/edit Docker packages
 /claude-code-hermit:hermit-settings scheduled-checks    — manage scheduled plugin skill checks
 /claude-code-hermit:hermit-settings boot-skill       — view/clear/change the always-on boot skill
-/claude-code-hermit:hermit-settings quality-gate     — set post-implementation /simplify gate tier (budget|balanced|quality)
+/claude-code-hermit:hermit-settings quality-gate     — set post-implementation /code-review gate tier (budget|balanced|quality)
 ```
 
 ## Plan
@@ -347,16 +347,16 @@ Update `permission_mode` in config.json.
 **If argument is "quality-gate":**
 Ask the operator via `AskUserQuestion` to pick a tier. Show the current value in brackets if `quality_gate.tier` is set.
 
-Prompt: *"Quality-gate tier for accepted-proposal auto-implementations. Controls whether `/simplify` runs at step (e.5) of `/proposal-act`."*
+Prompt: *"Quality-gate tier for accepted-proposal auto-implementations. Controls whether `/code-review` runs at step (e.5) of `/proposal-act`."*
 
 Options:
-- **Budget** (default; recommended): `/simplify` never runs. Cheapest. No post-implementation review.
-- **Balanced**: delegate the decision to the `quality-gate-judge` haiku subagent on each implementation; judge reads the proposal + touched files and decides `RUN` or `SKIP`. Costs ~$0.005 per judge call plus an occasional ~$0.25 `/simplify` run when the judge says RUN.
-- **Quality**: `/simplify` runs on every implementation, no judgment. ~$0.25-$0.35 per implementation in Sonnet pricing.
+- **Budget** (default; recommended): `/code-review` never runs. Cheapest. No post-implementation review.
+- **Balanced**: delegate the decision to the `quality-gate-judge` haiku subagent on each implementation; judge reads the proposal + touched files and decides `RUN` or `SKIP`. Costs ~$0.005 per judge call plus an occasional ~$0.25 `/code-review` run when the judge says RUN.
+- **Quality**: `/code-review` runs on every implementation, no judgment. ~$0.25-$0.35 per implementation in Sonnet pricing.
 
 Write the chosen value to `quality_gate.tier` in config.json. If the `quality_gate` object is missing, create it as `{ "tier": "<chosen>" }`. If a legacy `enabled` key is present, leave it in place (skill behavior reads `tier` only; legacy `enabled` is ignored).
 
-Note: if you have `claude-code-dev-hermit:dev-quality` installed and you commit autonomous-implementation diffs through it, consider **Budget** — `/dev-quality` already runs `/simplify` before commit, and any non-Budget tier here would double-fire `/simplify` (~$0.40-$0.70 of duplicated spend per committed implementation).
+Note: if you have `claude-code-dev-hermit:dev-quality` installed and you commit autonomous-implementation diffs through it, consider **Budget** — `/dev-quality` already runs `/code-review` before commit, and any non-Budget tier here would double-fire `/code-review` (~$0.40-$0.70 of duplicated spend per committed implementation).
 
 ### 3. Write config
 

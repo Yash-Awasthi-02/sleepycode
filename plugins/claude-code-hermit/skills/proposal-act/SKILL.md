@@ -87,26 +87,26 @@ When the operator accepts a proposal:
          | `tier` is `"budget"` / `"balanced"` / `"quality"` | use as-is |
          | `tier` missing, `quality_gate` missing, or value not in enum | `budget` (log one-line warning to SHELL.md Findings) |
 
-         Build a touched-files list from the writes you made during step (e) if you can reliably enumerate them. This is the precise scope for `/simplify` and for the judge. If you can't recall the list (multi-turn work, sub-agent delegation), omit it; downstream falls back to `git diff --name-only HEAD`.
+         Build a touched-files list from the writes you made during step (e) if you can reliably enumerate them. This is the precise scope for `/code-review` and for the judge. If you can't recall the list (multi-turn work, sub-agent delegation), omit it; downstream falls back to `git diff --name-only HEAD`.
 
          Branch on the resolved tier:
 
-         - **`budget`**: skip `/simplify` entirely. Proceed to (f). Resolution notification stays plain: "PROP-NNN implemented and resolved."
-         - **`quality`**: invoke `/simplify` directly. Pass the touched-files list as focus when enumerable:
+         - **`budget`**: skip `/code-review` entirely. Proceed to (f). Resolution notification stays plain: "PROP-NNN implemented and resolved."
+         - **`quality`**: invoke `/code-review` directly. Pass the touched-files list as focus when enumerable:
            ```
-           /simplify focus on PROP-NNN implementation: path/a, path/b
+           /code-review focus on PROP-NNN implementation: path/a, path/b
            ```
-           Otherwise invoke `/simplify` with no focus; it falls back to git diff. Apply any fixes it produces. Resolution notification: "PROP-NNN implemented and resolved. /simplify reviewed N files, applied M cleanups."
+           Otherwise invoke `/code-review` with no focus; it falls back to git diff. Apply any fixes it produces. Resolution notification: "PROP-NNN implemented and resolved. /code-review reviewed N files, applied M cleanups."
          - **`balanced`**: delegate to `claude-code-hermit:quality-gate-judge` with:
            ```
            Proposal: <absolute path to PROP-NNN-*.md>
            Touched-Files: <space-separated relative paths>   (omit this line if not reliably enumerable)
            ```
            Parse line-1 verdict:
-           - `RUN: <reason>` → invoke `/simplify` in the main session with the same touched-files focus (or no focus if omitted). Notification: "PROP-NNN implemented and resolved. Judge: <reason>. /simplify applied M cleanups."
-           - `SKIP: <reason>` → skip `/simplify`. Notification: "PROP-NNN implemented and resolved. Judge skipped /simplify: <reason>."
+           - `RUN: <reason>` → invoke `/code-review` in the main session with the same touched-files focus (or no focus if omitted). Notification: "PROP-NNN implemented and resolved. Judge: <reason>. /code-review applied M cleanups."
+           - `SKIP: <reason>` → skip `/code-review`. Notification: "PROP-NNN implemented and resolved. Judge skipped /code-review: <reason>."
 
-         Best-effort throughout: if any step errors out (judge fails, `/simplify` errors, file read fails), log a one-line warning to SHELL.md Findings and fall back to skip. The gate never blocks resolution.
+         Best-effort throughout: if any step errors out (judge fails, `/code-review` errors, file read fails), log a one-line warning to SHELL.md Findings and fall back to skip. The gate never blocks resolution.
      f. When verifiably done: run `/proposal-act resolve PROP-NNN`, then notify the operator (or channel in autonomous mode) with the tier-appropriate message from (e.5).
 
    - **"Create a session task"** → Write `.claude-code-hermit/sessions/NEXT-TASK.md`:
@@ -125,9 +125,9 @@ When the operator accepts a proposal:
      3. Verify the fix resolves the pattern
      ```
      If `NEXT-TASK.md` already exists: do **not** write. Status still flips to `accepted` (operator intent is recorded). Notify: "PROP-NNN accepted. NEXT-TASK is already pending another proposal. Run `/session-start` to consume it first, then re-run `/proposal-act accept PROP-NNN` and pick 'Start implementing now' or manual."
-     Otherwise write the file. Then append any of the following bullets to the end of the Suggested Plan, in order, numbered sequentially from `4.` (quality-gate bullet is last so `/simplify` reviews any skill-creator output):
+     Otherwise write the file. Then append any of the following bullets to the end of the Suggested Plan, in order, numbered sequentially from `4.` (quality-gate bullet is last so `/code-review` reviews any skill-creator output):
        - **(if the proposal contains `## Skill Improvement` AND `/skill-creator` is available)** `Use /skill-creator to build and validate the skill.`
-       - **(if `quality_gate.tier` in `.claude-code-hermit/config.json` is not `"budget"` — i.e. `"balanced"` or `"quality"`)** `Run /simplify on the touched files for a quality review, then commit.`
+       - **(if `quality_gate.tier` in `.claude-code-hermit/config.json` is not `"budget"` — i.e. `"balanced"` or `"quality"`)** `Run /code-review on the touched files for a quality review, then commit.`
      Confirm: "Task prepared. The next `/session-start` will offer this as the default task."
 
    - **"I'll handle it manually"** → Just mark accepted. Respond: "Marked as accepted. No further action taken."

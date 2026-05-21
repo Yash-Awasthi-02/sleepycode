@@ -40,17 +40,17 @@ run_test "step (e.5) invokes claude-code-hermit:quality-gate-judge in balanced b
 run_test "step (e.5) has explicit budget branch (skip)" \
   bash -c "grep -qE 'budget.*(skip|never)' \"$SKILL\""
 
-run_test "step (e.5) has explicit quality branch (always run /simplify)" \
-  bash -c "grep -qE 'quality.*(invoke|run).*/simplify|/simplify.*quality' \"$SKILL\""
+run_test "step (e.5) has explicit quality branch (always run /code-review)" \
+  bash -c "grep -qE 'quality.*(invoke|run).*/code-review|/code-review.*quality' \"$SKILL\""
 
 run_test "NEXT-TASK.md gating references tier != budget" \
   bash -c "grep -qE 'tier.*budget|budget.*tier' \"$SKILL\""
 
-run_test "/simplify focus argument pattern preserved" \
-  grep -qF "/simplify focus on PROP-NNN implementation" "$SKILL"
+run_test "/code-review focus argument pattern preserved" \
+  grep -qF "/code-review focus on PROP-NNN implementation" "$SKILL"
 
-run_test "NEXT-TASK template /simplify bullet present" \
-  grep -qF "Run /simplify on the touched files" "$SKILL"
+run_test "NEXT-TASK template /code-review bullet present" \
+  grep -qF "Run /code-review on the touched files" "$SKILL"
 
 # Quality-gate-judge subagent: file existence + frontmatter.
 JUDGE="$REPO_ROOT/agents/quality-gate-judge.md"

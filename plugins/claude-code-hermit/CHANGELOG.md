@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **Adapted to CC 2.1.146 `/simplify` → `/code-review` rename.** All runtime invocations (`proposal-act` step e.5 quality-gate tiers, `quality-gate-judge` agent), injected templates (`state-templates/CLAUDE-APPEND.md`), and descriptive references updated. `min_claude_code_version` bumped to `>=2.1.146` in `hermit-meta.json` so `/hermit-evolve` Step 0 blocks upgrades on stale CC versions. **Requires Claude Code 2.1.146+.** After upgrading, run `/claude-code-hermit:hermit-evolve` to refresh existing project CLAUDE-APPEND content (state-templates only seed new installs via `/hatch`).
+
 ## [1.1.0] - 2026-05-18
 
 ### Added

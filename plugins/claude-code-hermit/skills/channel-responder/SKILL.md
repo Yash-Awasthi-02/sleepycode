@@ -75,7 +75,7 @@ This is how the agent learns the DM channel ID for proactive outbound notificati
 
 ## 2. Classify the Message
 
-- **Slash command** (message starts with `/`, e.g. `/simplify`, `/plugin:command`)
+- **Slash command** (message starts with `/`, e.g. `/code-review`, `/plugin:command`)
   - Invoke the matching skill, slash command, or subagent via the appropriate tool. Pass any remaining text as arguments/prompt.
   - If nothing matches, say so briefly.
 
