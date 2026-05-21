@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **Adapted to CC 2.1.146 `/simplify` → `/code-review` rename.** All runtime invocations (`dev-quality` Gate 1, Gate 0 NOTICE text, output format labels), state templates (`CLAUDE-APPEND.md`, `CLAUDE-APPEND-SAFETY.md`), and descriptive references updated. `min_claude_code_version: ">=2.1.146"` added to `hermit-meta.json` so `/hermit-evolve` Step 0 blocks upgrades on stale CC versions. The marketplace `/code-review:code-review` plugin (`code-review@claude-plugins-official`) is now consistently prefixed throughout to disambiguate it from the built-in. **Requires Claude Code 2.1.146+.** After upgrading, run `/claude-code-dev-hermit:hatch` to refresh your project's CLAUDE-APPEND content.
+
 ## [0.3.7] - 2026-05-16
 
 ### Changed

@@ -46,16 +46,16 @@ At strict hook profile (`AGENT_HOOK_PROFILE=strict`), `git-push-guard` enforces 
 
 Per `§Implementation Flow`: agent runs `claude-code-dev-hermit.commands.test` before declaring the task done. If tests fail, fix or surface. Never declare done with broken tests.
 
-### Step 5 — Simplify and re-test
+### Step 5 — Code-review and re-test
 
 Per `§Tests Before PR`:
 
-1. Run `/simplify` on changed files (built-in, ships parallel reuse/quality/efficiency reviewers).
+1. Run `/code-review` on changed files (built-in, ships parallel reuse/quality/efficiency reviewers).
 2. Re-run the test command.
 3. If tests pass → proceed.
-4. If tests fail → `git checkout -- <changed-files>` to revert the simplify pass, surface the regression, stop.
+4. If tests fail → `git checkout -- <changed-files>` to revert the code-review pass, surface the regression, stop.
 
-For high-stakes changes, optionally invoke `/code-review` (from the optional `code-review` companion plugin) after the simplify pass.
+For high-stakes changes, optionally invoke `/code-review:code-review` (from the optional `code-review` companion plugin) after the code-review pass.
 
 ### Step 6 — PR
 

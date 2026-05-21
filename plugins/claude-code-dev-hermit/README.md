@@ -35,9 +35,9 @@ claude plugin install claude-code-dev-hermit@claude-code-hermit --scope project
 
 **Git safety, two layers.** Prose rules apply at every profile via CLAUDE-APPEND.md (no push, no `--no-verify`, no commits to protected branches, no force-push). At strict profile, `git-push-guard` backs them with hard `bash`-time blocking.
 
-**Works with any agent.** The CLAUDE-APPEND.md template, injected into your project's `CLAUDE.md`, gives every code-writing agent the same rules: clean tree before starting, branch from `protected_branches[0]`, name as `<prefix>/<slug>`, run the configured test command before declaring done, re-run after `/simplify`, revert on regression. Native `Agent` tool, `feature-dev:code-architect`, your own subagent — they all read the same rules.
+**Works with any agent.** The CLAUDE-APPEND.md template, injected into your project's `CLAUDE.md`, gives every code-writing agent the same rules: clean tree before starting, branch from `protected_branches[0]`, name as `<prefix>/<slug>`, run the configured test command before declaring done, re-run after `/code-review`, revert on regression. Native `Agent` tool, `feature-dev:code-architect`, your own subagent — they all read the same rules.
 
-**Optional workflow scaffolding.** For greenfield projects without their own commit/PR/release conventions: `/dev-pr` pushes the branch and opens a PR assembled from commits + last test result + screenshots (`gh pr create` for GitHub, `glab mr create` for GitLab, or a custom command). `/dev-quality` runs `/simplify` on the diff and re-runs `commands.test` before you commit. `/dev-test` runs the configured suite and records the result so `/dev-pr` only opens PRs after tests pass at the current commit. If your project already has its own `/commit`, `/create-pr`, or `/release` skills, skip these — `/hatch` detects them and defaults to safety mode.
+**Optional workflow scaffolding.** For greenfield projects without their own commit/PR/release conventions: `/dev-pr` pushes the branch and opens a PR assembled from commits + last test result + screenshots (`gh pr create` for GitHub, `glab mr create` for GitLab, or a custom command). `/dev-quality` runs `/code-review` on the diff and re-runs `commands.test` before you commit. `/dev-test` runs the configured suite and records the result so `/dev-pr` only opens PRs after tests pass at the current commit. If your project already has its own `/commit`, `/create-pr`, or `/release` skills, skip these — `/hatch` detects them and defaults to safety mode.
 
 That's it. One hook + one template, with optional workflow skills on top. Whatever you don't need — gone.
 
@@ -118,7 +118,7 @@ See [docs/GIT-SAFETY.md](docs/GIT-SAFETY.md) for the full safety model and the t
 **Optional workflow skills** (for greenfield projects — skip if you already have your own `/commit`, `/create-pr`, or `/release` skills):
 
 - **`dev-pr` skill** — Push the current feature branch and open a PR with body assembled from commits + last test result + screenshots + optional project template. Runs tests automatically on cache miss — fresh HEAD pass hits instantly; anything else triggers the test runner.
-- **`dev-quality` skill** — Pre-wrap quality gate. Runs `/simplify` on the diff, re-runs `commands.test`, and reports pass/fail. Suggests `/code-review` if available — never invokes it.
+- **`dev-quality` skill** — Pre-wrap quality gate. Runs `/code-review` on the diff, re-runs `commands.test`, and reports pass/fail. Suggests `/code-review:code-review` if available — never invokes it.
 - **`dev-test` skill** — Run the configured test suite and record the result to `last-test.json`. Useful for mid-task verification and warming the `/dev-pr` cache.
 
 ---
@@ -127,11 +127,11 @@ See [docs/GIT-SAFETY.md](docs/GIT-SAFETY.md) for the full safety model and the t
 
 These are Claude Code built-ins — no installation needed:
 
-- `/simplify` — code cleanup after implementation
+- `/code-review` — code cleanup after implementation
 - `/batch` — same change across many files in parallel
 - `/debug` — diagnostics when something's stuck
 
-The CLAUDE-APPEND.md `§Implementation Flow` points to `/dev-quality` as the pre-commit quality gate — it runs `/simplify`, re-runs `commands.test`, and records the result so `/dev-pr` can hit the cache at the current HEAD.
+The CLAUDE-APPEND.md `§Implementation Flow` points to `/dev-quality` as the pre-commit quality gate — it runs `/code-review`, re-runs `commands.test`, and records the result so `/dev-pr` can hit the cache at the current HEAD.
 
 ---
 

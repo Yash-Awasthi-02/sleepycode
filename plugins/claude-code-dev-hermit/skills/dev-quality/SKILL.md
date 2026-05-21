@@ -1,16 +1,16 @@
 ---
 name: dev-quality
-description: Pre-wrap quality gate. Runs /simplify on the working-tree diff, re-runs commands.test, and reports results. Suggests /code-review:code-review when installed. Run this before committing.
+description: Pre-wrap quality gate. Runs /code-review on the working-tree diff, re-runs commands.test, and reports results. Suggests /code-review:code-review when installed. Run this before committing.
 ---
 
 # /dev-quality
 
-Run a quality pass on the working-tree diff before declaring the task done. Invokes `/simplify`, re-runs the configured test command, and reports the outcome. Call this at task wrap-up, before committing.
+Run a quality pass on the working-tree diff before declaring the task done. Invokes `/code-review`, re-runs the configured test command, and reports the outcome. Call this at task wrap-up, before committing.
 
 ## Prerequisites
 
 - Verify `.claude-code-hermit/sessions/` exists. If not: tell the operator to run `/claude-code-hermit:hatch` and `/claude-code-dev-hermit:hatch` first.
-- Read `commands.test` from `.claude-code-hermit/config.json`. If unset, the test step is skipped — `/simplify` still runs.
+- Read `commands.test` from `.claude-code-hermit/config.json`. If unset, the test step is skipped — `/code-review` still runs.
 
 ## Plan
 
@@ -34,18 +34,18 @@ If both are empty: working tree is clean. Before failing, check whether HEAD has
 
    ```
    NOTICE: working tree is clean but HEAD has N commits ahead of <BASE_NAME>.
-           /dev-quality is designed to run BEFORE commit (so /simplify can edit the diff).
+           /dev-quality is designed to run BEFORE commit (so /code-review can edit the diff).
            Correct order: /dev-quality → commit → /dev-pr.
            To verify the committed state passes tests, run /dev-test instead.
    ```
 
-Then FAIL `"no working-tree diff — nothing to simplify"`. Append the hint `hint: if edits are in a nested git repo, re-run with --cwd <path>` unless `--cwd` was already passed.
+Then FAIL `"no working-tree diff — nothing to code-review"`. Append the hint `hint: if edits are in a nested git repo, re-run with --cwd <path>` unless `--cwd` was already passed.
 
-### Gate 1 — run `/simplify`
+### Gate 1 — run `/code-review`
 
-Invoke `/simplify` on the current diff. Wait for it to complete. If `/simplify` reports no changes, note `simplify: no changes` and continue to Gate 2 anyway.
+Invoke `/code-review` on the current diff. Wait for it to complete. If `/code-review` reports no changes, note `code-review: no changes` and continue to Gate 2 anyway.
 
-When `--cwd <path>` is set, scope `/simplify` to files under `<path>` — list them via `git -C "<path>" diff --name-only` and pass that file set as the focus. Don't simplify outside `<path>`.
+When `--cwd <path>` is set, scope `/code-review` to files under `<path>` — list them via `git -C "<path>" diff --name-only` and pass that file set as the focus. Don't run /code-review outside `<path>`.
 
 ### Gate 2 — re-run tests
 
@@ -69,18 +69,18 @@ Report the outcome. Then check whether `/code-review:code-review` is in the agen
 next: suggest the operator run /code-review:code-review for a deeper review before commit
 ```
 
-Do **not** invoke `/code-review:code-review` autonomously — operator decision only. Skill exits clean; simplified changes remain uncommitted for the operator to commit.
+Do **not** invoke `/code-review:code-review` autonomously — operator decision only. Skill exits clean; reviewed changes remain uncommitted for the operator to commit.
 
 **Tests fail:**
 
-Read `state/last-test.json` and include `likely_cause` in the failure message if present. FAIL with `"tests regressed after /simplify (exit <N>[, likely OOM|timeout|user-interrupt]) — investigate before committing"` and the last 20 lines of stderr. Leave the working tree as-is (post-simplify state) — the agent or operator decides whether to fix forward or revert the simplify pass manually (`git checkout -- <files>`).
+Read `state/last-test.json` and include `likely_cause` in the failure message if present. FAIL with `"tests regressed after /code-review (exit <N>[, likely OOM|timeout|user-interrupt]) — investigate before committing"` and the last 20 lines of stderr. Leave the working tree as-is (post-simplify state) — the agent or operator decides whether to fix forward or revert the code-review pass manually (`git checkout -- <files>`).
 
 ## Output
 
 ```
 dev-quality
   diff:     12 files modified
-  simplify: applied
+  code-review: applied
   tests:    pass (12.3s)
   next:     suggest operator run /code-review:code-review (installed)
   status:   ok
@@ -92,7 +92,7 @@ When invoked with `--cwd <path>`, prepend a `target:` line:
 dev-quality
   target:   packages/foo
   diff:     3 files modified
-  simplify: applied
+  code-review: applied
   tests:    pass (4.1s)
   status:   ok
 ```
@@ -102,9 +102,9 @@ On Gate 3 failure:
 ```
 dev-quality
   diff:     12 files modified
-  simplify: applied
+  code-review: applied
   tests:    FAIL (exit 137, likely OOM, 8.7s)
-  recovery: investigate the regression; fix forward or `git checkout -- <files>` to revert the simplify pass
+  recovery: investigate the regression; fix forward or `git checkout -- <files>` to revert the code-review pass
   status:   tests-regressed
 ```
 
@@ -113,7 +113,7 @@ When `commands.test` is unset:
 ```
 dev-quality
   diff:     12 files modified
-  simplify: applied
+  code-review: applied
   tests:    skipped (commands.test not configured)
   status:   ok
 ```
@@ -123,17 +123,17 @@ On Gate 0 failure (clean tree, commits ahead):
 ```
 dev-quality
   NOTICE: working tree is clean but HEAD has 3 commits ahead of main.
-          /dev-quality is designed to run BEFORE commit (so /simplify can edit the diff).
+          /dev-quality is designed to run BEFORE commit (so /code-review can edit the diff).
           Correct order: /dev-quality → commit → /dev-pr.
           To verify the committed state passes tests, run /dev-test instead.
-  FAIL (Gate 0): no working-tree diff — nothing to simplify
+  FAIL (Gate 0): no working-tree diff — nothing to code-review
 ```
 
 On Gate 0 failure (clean tree, no commits ahead or base unresolvable):
 
 ```
 dev-quality
-  FAIL (Gate 0): no working-tree diff — nothing to simplify
+  FAIL (Gate 0): no working-tree diff — nothing to code-review
                  hint: if edits are in a nested git repo, re-run with --cwd <path>
 ```
 
