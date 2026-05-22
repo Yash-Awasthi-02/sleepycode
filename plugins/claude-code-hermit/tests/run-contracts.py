@@ -16,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
@@ -447,6 +448,96 @@ class TestWriteSettingsEnv(_TempDirTest):
         settings = self._read_settings()
         self.assertNotIn('AGENT_HOOK_PROFILE', settings['env'])
         self.assertEqual(settings['env']['OTHER'], 'keep')
+
+    def test_sandbox_enabled_respects_local_override_false(self):
+        """settings.local.json enabled=false overrides settings.json enabled=true."""
+        self._write_settings({'sandbox': {'enabled': False}})
+        # Simulate settings.json having enabled=true by temporarily writing it.
+        settings_json = Path('.claude/settings.json')
+        settings_json.parent.mkdir(parents=True, exist_ok=True)
+        settings_json.write_text(json.dumps({'sandbox': {'enabled': True}}))
+        try:
+            result = hermit_start._is_sandbox_enabled()
+        finally:
+            settings_json.unlink(missing_ok=True)
+        self.assertFalse(result)
+
+    def test_sandbox_enabled_uses_local_true_when_json_absent(self):
+        """settings.local.json enabled=true is used when settings.json is absent."""
+        self._write_settings({'sandbox': {'enabled': True}})
+        self.assertTrue(hermit_start._is_sandbox_enabled())
+
+    def test_sandbox_enabled_handles_null_sandbox_block(self):
+        """`sandbox: null` in settings file does not crash; treated as undeclared."""
+        self._write_settings({'sandbox': None})
+        # Should not raise; returns False (no enabled declaration).
+        self.assertFalse(hermit_start._is_sandbox_enabled())
+
+    def test_sandbox_enabled_rejects_string_enabled(self):
+        """`enabled: "false"` (string) is not coerced via bool() — treated as undeclared."""
+        self._write_settings({'sandbox': {'enabled': 'false'}})
+        # bool("false") is True; we must not coerce. Result should be False.
+        self.assertFalse(hermit_start._is_sandbox_enabled())
+
+    def test_write_settings_env_handles_null_sandbox(self):
+        """`sandbox: null` in settings file does not crash write_settings_env."""
+        self._write_settings({'sandbox': None})
+        self._write_config({})
+        config = hermit_start.load_config()
+        with unittest.mock.patch.object(hermit_start, 'is_container', return_value=False):
+            # Should not raise.
+            hermit_start.write_settings_env(config)
+        settings = self._read_settings()
+        self.assertNotIn('sandbox', settings)
+
+    def test_check_sandbox_capability_skipped_in_container(self):
+        """check_sandbox_capability returns immediately inside a container without probing."""
+        self._write_settings({'sandbox': {'enabled': True}})
+        self._write_config({})
+        with unittest.mock.patch.object(hermit_start, 'is_container', return_value=True), \
+             unittest.mock.patch.object(hermit_start, '_sandbox_probe_cached') as mock_probe:
+            hermit_start.check_sandbox_capability()
+        mock_probe.assert_not_called()
+
+    def test_docker_overlay_adds_nested_sandbox(self):
+        """In-container boot adds enableWeakerNestedSandbox without clobbering other sandbox keys."""
+        self._write_settings({'sandbox': {'enabled': True, 'allowUnsandboxedCommands': True}})
+        self._write_config({})
+        config = hermit_start.load_config()
+        with unittest.mock.patch.object(hermit_start, 'is_container', return_value=True):
+            hermit_start.write_settings_env(config)
+        settings = self._read_settings()
+        self.assertTrue(settings['sandbox']['enableWeakerNestedSandbox'])
+        self.assertTrue(settings['sandbox']['enabled'])
+        self.assertTrue(settings['sandbox']['allowUnsandboxedCommands'])
+
+    def test_non_docker_removes_nested_sandbox_preserves_operator_keys(self):
+        """Non-container boot removes enableWeakerNestedSandbox and preserves other sandbox keys."""
+        self._write_settings({
+            'sandbox': {
+                'enabled': True,
+                'allowUnsandboxedCommands': True,
+                'enableWeakerNestedSandbox': True,
+            }
+        })
+        self._write_config({})
+        config = hermit_start.load_config()
+        with unittest.mock.patch.object(hermit_start, 'is_container', return_value=False):
+            hermit_start.write_settings_env(config)
+        settings = self._read_settings()
+        self.assertNotIn('enableWeakerNestedSandbox', settings['sandbox'])
+        self.assertTrue(settings['sandbox']['enabled'])
+        self.assertTrue(settings['sandbox']['allowUnsandboxedCommands'])
+
+    def test_non_docker_cleans_empty_sandbox_block(self):
+        """Non-container boot removes the sandbox key entirely when only the managed key was set."""
+        self._write_settings({'sandbox': {'enableWeakerNestedSandbox': True}})
+        self._write_config({})
+        config = hermit_start.load_config()
+        with unittest.mock.patch.object(hermit_start, 'is_container', return_value=False):
+            hermit_start.write_settings_env(config)
+        settings = self._read_settings()
+        self.assertNotIn('sandbox', settings)
 
 
 # ============================================================

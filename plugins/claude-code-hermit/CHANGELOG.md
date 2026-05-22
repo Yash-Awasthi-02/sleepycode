@@ -1,5 +1,39 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **Claude Code bash sandbox integration (silent secure default).** `/hatch` now configures the Claude Code sandbox (OS-level bash isolation via `bwrap` on Linux/WSL2 and `sandbox-exec` on macOS) automatically when the system supports it — no wizard question, no operator-facing knob. When the capability probe passes, the standard profile is written to the operator's target settings file (filesystem denies for `~/.aws`, `~/.ssh`, `~/.gnupg`; network unrestricted so `gh`/`npm`/`pip` work on first run). When the probe fails (missing `bubblewrap`/`socat` on Linux), hatch prints a one-line install hint and proceeds without enabling the sandbox. Existing operator-set `sandbox.*` keys are preserved unconditionally. Operators can disable at any time by setting `sandbox.enabled: false` in their settings file.
+- **Capability probe** (`scripts/sandbox-probe.py`). Shared by `/hatch`, `hermit-start`, and `/hermit-doctor`. Returns `pass/warn/fail` with a package-manager-aware install hint on Linux/WSL2 failure. Result is cached per boot (keyed on kernel release + bwrap/socat path mtimes) to avoid subprocess overhead on every start.
+- **Docker base image now ships `bubblewrap` + `socat`** — required for the sandbox to actually start inside unprivileged containers. `hermit-start` automatically writes `sandbox.enableWeakerNestedSandbox: true` to `.claude/settings.local.json` on container boots and removes it on non-container boots; all other `sandbox.*` keys are left for the operator to manage.
+- **`/hermit-doctor` sandbox check** (ninth check). Runs the capability probe and cross-references `sandbox.enabled` in settings files. Reports `pass/warn/fail` with remediation.
+- **FAQ entry** for bash sandboxing — explains the macOS/Linux split, custom-CA tooling edge cases, and the WSL2 prerequisite.
+- **`sandbox-profiles.json`** in `state-templates/` defines the `off` and `standard` profiles. `deny-patterns.json` gains a `sandbox.filesystem.denyRead` section as the canonical source for credential-path denies.
+
+### Upgrade Instructions
+
+1. **Apply the standard sandbox profile when supported** (or confirm existing config).
+
+   Read the target settings file — resolve via `hatch_target` (`local` → `.claude/settings.local.json`; `committed` → `.claude/settings.json`; fallback chain: `.claude-code-hermit/state/hatch-options.json` → marker scan → scope detection).
+
+   - If the file already contains any *operator-intent* sandbox key (`enabled`, `filesystem`, `network`, `failIfUnavailable`, `autoAllowBashIfSandboxed`, or `allowUnsandboxedCommands`): tell the operator "Your existing sandbox config was preserved." **Skip the rest of this step.** Note: `enableWeakerNestedSandbox` is hermit-managed (auto-written by `hermit-start` in Docker) and does NOT count as operator config — ignore it when deciding whether to skip.
+   - **If running inside a container** (`/.dockerenv` or `/run/.containerenv` exists): skip the probe (it would fail unconditionally on `unshare --user --pid true` in unprivileged containers). Apply the standard profile directly (see below). Tell the operator: "Sandbox enabled (standard profile, container — enableWeakerNestedSandbox auto-managed by hermit-start)."
+   - Otherwise (not a container, no operator config): run `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/sandbox-probe.py`.
+     - If status is `"pass"`: apply the standard profile (see below). Tell the operator: "Sandbox enabled (standard profile, written to {file})."
+     - If status is `"warn"`: surface the probe `message` to the operator first, then apply the standard profile. Tell the operator: "Sandbox configured (may degrade silently per warning above; written to {file})."
+     - If status is `"fail"`: do NOT write any sandbox block. Print one line: "Sandbox unavailable: {message} — run `{install_hint}` to enable later, then re-run this migration."
+
+   **Apply the standard profile** means: read `${CLAUDE_PLUGIN_ROOT}/state-templates/sandbox-profiles.json` (select the `standard` entry — includes `enabled`, `failIfUnavailable`, `autoAllowBashIfSandboxed`, `allowUnsandboxedCommands`); read `${CLAUDE_PLUGIN_ROOT}/state-templates/deny-patterns.json` and extract `sandbox.filesystem.denyRead`; merge `profile.filesystem = { "denyRead": <that array> }`; merge into the target settings file under the `sandbox` key.
+
+2. **Rebuild the Docker image** (Docker operators only).
+
+   The base image now includes `bubblewrap` and `socat`. Without a rebuild the sandbox silently degrades inside the container. Run `hermit-docker update` or `docker compose build` to pick up the new packages. Note: the entrypoint itself did not change, so no template refresh is needed.
+
+3. **Note on custom-CA tooling** (informational, no action required unless affected).
+
+   Tools that use a MITM proxy with a custom certificate authority (e.g. `gcloud` with a corporate proxy, `terraform` with a company CA) may require `"enableWeakerNetworkIsolation": true` in the `sandbox` block. See [Claude Code sandbox docs](https://code.claude.com/docs/en/settings#sandbox-settings) and the FAQ entry in `docs/faq.md`.
+
 ## [1.1.1] - 2026-05-21
 
 ### Added
