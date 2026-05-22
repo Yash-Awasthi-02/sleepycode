@@ -31,7 +31,7 @@ View or modify the hermit configuration for this project.
 /claude-code-hermit:hermit-settings scheduled-checks    — manage scheduled plugin skill checks
 /claude-code-hermit:hermit-settings boot-skill       — view/clear/change the always-on boot skill
 /claude-code-hermit:hermit-settings quality-gate     — set post-implementation /code-review gate tier (budget|balanced|quality)
-/claude-code-hermit:hermit-settings push-notifications — toggle PushNotification fallback when no channel is configured
+/claude-code-hermit:hermit-settings push-notifications — toggle PushNotification fallback (fires when no channel is enabled or a configured channel is unreachable)
 ```
 
 ## Plan
@@ -361,7 +361,7 @@ Write the chosen value to `quality_gate.tier` in config.json. If the `quality_ga
 Note: if you have `claude-code-dev-hermit:dev-quality` installed and you commit autonomous-implementation diffs through it, consider **Budget** — `/dev-quality` already runs `/code-review` before commit, and any non-Budget tier here would double-fire `/code-review` (~$0.40-$0.70 of duplicated spend per committed implementation).
 
 **If argument is "push-notifications":**
-Ask: "Send a PushNotification (desktop notification in your terminal app, plus mobile push if Remote Control is connected) on proactive alerts when no channel is configured?
+Ask: "Send a PushNotification (desktop notification in your terminal app, plus mobile push if Remote Control is connected) on proactive alerts? Fires when no channel is enabled OR a configured channel is unreachable (missing pairing, empty allowed_users, all-disabled). In always-on Docker or headless tmux only the Remote Control mobile push will be visible. Note: push is one-way; operator-→hermit replies (micro-proposals, session recovery) require a channel.
   on  — enable push fallback
   off — disable push fallback
 [current: <value>]"

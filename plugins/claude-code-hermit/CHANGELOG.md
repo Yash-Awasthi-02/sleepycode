@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **`push_notifications` opt-in (GH #106).** New top-level boolean config key (`false` by default). When `true`, the Operator Notification protocol fires `PushNotification(message, status="proactive")` in three cases: (a) **no channel enabled** (channels block absent, empty, or every entry `enabled: false`) — push fires alongside the conversation response, with no `channel-send-unavailable` dedup (the empty-channels state is intentional); (b) **configured channel unreachable** (resolver returns `no_reachable_channel` due to missing pairing, empty `allowed_users`, or `config_read_failed`) — push fires AND log+dedup still happen (the channel is broken, surface it); (c) **post-resolve reply failure** (token expired, plugin crashed mid-session) — push fires as a last-resort signal, then log+dedup. Default-false existing installs see no behavior change after `hermit-evolve` (the no-channel branch preserves the pre-PR "respond in conversation only" path). `/hatch` asks the push opt-in for all channel choices (None, Discord, Telegram) — covers the configured-but-unpaired window and later channel breakage. `/smoke-test` fires a test PushNotification when enabled. `/session-start` guards the dead-process reply prompt against push-only setups (no channel-responder to receive `(1)/(2)`; falls back to `heartbeat.waiting_timeout`). Toggle later via `/hermit-settings push-notifications`. Validator (`validate-config.js`) and config-validator subagent updated. Docs: `config-reference.md`, `skills.md`, `troubleshooting.md`.
+
 ### Changed
 
 - **Default `permission_mode` is now `auto` (CC 2.1.148+).** `auto` mode lets a classifier review each action before it runs, which is safer than `bypassPermissions` and more reviewed than `acceptEdits`. It is now the default for both Docker and non-Docker hermits, including new Docker installs via `/hatch` Quick mode (previously `bypassPermissions`). `bypassPermissions` remains available as an explicit opt-in for operators who need zero prompts for fully unattended Docker operation. `config.json.template`, `hermit-start.py`, `hatch`, `hermit-settings`, and `hermit-evolve` all updated. **Requires Claude Code 2.1.148+** (Sonnet 4.6 or Opus 4.6/4.7 on Max/Team/Enterprise/API plan). Operators on Pro, Haiku, or non-Anthropic providers will see CC report `auto` unavailable at launch and should switch via `/hermit-settings permissions`. `min_claude_code_version` bumped to `>=2.1.148` in `hermit-meta.json`.
@@ -19,9 +23,6 @@
    **Note for `bypassPermissions` operators:** `auto` pauses for confirmation on risky actions, so it will not work for fully unattended hermits that cannot tolerate any pause. Only switch if your workload can handle occasional confirmation prompts, or if a human is present when the hermit runs.
 
    **Note for Pro, Haiku, or non-Anthropic-provider operators:** `auto` mode is not available on your plan/model/provider. CC will report it as unavailable at launch and the hermit will not enter `auto`. Answer `n` here and keep your current mode, or pick another mode via `/hermit-settings permissions` after upgrade.
-### Added
-
-- **`push_notifications` opt-in for channel-less setups (GH #106).** New top-level boolean config key (`false` by default). When `true` and no channel is enabled (channels block absent, empty, or every entry has `enabled: false`), the Operator Notification protocol fires `PushNotification` (desktop notification, plus mobile push if Remote Control is connected) alongside the in-conversation response. Closes the silent-failure gap for operators who deliberately skip channel setup. Enable during `/hatch` (prompted when "None" is chosen for channels), or later via `/hermit-settings push-notifications`. Existing installs: `hermit-evolve` silently merges the key at default `false` — no behavior change until opt-in. Validator (`validate-config.js`) and config-validator subagent updated. Docs: `config-reference.md`, `skills.md`, `troubleshooting.md`.
 
 ## [1.1.1] - 2026-05-21
 

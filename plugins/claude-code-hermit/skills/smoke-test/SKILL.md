@@ -88,6 +88,14 @@ For each file: parse JSON. If missing or unparseable, rewrite from the correspon
   - Failure: **FAIL** `<channel> test message failed: <error>`
   - If the MCP tool is not available (plugin not installed): **WARN** `<channel> plugin not available for test`
 
+### 7b. Push notification test (optional)
+
+- Read `push_notifications` from config.json
+- If `false` or absent: skip silently
+- If `true`: call `PushNotification(message="Smoke test — push fallback is wired.", status="proactive")`
+  - Call accepted: **PASS** `PushNotification test dispatched (visible: desktop if daemon running, mobile if Remote Control paired)`
+  - Call errored or schema-rejected: **FAIL** `PushNotification test failed: <error>` — likely a model/schema bug, surface for inspection
+
 ### 8. Print report
 
 Output each check result as exactly one line:
