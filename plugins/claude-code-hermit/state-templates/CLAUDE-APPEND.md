@@ -55,18 +55,17 @@ Rules:
 
 When you need to notify the operator proactively:
 
-- If no channels are configured, respond in conversation.
-- If channels are configured, resolve the outbound target by running:
+- **If no channel is enabled** (channels block absent, `channels === {}`, or every channel-config entry has `enabled === false` — exclude the `primary` string pointer when iterating):
+  - If `push_notifications === true` in `config.json`, fire `PushNotification(message="<condensed one-line ≤200 chars, no markdown, actionable detail first>", status="proactive")`. Push is best-effort; do not retry on failure and do not log a `channel-send-unavailable` issue for this branch — the operator's empty-channels config is intentional.
+  - Respond in conversation either way (the conversation response is the durable record).
+- **If at least one channel is enabled**, resolve the outbound target by running:
   ```
   node ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.js .claude-code-hermit
   ```
   Parse stdout as JSON. A channel is eligible if `enabled !== false`, `allowed_users` is not `[]`, and `dm_channel_id` is set. Resolution order: `channels.primary` (if set and eligible), then the first eligible entry in `channels` (operator's config order — no hardcoded slug list, so newly added channel plugins are picked up automatically).
-  - **On success** (`"id"` and `"chat_id"` in result): call `mcp__plugin_<id>_<id>__reply` with `{ chat_id, text: <message> }`.
-  - **On miss** (non-zero exit or `{"error":"no_reachable_channel"}`): the DM channel ID is unknown. Log the unsent content to SHELL.md Findings and record a deduped `channel-send-unavailable` issue — do not use the user ID as a substitute (it will fail for Discord DMs).
-- If outbound send fails, or if there is no unambiguous outbound target:
-  - Log the unsent content to SHELL.md Findings
-  - Record a deduped `channel-send-unavailable` issue if appropriate
-  - Continue without retry spam
+  - **On success** (`"id"` and `"chat_id"` in result): call `mcp__plugin_<id>_<id>__reply` with `{ chat_id, text: <message> }`. If the reply call itself fails (token expired, plugin crashed, network blip) and `push_notifications === true`, fire `PushNotification(message="<...>", status="proactive")` as a last-resort signal, then log + dedup as below.
+  - **On miss** (non-zero exit or `{"error":"no_reachable_channel"}` — a channel is configured but unreachable: missing `dm_channel_id`, empty `allowed_users`, or `config_read_failed`): if `push_notifications === true`, fire `PushNotification(message="<...>", status="proactive")`. Then log the unsent content to SHELL.md Findings and record a deduped `channel-send-unavailable` issue regardless of push state — the configured channel is broken and the operator should see the signal. Do not use the user ID as a substitute (it will fail for Discord DMs).
+- If outbound send fails after a successful resolve (covered above): log + dedup; do not retry.
 
 ## Knowledge Discipline
 

@@ -23,6 +23,7 @@ Hermit uses proactive channel sends for heartbeat alerts, morning briefs, and id
 - **Verify the `reply` tool is available:** Channels must be started with `--channels` for the plugin's `reply` tool to be accessible. Check boot output.
 - **`channel-send-unavailable` alert:** If sends are failing, heartbeat records this as a deduped alert. Check SHELL.md Findings for the unsent message content.
 - **Always-on vs interactive:** In interactive mode, channel plugins may not be running. Proactive sends only work when Claude Code is launched with `--channels`.
+- **Channel unreachable or skipped?** Enable `push_notifications` in `config.json` (`true`) to receive a desktop notification (plus mobile push if Remote Control is connected) on proactive alerts. Fires when no channel is enabled (channels block absent, empty, or all entries `enabled: false`) OR when a configured channel is unreachable (missing `dm_channel_id`, empty `allowed_users`). Also fires as a last-resort signal if a successful resolve's reply call fails (e.g. token expired). In always-on Docker or headless tmux only the Remote Control mobile push will be visible. Push is one-way — operator→hermit replies (micro-proposals, session recovery prompts) still require a channel. Toggle via `/claude-code-hermit:hermit-settings push-notifications`.
 
 ---
 

@@ -42,6 +42,7 @@ DEFAULT_CONFIG = {
     'ask_budget': False,
     'always_on': False,
     'chrome': False,
+    'push_notifications': False,
     'idle_behavior': 'discover',
     'idle_budget': '$0.50',
     'routines': [
