@@ -1,5 +1,23 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **Default `permission_mode` is now `auto` (CC 2.1.148+).** `auto` mode lets a classifier review each action before it runs — safer than `bypassPermissions` and quieter than `acceptEdits`. It is now the default for both Docker and non-Docker hermits. `bypassPermissions` remains available as an explicit opt-in for operators who need zero prompts for fully unattended Docker operation. `config.json.template`, `hermit-start.py`, `hatch`, `hermit-settings`, and `hermit-evolve` all updated. **Requires Claude Code 2.1.148+** (Sonnet 4.6 or Opus 4.6/4.7 on Max/Team/Enterprise/API plan). Operators on Pro, Haiku, or non-Anthropic providers will see CC report `auto` unavailable at launch — switch via `/hermit-settings permissions`. `min_claude_code_version` bumped to `>=2.1.148` in `hermit-meta.json`.
+
+### Upgrade Instructions
+
+1. **Migrate `permission_mode` to `auto` (optional).** If `config.json` has `permission_mode` set to `acceptEdits` or `bypassPermissions`, ask the operator:
+
+   > Your hermit's `permission_mode` is currently `"<current_value>"`. The new default is `"auto"` — classifier-reviewed autonomy available on Sonnet 4.6 with Max/Team/Enterprise/API plans. Switch to `"auto"`? (y/N)
+
+   - If `y`: write `permission_mode: "auto"` directly to `.claude-code-hermit/config.json` now (do not defer to Step 9 — Step 9 never overwrites existing values).
+   - If `n`: leave `permission_mode` unchanged.
+   - If `permission_mode` is already `"auto"`, `"default"`, `"plan"`, or `"dontAsk"`: skip this prompt.
+
+   **Note for `bypassPermissions` operators:** `auto` pauses for confirmation on risky actions — it will not work for fully unattended hermits that cannot tolerate any pause. Only switch if your workload can handle occasional confirmation prompts, or if a human is present when the hermit runs.
+
 ## [1.1.1] - 2026-05-21
 
 ### Added
