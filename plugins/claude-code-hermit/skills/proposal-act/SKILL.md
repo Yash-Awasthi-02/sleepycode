@@ -92,11 +92,14 @@ When the operator accepts a proposal:
          Branch on the resolved tier:
 
          - **`budget`**: skip `/code-review` entirely. Proceed to (f). Resolution notification stays plain: "PROP-NNN implemented and resolved."
-         - **`quality`**: invoke `/code-review` directly. Pass the touched-files list as focus when enumerable:
+         - **`quality`**: invoke `/code-review` directly. Pass the touched-files list as focus when enumerable, otherwise invoke with no focus (it falls back to git diff):
            ```
            /code-review focus on PROP-NNN implementation: path/a, path/b
            ```
-           Otherwise invoke `/code-review` with no focus; it falls back to git diff. `/code-review` is read-only (since CC 2.1.146) and emits a JSON array of `{file, line, summary, failure_scenario}` findings. Parse it. For each finding, Edit-apply when the fix is unambiguous from `summary` + `failure_scenario` (e.g. off-by-one, missing null guard, `=` vs `==`); otherwise surface. When in doubt, surface. Track `M` (total), `N` (applied), `K = M − N`. On JSON parse failure, fall back to "surfaced (apply skipped — output not parseable)" — never block resolution.
+           `/code-review` is read-only (since CC 2.1.146) and emits a JSON array of `{file, line, summary, failure_scenario}` findings. Parse it, then for each finding:
+           - Edit-apply when the fix is unambiguous from `summary` + `failure_scenario` (e.g. off-by-one, missing null guard, `=` vs `==`); otherwise surface. When in doubt, surface.
+           - Track `M` (total), `N` (applied), `K = M − N`.
+           - On JSON parse failure, fall back to "surfaced (apply skipped — output not parseable)" — never block resolution.
 
            Resolution notification: "PROP-NNN implemented and resolved. /code-review applied N/M findings (K surfaced)." When `M == 0`: "… /code-review surfaced 0 findings."
          - **`balanced`**: delegate to `claude-code-hermit:quality-gate-judge` with:
@@ -105,7 +108,7 @@ When the operator accepts a proposal:
            Touched-Files: <space-separated relative paths>   (omit this line if not reliably enumerable)
            ```
            Parse line-1 verdict:
-           - `RUN: <reason>` → invoke `/code-review` with the touched-files focus (or no focus if omitted), classify and Edit-apply per the `quality` tier above. Notification: "PROP-NNN implemented and resolved. Judge: <reason>. /code-review applied N/M findings."
+           - `RUN: <reason>` → invoke `/code-review` with the touched-files focus (or no focus if omitted), classify and Edit-apply per the `quality` tier above. Notification: "PROP-NNN implemented and resolved. Judge: <reason>. /code-review applied N/M findings (K surfaced)." Drop the `(K surfaced)` suffix when `K == 0`; on `M == 0` use "/code-review surfaced 0 findings."
            - `SKIP: <reason>` → skip `/code-review`. Notification: "PROP-NNN implemented and resolved. Judge skipped /code-review: <reason>."
 
          **No post-apply test gate fires before step f resolves** — the operator authorized the accept; broken applies ship unless the operator runs `/claude-code-dev-hermit:dev-quality` afterwards.
