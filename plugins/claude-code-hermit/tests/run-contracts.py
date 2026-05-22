@@ -899,6 +899,49 @@ class TestMonitorsValidation(unittest.TestCase):
         self.assertTrue(cmd_err, f'expected missing command error, got {out}')
 
 
+class TestPushNotificationsValidation(unittest.TestCase):
+    """validate-config.js push_notifications field — type check."""
+
+    BASE_CONFIG = {
+        "agent_name": None, "language": None, "timezone": None,
+        "escalation": "balanced", "channels": {}, "env": {},
+        "heartbeat": {"enabled": True, "active_hours": {"start": "08:00", "end": "23:00"}},
+        "routines": [],
+        "quality_gate": {"tier": "budget"},
+    }
+
+    def _run_validate(self, config_dict):
+        """Call validate-config.js validate() via node -e; return {errors, warnings}."""
+        config_json = json.dumps({**self.BASE_CONFIG, **config_dict})
+        js = f"""
+        const v = require('{SCRIPTS}/validate-config.js');
+        const result = v.validate({config_json});
+        process.stdout.write(JSON.stringify(result));
+        """
+        result = subprocess.run(
+            ['node', '-e', js], capture_output=True, text=True, timeout=5,
+        )
+        self.assertEqual(result.returncode, 0, f'node exited non-zero: {result.stderr}')
+        return json.loads(result.stdout)
+
+    def test_push_notifications_accepts_boolean(self):
+        """push_notifications: true and false are both valid."""
+        for val in [True, False]:
+            out = self._run_validate({"push_notifications": val})
+            self.assertFalse(
+                any('push_notifications' in e for e in out['errors']),
+                f'unexpected error for push_notifications={val}: {out}',
+            )
+
+    def test_push_notifications_rejects_non_boolean(self):
+        """push_notifications must be a boolean — strings are rejected."""
+        out = self._run_validate({"push_notifications": "yes"})
+        self.assertTrue(
+            any('push_notifications' in e for e in out['errors']),
+            f'expected error for non-boolean push_notifications, got {out}',
+        )
+
+
 class TestProposalIdScheme(unittest.TestCase):
     """Contract tests for PROP-008 collision-safe proposal IDs.
 

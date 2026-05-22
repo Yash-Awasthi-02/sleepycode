@@ -31,6 +31,7 @@ View or modify the hermit configuration for this project.
 /claude-code-hermit:hermit-settings scheduled-checks    — manage scheduled plugin skill checks
 /claude-code-hermit:hermit-settings boot-skill       — view/clear/change the always-on boot skill
 /claude-code-hermit:hermit-settings quality-gate     — set post-implementation /code-review gate tier (budget|balanced|quality)
+/claude-code-hermit:hermit-settings push-notifications — toggle PushNotification fallback when no channel is configured
 ```
 
 ## Plan
@@ -66,6 +67,7 @@ Operational:
   Routines:        2 configured   → run: /claude-code-hermit:hermit-settings routines
   Quality gate:    budget         → budget | balanced | quality
   Permission mode: auto           → default | acceptEdits | auto | plan | dontAsk | bypassPermissions
+  Push notifications: disabled    → on | off
   Auto session:    enabled        → read-only
   Boot skill:      /claude-code-hermit:session  → any namespaced skill | 'none' to reset to default
   tmux name:       hermit-myproject → read-only
@@ -357,6 +359,13 @@ Options:
 Write the chosen value to `quality_gate.tier` in config.json. If the `quality_gate` object is missing, create it as `{ "tier": "<chosen>" }`. If a legacy `enabled` key is present, leave it in place (skill behavior reads `tier` only; legacy `enabled` is ignored).
 
 Note: if you have `claude-code-dev-hermit:dev-quality` installed and you commit autonomous-implementation diffs through it, consider **Budget** — `/dev-quality` already runs `/code-review` before commit, and any non-Budget tier here would double-fire `/code-review` (~$0.40-$0.70 of duplicated spend per committed implementation).
+
+**If argument is "push-notifications":**
+Ask: "Send a PushNotification (desktop notification in your terminal app, plus mobile push if Remote Control is connected) on proactive alerts when no channel is configured?
+  on  — enable push fallback
+  off — disable push fallback
+[current: <value>]"
+Update `push_notifications` in config.json (`true` for on, `false` for off).
 
 ### 3. Write config
 

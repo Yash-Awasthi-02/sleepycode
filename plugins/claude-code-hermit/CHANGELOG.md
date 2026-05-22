@@ -19,6 +19,9 @@
    **Note for `bypassPermissions` operators:** `auto` pauses for confirmation on risky actions, so it will not work for fully unattended hermits that cannot tolerate any pause. Only switch if your workload can handle occasional confirmation prompts, or if a human is present when the hermit runs.
 
    **Note for Pro, Haiku, or non-Anthropic-provider operators:** `auto` mode is not available on your plan/model/provider. CC will report it as unavailable at launch and the hermit will not enter `auto`. Answer `n` here and keep your current mode, or pick another mode via `/hermit-settings permissions` after upgrade.
+### Added
+
+- **`push_notifications` opt-in for channel-less setups (GH #106).** New top-level boolean config key (`false` by default). When `true` and no channel is enabled (channels block absent, empty, or every entry has `enabled: false`), the Operator Notification protocol fires `PushNotification` (desktop notification, plus mobile push if Remote Control is connected) alongside the in-conversation response. Closes the silent-failure gap for operators who deliberately skip channel setup. Enable during `/hatch` (prompted when "None" is chosen for channels), or later via `/hermit-settings push-notifications`. Existing installs: `hermit-evolve` silently merges the key at default `false` — no behavior change until opt-in. Validator (`validate-config.js`) and config-validator subagent updated. Docs: `config-reference.md`, `skills.md`, `troubleshooting.md`.
 
 ## [1.1.1] - 2026-05-21
 

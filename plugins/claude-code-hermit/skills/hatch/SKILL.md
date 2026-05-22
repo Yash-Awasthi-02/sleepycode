@@ -287,7 +287,10 @@ questions: [
 ]
 ```
 
-- **If None:** record `channels: {}`. **Stop — proceed directly to Phase 6. Do not ask channel follow-ups.**
+- **If None:** record `channels: {}`. Ask one follow-up before proceeding to Phase 6:
+  > "Send a PushNotification on proactive alerts (desktop notification in your terminal app, plus mobile push if Remote Control is connected)? (yes / no) [no]"
+
+  Set `push_notifications: true` on yes; leave at default `false` on no. Then proceed to Phase 6. Do not ask channel follow-ups.
 - **If Discord or Telegram:** create a channel entry under the `channels` object (e.g., `channels.discord`). Boot script maps the key to the full plugin identifier. Then ask follow-ups below.
 - Channel plugins require Bun and manual setup (bot creation, token, pairing). After saving the preference to `config.json`, note:
 
@@ -397,7 +400,7 @@ For routines — if Yes: use the config defaults (`active_hours.start = 08:00`, 
 5. **Overlay operator choices** from the wizard:
    - From Phase 2: `agent_name`, `language`, `timezone`, `sign_off`.
    - From Phase 3: `escalation`, `remote`, `ask_budget`, `idle_behavior`.
-   - From Phase 5: `channels.<name>` populated per Phase 5 rules (state_dir, allowed_users, morning_brief).
+   - From Phase 5: `channels.<name>` populated per Phase 5 rules (state_dir, allowed_users, morning_brief). When "None" was chosen, set `push_notifications` from the opt-in follow-up; otherwise leave at default `false`.
    - From Phase 6: `permission_mode`; append routines (morning, evening) if enabled — heartbeat-restart is already in the template.
    - From Phase 4: append `scheduled_checks` entries per the per-plugin mapping in Phase 4 (only `claude-code-setup` and `claude-md-management` contribute — 3 entries total when both selected; `skill-creator` and `feature-dev` add zero entries).
 6. **Write merged object** as `.claude-code-hermit/config.json`.
@@ -803,6 +806,11 @@ questions: [
 
 Record `sign_off`, `deployment` (one of `docker` / `tmux` / `interactive`), `channel` (one of `none` / `discord` / `telegram`).
 
+**If `channel == none`**, ask one follow-up before the confirm bundle:
+> "Send a PushNotification on proactive alerts (desktop notification in your terminal app, plus mobile push if Remote Control is connected)? (yes / no) [no]"
+
+Record `push_notifications: true` on yes, `false` on no. If `channel` is Discord or Telegram, skip this question and leave `push_notifications` at `false`.
+
 **Derived values from this turn (used in the confirm bundle and Step 5 overlay):**
 - `permission_mode`: `auto` (same default for both Docker and non-Docker deployments). Requires CC 2.1.148+ and Max/Team/Enterprise/API plan — not on Pro or Haiku. If the operator is on an ineligible plan, they'll see an "unavailable" error at launch and should run `/hermit-settings permissions` to switch to `acceptEdits`.
 - Deny pattern profile: Docker → hardened (default + always_on), else → minimal (default only). Applied at Step 9 silently.
@@ -826,6 +834,7 @@ Quick setup will apply:
   Plugins:     all 4 installed
   Routines:    morning 08:30, evening 22:30, heartbeat 04:00
   Channel:     {channel or None} (allow-everyone; token + pairing later)
+  Push Notifications: {enabled | disabled}
   Hermit ext:  {activated or none}
   Visibility:  {.local — plugin installed at <scope> scope | committed — plugin installed at project scope}
   Files:       {CLAUDE.local.md | CLAUDE.md}, .gitignore, {.claude/settings.local.json | .claude/settings.json}
@@ -834,7 +843,7 @@ Quick setup will apply:
 Customize restarts the wizard from scratch; your Quick answers won't carry over.
 ```
 
-The `Visibility:` and `Files:` lines are dynamic based on `hatch_target`.
+The `Visibility:` and `Files:` lines are dynamic based on `hatch_target`. Omit the `Push Notifications:` line entirely when Channel is not None.
 
 Ask:
 

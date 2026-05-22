@@ -55,8 +55,10 @@ Rules:
 
 When you need to notify the operator proactively:
 
-- If no channels are configured, respond in conversation.
-- If channels are configured, resolve the outbound target by running:
+- **If no channel is enabled** (channels block absent, `channels === {}`, or every channel-config entry has `enabled === false` — exclude the `primary` string pointer when iterating):
+  - If `push_notifications === true` in `config.json`, call `PushNotification` with a condensed one-line message (≤200 chars, no markdown, lead with the actionable detail).
+  - Respond in conversation either way (push is best-effort; conversation response is the durable record).
+- **If at least one channel is enabled**, resolve the outbound target by running:
   ```
   node ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.js .claude-code-hermit
   ```

@@ -23,6 +23,7 @@ Hermit uses proactive channel sends for heartbeat alerts, morning briefs, and id
 - **Verify the `reply` tool is available:** Channels must be started with `--channels` for the plugin's `reply` tool to be accessible. Check boot output.
 - **`channel-send-unavailable` alert:** If sends are failing, heartbeat records this as a deduped alert. Check SHELL.md Findings for the unsent message content.
 - **Always-on vs interactive:** In interactive mode, channel plugins may not be running. Proactive sends only work when Claude Code is launched with `--channels`.
+- **No channel configured?** If you deliberately skip channel setup, enable `push_notifications` in `config.json` (`true`) to receive a desktop notification (plus mobile push if Remote Control is connected) for proactive alerts. Toggle via `/claude-code-hermit:hermit-settings push-notifications`.
 
 ---
 

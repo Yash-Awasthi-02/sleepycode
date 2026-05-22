@@ -233,6 +233,10 @@ function validate(config) {
     });
   }
 
+  if (config.push_notifications !== undefined && typeof config.push_notifications !== 'boolean') {
+    errors.push('push_notifications: must be a boolean');
+  }
+
   return { errors, warnings };
 }
 

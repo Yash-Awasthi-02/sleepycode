@@ -60,7 +60,7 @@ Do NOT invoke `proposal-triage` directly in this skill — `/proposal-create` al
 
 ## 4. Emit batch message
 
-Send one message following the Operator Notification protocol in CLAUDE.md (DM channel ID from config, send-failure logging, `channel-send-unavailable` dedup):
+Send one message following the Operator Notification protocol in CLAUDE.md (check `push_notifications` when no channel is enabled, else resolve outbound channel; send-failure logging, `channel-send-unavailable` dedup):
 
 ```
 🧠 Capability brainstorm (<N> idea(s))
