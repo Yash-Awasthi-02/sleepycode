@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.1.3] - 2026-05-23
+
+### Fixed
+
+- **docker-setup: Screen 2 acknowledgement now covers `auto` mode** — guided-path attach instructions and the manual deployment guide both walk operators through the "Enable auto mode?" first-launch gate (press `1` + Enter to persist in the named volume). Previously only `bypassPermissions` had Screen 2 guidance; `auto`-mode Docker hermits saw a frozen-looking REPL with no instructions.
+
+### Changed
+
+- **v1.1.2 auto-migration upgrade step retracted** — the prompt that asked operators to switch `permission_mode` from `acceptEdits`/`bypassPermissions` to `auto` is gone. Reason: CC's interactive "Enable auto mode?" first-launch gate blocks headless boot, breaking Docker hermits mid-upgrade with no operator attached. The retraction was already applied to v1.1.2's CHANGELOG; called out here for visibility. `auto` remains a selectable mode via `/hermit-settings permissions` — operators opt in when they can attend the first-run acknowledgement.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/docker-setup/SKILL.md` | Screen 2 paragraph + manual deployment guide cover both `bypassPermissions` and `auto` |
+| `CHANGELOG.md` | new 1.1.3 entry |
+| `.claude-plugin/plugin.json` | version 1.1.2 → 1.1.3 |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Refresh docker-setup skill text.** No operator action — the updated skill ships with the plugin update.
+
+**Note:** if your Docker hermit was migrated to `permission_mode: auto` by the v1.1.2 evolve step and now hangs on container boot, edit `.claude-code-hermit/config.json` to set `permission_mode: "bypassPermissions"` (or your pre-1.1.2 value), then run `.claude-code-hermit/bin/hermit-docker down && .claude-code-hermit/bin/hermit-docker up`.
+
+No config.json changes required.
+
 ## [1.1.2] - 2026-05-23
 
 ### Added

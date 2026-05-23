@@ -381,7 +381,9 @@ Manual deployment guide
    .claude-code-hermit/bin/hermit-docker attach
 
    Screen 1 — Workspace trust: press Enter to accept.
-   Screen 2 — Bypass Permissions (only appears when permission_mode is bypassPermissions; skip if using auto or any other mode).
+   Screen 2 — Permission mode acknowledgement (appears for bypassPermissions AND auto; skip for acceptEdits/default/dontAsk):
+     - bypassPermissions: arrow keys → "Yes, I accept" → Enter.
+     - auto: "Enable auto mode?" → press 1 then Enter (persists in the named volume).
 
 4. (Channels only) Pair each bot — DM it to get a 6-char code, then run
    (send text and Enter as two separate calls with a 0.5s pause — one-shot
@@ -431,13 +433,15 @@ Once the session exists, tell the operator:
 > ```
 > **Screen 1 — Workspace trust** (always): You'll see "Accessing workspace … Quick safety check: Is this a project you created or one you trust?" — press **Enter** to accept.
 >
-> **Screen 2 — Bypass Permissions mode** (only if `permission_mode: bypassPermissions`): You'll then see the `--dangerously-skip-permissions` acknowledgement. Use the **arrow keys** to select **"Yes, I accept"**, then press **Enter**.
+> **Screen 2 — Permission mode acknowledgement** (only if `permission_mode` is `bypassPermissions` OR `auto`):
+> - If `bypassPermissions`: you'll see the `--dangerously-skip-permissions` acknowledgement. Use the **arrow keys** to select **"Yes, I accept"**, then press **Enter**.
+> - If `auto`: you'll see "Enable auto mode?" with three options. Press **1** then **Enter** ("Yes, and make it my default mode") so the acknowledgement persists in the named volume and won't re-prompt on future restarts.
 >
 > After accepting, you'll see a **blank claude prompt** — that's expected during setup. The skill will send pair commands from here; don't type `/session` yourself.
 >
 > Then press **Ctrl+B, D** to detach.
 
-Read `config.permission_mode` from `.claude-code-hermit/config.json`. If it is NOT `bypassPermissions`, omit the "Screen 2" paragraph entirely.
+Read `config.permission_mode` from `.claude-code-hermit/config.json`. If it is NOT `bypassPermissions` AND NOT `auto`, omit the "Screen 2" paragraph entirely. Otherwise emit it, and inside the paragraph keep only the branch matching the resolved mode (drop the other bullet).
 
 Wait for the operator to confirm they have detached before continuing.
 
