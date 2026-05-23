@@ -2,9 +2,22 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **heartbeat: CronCreate → CC Monitor** — OK/SKIP ticks no longer wake the LLM. Trade-off: EVALUATE notifications now interrupt mid-task (Monitor semantics) instead of deferring until idle (CronCreate semantics). Bounded by precheck suppression.
+
+### Removed
+
+- **heartbeat.show_ok: deprecated** — OK ticks are silent by design; use `/heartbeat status` for liveness.
+
 ### Fixed
 
 - **heartbeat: schedule via `CronCreate` instead of `/loop`** — Claude Code 2.1.150's new "Cloud schedule" prompt inside `/loop` was blocking always-on bootstrap.
+
+### Upgrade Instructions
+
+1. Run `/claude-code-hermit:heartbeat start` — sweeps the prior CronCreate entry and registers the new Monitor in one shot. Otherwise the legacy cron keeps firing alongside the new Monitor until its 7-day expiry.
+2. If upgrade is delayed, the daily `heartbeat-restart` routine will eventually re-register, but the legacy cron continues until its expiry — manual `start` is preferred.
 
 ## [1.1.3] - 2026-05-23
 
