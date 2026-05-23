@@ -19,5 +19,6 @@ bash "$SCRIPT_DIR/test-archive-shell.sh"             || rc=$?
 bash "$SCRIPT_DIR/test-hook-registration-form.sh"          || rc=$?
 bash "$SCRIPT_DIR/test-channel-responder-reply-rule.sh"    || rc=$?
 bash "$SCRIPT_DIR/test-proposal-act-accept-flow.sh"        || rc=$?
+bash "$SCRIPT_DIR/test-simplify-totals-contract.sh"        || rc=$?
 bash "$SCRIPT_DIR/test-auto-close.sh"                      || rc=$?
 exit $rc

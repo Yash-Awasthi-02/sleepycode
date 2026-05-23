@@ -1,16 +1,16 @@
 ---
 name: dev-quality
-description: Pre-wrap quality gate. Runs /code-review on the working-tree diff, re-runs commands.test, and reports results. Suggests /code-review:code-review when installed. Run this before committing.
+description: Pre-wrap quality gate. Runs /claude-code-hermit:simplify for a cleanup pass on the working-tree diff (including untracked files), re-runs commands.test, and reports results. Suggests /code-review:code-review when installed. Run this before committing.
 ---
 
 # /dev-quality
 
-Run a quality pass on the working-tree diff before declaring the task done. Invokes `/code-review`, re-runs the configured test command, and reports the outcome. Call this at task wrap-up, before committing.
+Run a cleanup pass on the working-tree changes before declaring the task done. Invokes `/claude-code-hermit:simplify` — three parallel reviewers (reuse, quality, efficiency) propose edits; the skill applies the edits it picks (per its Principles) and reports totals. Then re-runs the configured test command. Call this at task wrap-up, before committing.
 
 ## Prerequisites
 
 - Verify `.claude-code-hermit/sessions/` exists. If not: tell the operator to run `/claude-code-hermit:hatch` and `/claude-code-dev-hermit:hatch` first.
-- Read `commands.test` from `.claude-code-hermit/config.json`. If unset, the test step is skipped — `/code-review` still runs.
+- Read `commands.test` from `.claude-code-hermit/config.json`. If unset, the test step is skipped — `/claude-code-hermit:simplify` still runs.
 
 ## Plan
 
@@ -23,10 +23,12 @@ In the gates below, use `git -C "<path>"` for every git invocation when `--cwd` 
 ### Gate 0 — preconditions
 
 ```bash
-git -C "$TARGET" diff --quiet && git -C "$TARGET" diff --cached --quiet
+git -C "$TARGET" status --porcelain
 ```
 
-If both are empty: working tree is clean. Before failing, check whether HEAD has commits ahead of the base:
+Empty output → working tree is clean (no modified, staged, or untracked-but-not-ignored files). Any non-empty output passes Gate 0, including untracked-only changes — `/claude-code-hermit:simplify` captures new files via `git status --short` + synthetic `+++` blocks, so a task that only adds files still has cleanup scope.
+
+Before failing on empty output, check whether HEAD has commits ahead of the base:
 
 1. Resolve `BASE_NAME` using the same priority order as `/dev-pr` Gate 0 step 4 (`pr_base_branch` → first non-glob `protected_branches` → `origin/HEAD` → `main`/`master`).
 2. Resolve `BASE_REF`: try `git -C "$TARGET" rev-parse --verify "$BASE_NAME" 2>/dev/null`; on failure try `git -C "$TARGET" rev-parse --verify "origin/$BASE_NAME" 2>/dev/null`; if neither resolves, skip the NOTICE.
@@ -34,18 +36,26 @@ If both are empty: working tree is clean. Before failing, check whether HEAD has
 
    ```
    NOTICE: working tree is clean but HEAD has N commits ahead of <BASE_NAME>.
-           /dev-quality is designed to run BEFORE commit (so /code-review can edit the diff).
+           /dev-quality is designed to run BEFORE commit (so cleanup edits can be applied to the working tree before they're locked into a commit).
            Correct order: /dev-quality → commit → /dev-pr.
            To verify the committed state passes tests, run /dev-test instead.
    ```
 
-Then FAIL `"no working-tree diff — nothing to code-review"`. Append the hint `hint: if edits are in a nested git repo, re-run with --cwd <path>` unless `--cwd` was already passed.
+Then FAIL `"no working-tree changes — nothing to clean up"`. Append the hint `hint: if edits are in a nested git repo, re-run with --cwd <path>` unless `--cwd` was already passed.
 
-### Gate 1 — run `/code-review`
+### Gate 1 — run `/claude-code-hermit:simplify`
 
-Invoke `/code-review` on the current diff. Wait for it to complete. If `/code-review` reports no changes, note `code-review: no changes` and continue to Gate 2 anyway.
+Invoke `/claude-code-hermit:simplify` on the current working tree. Wait for it to complete.
 
-When `--cwd <path>` is set, scope `/code-review` to files under `<path>` — list them via `git -C "<path>" diff --name-only` and pass that file set as the focus. Don't review files outside `<path>`.
+When `--cwd <path>` is set, scope the cleanup pass to files under `<path>` — list them via `git -C "<path>" status --porcelain` (covers tracked changes + untracked) and pass that file set as the focus. Don't review files outside `<path>`.
+
+`/claude-code-hermit:simplify` applies its own edits (parallel review, sequential apply with conflict resolution per the skill's Principles) and ends with a totals line:
+
+```
+Totals: applied N · deduped M · principle-rejected K · stale-anchor skips L · parse failures P
+```
+
+Capture the content after the `Totals:` label and pass through to Gate 3 as the `simplify:` field value. If the totals line is missing or unparseable, record `simplify: completed (totals unavailable)` and continue to Gate 2. Never block on totals ambiguity.
 
 ### Gate 2 — re-run tests
 
@@ -73,14 +83,16 @@ Do **not** invoke `/code-review:code-review` autonomously — operator decision 
 
 **Tests fail:**
 
-Read `state/last-test.json` and include `likely_cause` in the failure message if present. FAIL with `"tests regressed after /code-review (exit <N>[, likely OOM|timeout|user-interrupt]) — investigate before committing"` and the last 20 lines of stderr. Leave the working tree as-is (post-`/code-review` state) — the agent or operator decides whether to fix forward or revert the `/code-review` pass manually (`git checkout -- <files>`).
+Read `state/last-test.json` and include `likely_cause` in the failure message if present. FAIL with `"tests regressed after applied edits (exit <N>[, likely OOM|timeout|user-interrupt]) — investigate before committing"` and the last 20 lines of stderr. Leave the working tree as-is (post-apply state) — the agent or operator decides whether to fix forward or revert the applied edits manually (`git checkout -- <files>`).
 
 ## Output
+
+`simplify:` is the totals line emitted by `/claude-code-hermit:simplify`, copied verbatim: `applied N · deduped M · principle-rejected K · stale-anchor skips L · parse failures P`. On totals-missing: `completed (totals unavailable)` (see Gate 1 fallback). No `unapplied:` block — `/claude-code-hermit:simplify` reports its own "Noticed but not applied" section inline before the totals line.
 
 ```
 dev-quality
   diff:        12 files modified
-  code-review: applied
+  simplify:    applied 4 · deduped 1 · principle-rejected 2 · stale-anchor skips 0 · parse failures 0
   tests:       pass (12.3s)
   next:        suggest operator run /code-review:code-review (installed)
   status:      ok
@@ -92,7 +104,7 @@ When invoked with `--cwd <path>`, prepend a `target:` line:
 dev-quality
   target:      packages/foo
   diff:        3 files modified
-  code-review: applied
+  simplify:    applied 1 · deduped 0 · principle-rejected 0 · stale-anchor skips 0 · parse failures 0
   tests:       pass (4.1s)
   status:      ok
 ```
@@ -102,9 +114,9 @@ On Gate 3 failure:
 ```
 dev-quality
   diff:        12 files modified
-  code-review: applied
+  simplify:    applied 2 · deduped 0 · principle-rejected 1 · stale-anchor skips 0 · parse failures 0
   tests:       FAIL (exit 137, likely OOM, 8.7s)
-  recovery:    investigate the regression; fix forward or `git checkout -- <files>` to revert the `/code-review` pass
+  recovery:    investigate the regression; fix forward or `git checkout -- <files>` to revert the applied edits
   status:      tests-regressed
 ```
 
@@ -113,7 +125,7 @@ When `commands.test` is unset:
 ```
 dev-quality
   diff:        12 files modified
-  code-review: applied
+  simplify:    applied 1 · deduped 0 · principle-rejected 0 · stale-anchor skips 0 · parse failures 0
   tests:       skipped (commands.test not configured)
   status:      ok
 ```
@@ -123,17 +135,17 @@ On Gate 0 failure (clean tree, commits ahead):
 ```
 dev-quality
   NOTICE: working tree is clean but HEAD has 3 commits ahead of main.
-          /dev-quality is designed to run BEFORE commit (so /code-review can edit the diff).
+          /dev-quality is designed to run BEFORE commit (so cleanup edits can be applied to the working tree before they're locked into a commit).
           Correct order: /dev-quality → commit → /dev-pr.
           To verify the committed state passes tests, run /dev-test instead.
-  FAIL (Gate 0): no working-tree diff — nothing to code-review
+  FAIL (Gate 0): no working-tree changes — nothing to clean up
 ```
 
 On Gate 0 failure (clean tree, no commits ahead or base unresolvable):
 
 ```
 dev-quality
-  FAIL (Gate 0): no working-tree diff — nothing to code-review
+  FAIL (Gate 0): no working-tree changes — nothing to clean up
                  hint: if edits are in a nested git repo, re-run with --cwd <path>
 ```
 

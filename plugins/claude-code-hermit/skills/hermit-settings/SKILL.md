@@ -30,7 +30,7 @@ View or modify the hermit configuration for this project.
 /claude-code-hermit:hermit-settings docker           — view/edit Docker packages
 /claude-code-hermit:hermit-settings scheduled-checks    — manage scheduled plugin skill checks
 /claude-code-hermit:hermit-settings boot-skill       — view/clear/change the always-on boot skill
-/claude-code-hermit:hermit-settings quality-gate     — set post-implementation /code-review gate tier (budget|balanced|quality)
+/claude-code-hermit:hermit-settings quality-gate     — set post-implementation /claude-code-hermit:simplify gate tier (budget|balanced|quality)
 /claude-code-hermit:hermit-settings push-notifications — toggle PushNotification fallback (fires when no channel is enabled or a configured channel is unreachable)
 ```
 
@@ -349,16 +349,16 @@ Update `permission_mode` in config.json.
 **If argument is "quality-gate":**
 Ask the operator via `AskUserQuestion` to pick a tier. Show the current value in brackets if `quality_gate.tier` is set.
 
-Prompt: *"Quality-gate tier for accepted-proposal auto-implementations. Controls whether `/code-review` runs at step (e.5) of `/proposal-act`."*
+Prompt: *"Quality-gate tier for accepted-proposal auto-implementations. Controls whether `/claude-code-hermit:simplify` (cleanup pass) runs at step (e.5) of `/proposal-act`."*
 
 Options:
-- **Budget** (default; recommended): `/code-review` never runs. Cheapest. No post-implementation review.
-- **Balanced**: delegate the decision to the `quality-gate-judge` haiku subagent on each implementation; judge reads the proposal + touched files and decides `RUN` or `SKIP`. Costs ~$0.005 per judge call plus an occasional ~$0.25 `/code-review` run when the judge says RUN.
-- **Quality**: `/code-review` runs on every implementation, no judgment. ~$0.25-$0.35 per implementation in Sonnet pricing.
+- **Budget** (default; recommended): `/claude-code-hermit:simplify` never runs. Cheapest. No post-implementation cleanup.
+- **Balanced**: delegate the decision to the `quality-gate-judge` haiku subagent on each implementation; judge reads the proposal + touched files and decides `RUN` or `SKIP`. Costs ~$0.005 per judge call plus an occasional ~$0.25 `/claude-code-hermit:simplify` run when the judge says RUN.
+- **Quality**: `/claude-code-hermit:simplify` runs on every implementation, no judgment. ~$0.25-$0.35 per implementation in Sonnet pricing.
 
 Write the chosen value to `quality_gate.tier` in config.json. If the `quality_gate` object is missing, create it as `{ "tier": "<chosen>" }`. If a legacy `enabled` key is present, leave it in place (skill behavior reads `tier` only; legacy `enabled` is ignored).
 
-Note: if you have `claude-code-dev-hermit:dev-quality` installed and you commit autonomous-implementation diffs through it, consider **Budget** — `/dev-quality` already runs `/code-review` before commit, and any non-Budget tier here would double-fire `/code-review` (~$0.40-$0.70 of duplicated spend per committed implementation).
+Note: if you have `claude-code-dev-hermit:dev-quality` installed and you commit autonomous-implementation diffs through it, consider **Budget** — `/dev-quality` already runs `/claude-code-hermit:simplify` before commit, and any non-Budget tier here would double-fire the cleanup pass (~$0.40-$0.70 of duplicated spend per committed implementation).
 
 **If argument is "push-notifications":**
 Ask: "Send a PushNotification (desktop notification in your terminal app, plus mobile push if Remote Control is connected) on proactive alerts? Fires when no channel is enabled OR a configured channel is unreachable (missing pairing, empty allowed_users, all-disabled). In always-on Docker or headless tmux only the Remote Control mobile push will be visible. Note: push is one-way; operator-→hermit replies (micro-proposals, session recovery) require a channel.

@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **`/dev-quality` Gate 1 swaps to `/claude-code-hermit:simplify`.** Requires core v1.1.2+ (see `hermit-meta.json` bump). Drops the JSON parser and apply/surface classifier — the skill applies its own edits (parallel review, sequential apply with conflict resolution per its Principles) and reports a totals line. Reframes from correctness (bug-finding via JSON output) to cleanup (refactor proposals). Gate 0 precondition extended to accept untracked-only working trees (previously `git -C "$TARGET" diff --quiet && git -C "$TARGET" diff --cached --quiet` ignored untracked files, so a task that only added new files would fail "nothing to clean up"; now uses `git -C "$TARGET" status --porcelain` — empty output → fail, any output passes, matching `/simplify`'s Phase 1 capture of untracked files). Output spec swaps `code-review: N/M findings applied (K surfaced)` for `simplify: applied N · deduped M · principle-rejected K · stale-anchor skips L · parse failures P`; drops the `unapplied:` block (the skill reports its own "Noticed but not applied" section inline). NOTICE and recovery hint rewritten ("nothing to clean up", "revert the applied edits"). State-templates (`CLAUDE-APPEND.md`, `CLAUDE-APPEND-SAFETY.md`) and docs (`README.md`, `CONTRIBUTING.md`, `WORKFLOW.md`, `HOW-TO-USE.md`) realigned to the new wrapped skill. The marketplace `code-review:code-review` plugin remains the deeper bug-finding option `/dev-quality` suggests when installed.
+
+### Upgrade Instructions
+
+1. **Refresh the CLAUDE-APPEND block.** Re-run `/claude-code-dev-hermit:hatch` in each target project (or `/claude-code-hermit:hermit-evolve` which sibling-syncs all hermit plugin blocks). The injected `§Implementation Flow`, `§Tests Before PR`, `§Technical Constraints`, and `§Dev Quick Reference` sections previously named `/code-review` as the wrapped skill; the canonical template now names `/claude-code-hermit:simplify`.
+
+2. **Bump core hermit alongside this release.** Existing dev-hermit installs do not auto-update their core dependency on `/plugin update`. Operators on dev-hermit 0.3.10+ must also run `/plugin update claude-code-hermit` to land core 1.1.2+ which ships `/claude-code-hermit:simplify`. Without the core bump, `/dev-quality` Gate 1 will fail at the simplify invocation.
+
 ## [0.3.9] - 2026-05-21
 
 ### Fixed
