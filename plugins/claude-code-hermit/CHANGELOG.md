@@ -9,6 +9,9 @@
 ### Upgrade Instructions
 
 1. If `push_notifications` is absent from `config.json`, set it to `true` and notify the operator: "`push_notifications` now defaults to `true` — you'll get a desktop/Remote Control push when no channel is enabled or a configured channel is unreachable. Run `/hermit-settings push-notifications off` to disable." If the key is already present, leave it untouched.
+### Fixed
+
+- **heartbeat: schedule via `CronCreate` instead of `/loop`** — Claude Code 2.1.150's new "Cloud schedule" prompt inside `/loop` was blocking always-on bootstrap.
 
 ## [1.1.3] - 2026-05-23
 
