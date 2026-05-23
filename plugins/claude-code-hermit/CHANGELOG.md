@@ -1,42 +1,41 @@
 # Changelog
 
-## [Unreleased]
+## [1.1.4] - 2026-05-23
 
 ### Changed
 
-- **heartbeat: CronCreate → CC Monitor** — OK/SKIP ticks no longer wake the LLM. Trade-off: EVALUATE notifications now interrupt mid-task (Monitor semantics) instead of deferring until idle (CronCreate semantics). Bounded by precheck suppression.
+- **heartbeat: migrated to CC Monitor** — OK/SKIP ticks no longer wake the LLM; bypasses the `/loop` cloud-schedule prompt (CC 2.1.150). EVALUATE interrupts mid-task instead of deferring to idle. `heartbeat.show_ok` removed; use `/heartbeat status` for liveness.
+- **env defaults: `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` 50 → 65** — auto-compact was firing well before the quality-degradation zone (~73%).
+- **env defaults: `COMPACT_THRESHOLD` 50 → 75** — tool-call-based nudge was firing mid-session for any non-trivial work.
+- **hatch: `push_notifications` now defaults to `true`** — derived from channel choice (no channel → on, channel → off). Toggle via `/hermit-settings push-notifications`.
 
-### Removed
-
-- **heartbeat.show_ok: deprecated** — OK ticks are silent by design; use `/heartbeat status` for liveness.
-
-- **env defaults: `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` bumped 50 → 65** — auto-compact was firing well before the quality-degradation zone (~73%); 65 reduces premature context loss while staying conservative.
-- **env defaults: `COMPACT_THRESHOLD` bumped 50 → 75** — the tool-call-based nudge was firing mid-session for any non-trivial work; 75 quiets the fallback path while `context_usage > 60%` continues to drive real nudges in `suggest-compact.js`.
-- **docs: `COMPACT_THRESHOLD` description corrected to tool-call-count fallback** — config-reference previously called it a "context % threshold," which contradicted `suggest-compact.js`. Now matches the code: tool-call counter consulted only when `context_usage` is unavailable.
-
-### Upgrade Instructions
-
-1. Read `.claude-code-hermit/config.json`.
-   - If `env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE == "50"`, set it to `"65"`. If absent or any other value, leave it alone.
-   - If `env.COMPACT_THRESHOLD == "50"`, set it to `"75"`. If absent or any other value, leave it alone.
-   - Write the file back only if either key changed.
-2. Read `.claude/settings.local.json` (or `.claude/settings.json` per `hatch_target`). Apply the same only-if-still-50 guard for both keys; update to `"65"` / `"75"` respectively. Otherwise leave them alone.
-3. Report to the operator, one line per key:
-   - "Bumped `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` 50 → 65 — auto-compact triggers later." or "Left `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` at `<value>` (custom override preserved)."
-   - "Bumped `COMPACT_THRESHOLD` 50 → 75 — fewer mid-session nudges." or "Left `COMPACT_THRESHOLD` at `<value>` (custom override preserved)."
-- **hatch: push_notifications now defaults to true** — derived from channel choice in `/hatch` (no channel → on, channel → off); explicit opt-in removed. Toggle via `/hermit-settings push-notifications`.
-
-### Upgrade Instructions
-
-1. If `push_notifications` is absent from `config.json`, set it to `true` and notify the operator: "`push_notifications` now defaults to `true` — you'll get a desktop/Remote Control push when no channel is enabled or a configured channel is unreachable. Run `/hermit-settings push-notifications off` to disable." If the key is already present, leave it untouched.
 ### Fixed
 
-- **heartbeat: schedule via `CronCreate` instead of `/loop`** — Claude Code 2.1.150's new "Cloud schedule" prompt inside `/loop` was blocking always-on bootstrap.
+- **docs: `COMPACT_THRESHOLD` description corrected to tool-call-count fallback** — config-reference previously called it a "context % threshold," contradicting `suggest-compact.js`.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/heartbeat/SKILL.md` | Migrated to CC Monitor; removed show_ok; updated start/stop/status flow |
+| `scripts/heartbeat-monitor.sh` | New shell script for the Monitor subprocess |
+| `scripts/hermit-start.py` | Register heartbeat Monitor on boot |
+| `skills/session-close/SKILL.md` | Stop heartbeat Monitor on session close |
+| `state-templates/config.json.template` | Bumped env defaults; push_notifications defaults to true |
+| `skills/hatch/SKILL.md` | push_notifications derived from channel choice |
+| `docs/config-reference.md` | COMPACT_THRESHOLD description corrected |
 
 ### Upgrade Instructions
 
-1. Run `/claude-code-hermit:heartbeat start` — sweeps the prior CronCreate entry and registers the new Monitor in one shot. Otherwise the legacy cron keeps firing alongside the new Monitor until its 7-day expiry.
-2. If upgrade is delayed, the daily `heartbeat-restart` routine will eventually re-register, but the legacy cron continues until its expiry — manual `start` is preferred.
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Run `/claude-code-hermit:heartbeat start`** — sweeps any pre-existing CronCreate entry and registers the new Monitor in one shot.
+2. **Update `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` in `config.json`** — if `env.CLAUDE_AUTOCOMPACT_PCT_OVERRIDE == "50"`, set it to `"65"`; otherwise leave it alone.
+3. **Update `COMPACT_THRESHOLD` in `config.json`** — if `env.COMPACT_THRESHOLD == "50"`, set it to `"75"`; otherwise leave it alone.
+4. **Update `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` in the settings file** — read `.claude/settings.local.json` (or `.claude/settings.json` per `hatch_target`); if the value is `"50"`, update to `"65"`; otherwise leave it alone.
+5. **Update `COMPACT_THRESHOLD` in the settings file** — if the value is `"50"`, update to `"75"`; otherwise leave it alone.
+6. **Set `push_notifications` default** — if absent from `config.json`, set to `true` and notify: "`push_notifications` now defaults to `true` — you'll get a desktop/Remote Control push when no channel is enabled or a configured channel is unreachable. Run `/hermit-settings push-notifications off` to disable." If already present, leave it untouched.
+7. **Report env changes** — for each key: "Bumped `X` 50 → Y — `<reason>`." or "Left `X` at `<value>` (custom override preserved)."
 
 ## [1.1.3] - 2026-05-23
 
