@@ -31,7 +31,7 @@ View or modify the hermit configuration for this project.
 /claude-code-hermit:hermit-settings scheduled-checks    — manage scheduled plugin skill checks
 /claude-code-hermit:hermit-settings boot-skill       — view/clear/change the always-on boot skill
 /claude-code-hermit:hermit-settings quality-gate     — set post-implementation /claude-code-hermit:simplify gate tier (budget|balanced|quality)
-/claude-code-hermit:hermit-settings push-notifications — toggle PushNotification (default-on doorbell when no channel; fires when no channel is enabled or a configured channel is unreachable)
+/claude-code-hermit:hermit-settings push-notifications — toggle PushNotification doorbell (fires when no channel is enabled or a configured channel is unreachable)
 ```
 
 ## Plan

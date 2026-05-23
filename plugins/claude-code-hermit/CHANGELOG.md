@@ -4,7 +4,11 @@
 
 ### Changed
 
-- **hatch: push_notifications now defaults to true** — `/hatch` derives the flag from the channel choice (no channel → true, channel configured → false) and the explicit opt-in question is removed from both Quick and Advanced wizards. Existing installs without the field now also resolve to `true` at boot in `hermit-start.py` for a consistent global default. Toggle via `/hermit-settings push-notifications`.
+- **hatch: push_notifications now defaults to true** — derived from channel choice in `/hatch` (no channel → on, channel → off); explicit opt-in removed. Toggle via `/hermit-settings push-notifications`.
+
+### Upgrade Instructions
+
+1. If `push_notifications` is absent from `config.json`, set it to `true` and notify the operator: "`push_notifications` now defaults to `true` — you'll get a desktop/Remote Control push when no channel is enabled or a configured channel is unreachable. Run `/hermit-settings push-notifications off` to disable." If the key is already present, leave it untouched.
 
 ## [1.1.3] - 2026-05-23
 
