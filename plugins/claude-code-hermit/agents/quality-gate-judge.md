@@ -1,6 +1,6 @@
 ---
 name: quality-gate-judge
-description: "Decides whether `/code-review` should run at step (e.5) of `/proposal-act` accept flow. Reads the proposal body and the implementation-touched files (or git diff fallback), returns RUN | SKIP with a one-line reason. Only invoked when `quality_gate.tier: \"balanced\"`."
+description: "Decides whether `/claude-code-hermit:simplify` should run at step (e.5) of `/proposal-act` accept flow. Reads the proposal body and the implementation-touched files (or git diff fallback), returns RUN | SKIP with a one-line reason. Only invoked when `quality_gate.tier: \"balanced\"`."
 model: haiku
 effort: low
 maxTurns: 5
@@ -58,25 +58,26 @@ Filter out session-bookkeeping paths that the implementing LLM did not author as
 - `.claude-code-hermit/tasks-snapshot.md` (auto-generated)
 - `.claude-code-hermit/sessions/SHELL.md`, `.claude-code-hermit/proposals/PROP-*.md`
 
-Any remaining paths are candidates for `/code-review` review.
+Any remaining paths are candidates for `/claude-code-hermit:simplify` review.
 
 ## Step 3 — Decide
 
-Ask: does this implementation contain logic that benefits from a quality pass (code reuse, quality smells, inefficiency)?
+Ask: does this implementation contain code that benefits from a cleanup pass (reuse opportunities, redundant state, dead intermediates, near-duplicate blocks)?
 
 Strong signals for RUN:
-- Any `.js`, `.py`, `.sh`, `.ts`, `.go`, `.rs` file changed (real code)
-- Any `SKILL.md`, `AGENT.md`, `agents/*.md` changed (LLM-instruction logic; nested conditionals in prompts cost real wrong behavior)
-- Any `.json`, `.yml`, `.yaml` config that drives runtime behavior
-- Proposed Solution describes new branching, loops, functions, or non-trivial logic
+- Any `.js`, `.py`, `.sh`, `.ts`, `.go`, `.rs` file changed with new logic (not pure renames or comment-only edits)
+- Any `SKILL.md`, `AGENT.md`, `agents/*.md` changed with new instruction text (cleanup tightens wording and removes near-duplicate paragraphs)
+- Any `.json`, `.yml`, `.yaml` config with new structure (not pure value bumps)
+- Proposed Solution describes new branching, loops, helpers, or near-duplicate blocks worth deduping
 
 Strong signals for SKIP:
-- All remaining paths are pure prose (`CHANGELOG.md`, `LICENSE*`, `README.md`, `docs/**/*.md`)
-- `.gitignore`, `.gitattributes`
+- All remaining paths are pure prose (`CHANGELOG.md`, `LICENSE*`, `README.md`, `docs/**/*.md`) — cleanup is for code, not narratives
+- `.gitignore`, `.gitattributes`, or any purely declarative config delta
 - Proposed Solution was purely declarative (e.g., "add an entry to config", "update CHANGELOG")
+- OPERATOR.md edits only — no code written
 - After session-bookkeeping filter, the candidate set is empty
 
-**Bias toward `RUN` when uncertain.** The cost of a false-positive `RUN` is ~$0.25 wasted; the cost of a false-negative `SKIP` is silent quality drift the operator may never notice.
+**Bias toward `RUN` when uncertain.** The cost of a false-positive `RUN` is ~$0.25 wasted; the cost of a false-negative `SKIP` is a missed cleanup the operator may never notice. Cleanup is cheap, so keep the bias toward RUN even though the downside is softer than the prior bug-finding framing.
 
 ## Output
 
@@ -90,8 +91,8 @@ SKIP: <≤15 words explaining why>
 ```
 
 Examples:
-- `RUN: bug fix touched hooks/precheck.js and added a conditional branch`
-- `RUN: capability proposal created a new SKILL.md with multi-step logic`
+- `RUN: bug fix touched hooks/precheck.js and added a near-duplicate guard block`
+- `RUN: capability proposal created a new SKILL.md with overlapping instruction paragraphs`
 - `SKIP: routine category, adds one cron entry to config.json`
 - `SKIP: constraint category, OPERATOR.md edit only, no code written`
 - `SKIP: all candidate paths are CHANGELOG.md and docs/*.md after filtering`

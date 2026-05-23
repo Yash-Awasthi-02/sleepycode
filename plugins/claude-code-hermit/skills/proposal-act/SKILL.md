@@ -87,33 +87,30 @@ When the operator accepts a proposal:
          | `tier` is `"budget"` / `"balanced"` / `"quality"` | use as-is |
          | `tier` missing, `quality_gate` missing, or value not in enum | `budget` (log one-line warning to SHELL.md Findings) |
 
-         Build a touched-files list from the writes you made during step (e) if you can reliably enumerate them. This is the precise scope for `/code-review` and for the judge. If you can't recall the list (multi-turn work, sub-agent delegation), omit it; downstream falls back to `git diff --name-only HEAD`.
+         Build a touched-files list from the writes you made during step (e) if you can reliably enumerate them. This is the precise scope for `/claude-code-hermit:simplify` and for the judge. If you can't recall the list (multi-turn work, sub-agent delegation), omit it; downstream falls back to `git diff --name-only HEAD`.
 
          Branch on the resolved tier:
 
-         - **`budget`**: skip `/code-review` entirely. Proceed to (f). Resolution notification stays plain: "PROP-NNN implemented and resolved."
-         - **`quality`**: invoke `/code-review` directly. Pass the touched-files list as focus when enumerable, otherwise invoke with no focus (it falls back to git diff):
+         - **`budget`**: skip `/claude-code-hermit:simplify` entirely. Proceed to (f). Resolution notification stays plain: "PROP-NNN implemented and resolved."
+         - **`quality`**: invoke `/claude-code-hermit:simplify` directly. Pass the touched-files list as focus when enumerable, otherwise invoke with no focus (it falls back to the working-tree diff):
            ```
-           /code-review focus on PROP-NNN implementation: path/a, path/b
+           /claude-code-hermit:simplify focus on PROP-NNN implementation: path/a, path/b
            ```
-           `/code-review` is read-only (since CC 2.1.146) and emits a JSON array of `{file, line, summary, failure_scenario}` findings. Parse it, then for each finding:
-           - Edit-apply when the fix is unambiguous from `summary` + `failure_scenario` (e.g. off-by-one, missing null guard, `=` vs `==`); otherwise surface. When in doubt, surface.
-           - Track `M` (total), `N` (applied), `K = M − N`.
-           - On JSON parse failure, fall back to "surfaced (apply skipped — output not parseable)" — never block resolution.
+           The skill runs three parallel reviewers (reuse, quality, efficiency), applies the edits it picks itself, and ends with a totals line: `applied N · deduped M · principle-rejected K · stale-anchor skips L · parse failures P`. Capture that line and pass through.
 
-           Resolution notification: "PROP-NNN implemented and resolved. /code-review applied N/M findings (K surfaced)." When `M == 0`: "… /code-review surfaced 0 findings."
+           Resolution notification: "PROP-NNN implemented and resolved. /simplify applied N edits (M deduped, K rejected on principle)." When `N == 0`: "PROP-NNN implemented and resolved. /simplify made no changes." If the totals line is missing or unparseable, fall back to "PROP-NNN implemented and resolved. /simplify completed (totals unavailable)." — never block resolution.
          - **`balanced`**: delegate to `claude-code-hermit:quality-gate-judge` with:
            ```
            Proposal: <absolute path to PROP-NNN-*.md>
            Touched-Files: <space-separated relative paths>   (omit this line if not reliably enumerable)
            ```
            Parse line-1 verdict:
-           - `RUN: <reason>` → invoke `/code-review` with the touched-files focus (or no focus if omitted), classify and Edit-apply per the `quality` tier above. Notification: "PROP-NNN implemented and resolved. Judge: <reason>. /code-review applied N/M findings (K surfaced)." Drop the `(K surfaced)` suffix when `K == 0`; on `M == 0` use "/code-review surfaced 0 findings."
-           - `SKIP: <reason>` → skip `/code-review`. Notification: "PROP-NNN implemented and resolved. Judge skipped /code-review: <reason>."
+           - `RUN: <reason>` → invoke `/claude-code-hermit:simplify` per the `quality` tier above. Notification: "PROP-NNN implemented and resolved. Judge: <reason>. /simplify applied N edits (M deduped, K rejected on principle)." When `N == 0` use "… /simplify made no changes." Same totals-missing fallback as the `quality` tier.
+           - `SKIP: <reason>` → skip `/claude-code-hermit:simplify`. Notification: "PROP-NNN implemented and resolved. Judge skipped /simplify: <reason>."
 
          **No post-apply test gate fires before step f resolves** — the operator authorized the accept; broken applies ship unless the operator runs `/claude-code-dev-hermit:dev-quality` afterwards.
 
-         Best-effort throughout: if any step errors out (judge fails, `/code-review` errors, JSON parse fails, file read fails), log a one-line warning to SHELL.md Findings and fall back to skip. The gate never blocks resolution.
+         Best-effort throughout: if any step errors out (judge fails, `/simplify` failed or totals unavailable, file read fails), log a one-line warning to SHELL.md Findings and fall back to skip. The gate never blocks resolution.
      f. When verifiably done: run `/proposal-act resolve PROP-NNN`, then notify the operator (or channel in autonomous mode) with the tier-appropriate message from (e.5).
 
    - **"Create a session task"** → Write `.claude-code-hermit/sessions/NEXT-TASK.md`:
@@ -132,9 +129,9 @@ When the operator accepts a proposal:
      3. Verify the fix resolves the pattern
      ```
      If `NEXT-TASK.md` already exists: do **not** write. Status still flips to `accepted` (operator intent is recorded). Notify: "PROP-NNN accepted. NEXT-TASK is already pending another proposal. Run `/session-start` to consume it first, then re-run `/proposal-act accept PROP-NNN` and pick 'Start implementing now' or manual."
-     Otherwise write the file. Then append any of the following bullets to the end of the Suggested Plan, in order, numbered sequentially from `4.` (quality-gate bullet is last so `/code-review` reviews any skill-creator output):
+     Otherwise write the file. Then append any of the following bullets to the end of the Suggested Plan, in order, numbered sequentially from `4.` (quality-gate bullet is last so `/claude-code-hermit:simplify` reviews any skill-creator output):
        - **(if the proposal contains `## Skill Improvement` AND `/skill-creator` is available)** `Use /skill-creator to build and validate the skill.`
-       - **(if `quality_gate.tier` in `.claude-code-hermit/config.json` is not `"budget"` — i.e. `"balanced"` or `"quality"`)** `Run /code-review on the touched files for a quality review, then commit.`
+       - **(if `quality_gate.tier` in `.claude-code-hermit/config.json` is not `"budget"` — i.e. `"balanced"` or `"quality"`)** `Run /claude-code-hermit:simplify on the touched files for a cleanup pass, then commit.`
      Confirm: "Task prepared. The next `/session-start` will offer this as the default task."
 
    - **"I'll handle it manually"** → Just mark accepted. Respond: "Marked as accepted. No further action taken."
