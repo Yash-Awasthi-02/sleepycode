@@ -13,7 +13,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync } = require('child_process');
 const { currentHHMM } = require('./lib/time');
-const { readFrontmatter } = require('./lib/frontmatter');
+const { readFrontmatter, isEmptyAutoArchive } = require('./lib/frontmatter');
 
 function emit(verdict) {
   process.stdout.write(verdict + '\n');
@@ -111,19 +111,12 @@ function hasComputeActivity(stateDir, lastRunAt, sessionState) {
 
   try {
     const sessionsDir = path.join(stateDir, 'sessions');
+    // Exclude empty auto-archives: their auto-close mtime bump would trigger compute
+    // on a report with no operator content. Daily-lull closes carry operator_turns > 0
+    // and DO trigger compute. See isEmptyAutoArchive in lib/frontmatter.js.
     const reports = fs.readdirSync(sessionsDir)
       .filter(f => /^S-\d+-REPORT\.md$/.test(f))
-      .filter(f => {
-        // Exclude truly empty auto-archives (closed_via:auto + operator_turns:0) — their
-        // mtime bump from the auto-close write would otherwise trigger compute phase on a
-        // report with no operator content. Daily-lull closes carry operator_turns > 0 and
-        // DO trigger compute correctly. Fail-open: include reports whose frontmatter can't be parsed.
-        try {
-          const fm = readFrontmatter(path.join(sessionsDir, f));
-          const ops = parseInt(fm.operator_turns, 10) || 0;
-          return !(fm.closed_via === 'auto' && ops === 0);
-        } catch { return true; }
-      });
+      .filter(f => !isEmptyAutoArchive(readFrontmatter(path.join(sessionsDir, f))));
     return reports.some(f => {
       try { return fs.statSync(path.join(sessionsDir, f)).mtime > lastRun; }
       catch { return false; }

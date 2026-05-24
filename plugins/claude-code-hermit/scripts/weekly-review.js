@@ -8,7 +8,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { readFrontmatter, parseFrontmatter, newestByType, globDir } = require('./lib/frontmatter');
+const { readFrontmatter, parseFrontmatter, isEmptyAutoArchive, newestByType, globDir } = require('./lib/frontmatter');
 const { lint: knowledgeLint } = require('./knowledge-lint');
 
 // --- Args ---
@@ -129,15 +129,11 @@ if (allHaveTokens) {
 }
 const avgTokens = sessionsCount > 0 ? Math.round(totalTokens / sessionsCount) : 0;
 
-// Exclude truly empty auto-archives (12h-inactivity closes with operator_turns: 0)
-// from the autonomy calc — they have no content to attribute either way and would
-// otherwise inflate the self-directed numerator via the operator_turns === 0 branch
-// of isSelfDirected. Daily-lull closes on chatty daemons carry operator_turns > 0
-// and DO count (correctly, as operator-assisted).
-const contentfulSessions = weekSessions.filter(s => {
-  const ops = parseInt(s.fm.operator_turns, 10) || 0;
-  return !(s.fm.closed_via === 'auto' && ops === 0);
-});
+// Exclude empty auto-archives from the autonomy calc: they have no content to
+// attribute either way and would inflate the self-directed numerator via the
+// operator_turns === 0 branch of isSelfDirected. See isEmptyAutoArchive in
+// lib/frontmatter.js for the shared predicate (also used by reflect-precheck).
+const contentfulSessions = weekSessions.filter(s => !isEmptyAutoArchive(s.fm));
 const selfDirectedCount = contentfulSessions.filter(isSelfDirected).length;
 const assistedSessions = contentfulSessions.filter(s => !isSelfDirected(s));
 const autonomousRate = contentfulSessions.length > 0 ? selfDirectedCount / contentfulSessions.length : 0;

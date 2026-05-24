@@ -469,6 +469,88 @@ out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:45:00+00:00" node "$HEARTBEAT_
 run_test "drain: pending-close + in_progress + malformed last-op → AUTO_CLOSE (fail-open)" bash -c "[ '$out' = 'AUTO_CLOSE' ]"
 cleanup
 
+# -------------------------------------------------------
+# drain.10. HEARTBEAT.md missing + pending-close + lull → AUTO_CLOSE
+# (drain runs before the HEARTBEAT.md SKIP gate — the close is the signal,
+#  not a notification, and must not depend on operator-editable HEARTBEAT.md)
+# -------------------------------------------------------
+workdir="$(mktemp -d)"
+mkdir -p "$workdir/.claude-code-hermit/sessions"
+mkdir -p "$workdir/.claude-code-hermit/state"
+# Deliberately NO HEARTBEAT.md
+touch "$workdir/.claude-code-hermit/sessions/SHELL.md"
+echo '{"alerts":{},"last_digest_date":null,"self_eval":{},"total_ticks":0}' \
+  > "$workdir/.claude-code-hermit/state/alert-state.json"
+echo '{"queued_at":"2026-05-20T22:00:00+00:00","queued_by":"daily-auto-close"}' \
+  > "$workdir/.claude-code-hermit/state/pending-close.json"
+echo '{"at":"2026-05-20T22:30:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
+echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:45:00+00:00" node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+run_test "drain: HEARTBEAT.md missing + pending-close + lull → AUTO_CLOSE (drain bypasses SKIP gate)" bash -c "[ '$out' = 'AUTO_CLOSE' ]"
+cleanup
+
+# -------------------------------------------------------
+# drain.11. HEARTBEAT.md empty + pending-close + lull → AUTO_CLOSE
+# (drain runs before the empty-checklist SKIP gate too)
+# -------------------------------------------------------
+workdir="$(mktemp -d)"
+hb_setup "$workdir"
+# Overwrite HEARTBEAT.md with no checklist items
+printf '# Heartbeat\n\nNo items today.\n' > "$workdir/.claude-code-hermit/HEARTBEAT.md"
+echo '{"queued_at":"2026-05-20T22:00:00+00:00","queued_by":"daily-auto-close"}' \
+  > "$workdir/.claude-code-hermit/state/pending-close.json"
+echo '{"at":"2026-05-20T22:30:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
+echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:45:00+00:00" node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+run_test "drain: HEARTBEAT.md no-checklist + pending-close + lull → AUTO_CLOSE (drain bypasses SKIP gate)" bash -c "[ '$out' = 'AUTO_CLOSE' ]"
+cleanup
+
+# -------------------------------------------------------
+# drain.12. stale queued_at (>24h) + absent last-op + in_progress → NO AUTO_CLOSE
+# (defends fresh sessions against premature close when a leftover flag from a
+#  crashed prior session coincides with a missing last-op clock)
+# -------------------------------------------------------
+workdir="$(mktemp -d)"
+hb_setup "$workdir"
+echo '{"queued_at":"2026-05-19T00:00:00+00:00","queued_by":"daily-auto-close"}' \
+  > "$workdir/.claude-code-hermit/state/pending-close.json"
+# NO last-operator-action.json — fresh-session scenario after prior crash
+echo '{"session_state":"in_progress","session_id":"S-002"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+# HERMIT_NOW is 2026-05-21 → queued_at is 48h+ old → stale flag
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-21T01:00:00+00:00" node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+run_test "drain: stale queued_at (>24h) + absent last-op → NO AUTO_CLOSE (stale-flag guard)" bash -c "[ '$out' != 'AUTO_CLOSE' ]"
+cleanup
+
+# -------------------------------------------------------
+# drain.13. pending-close.json missing queued_at + absent last-op → NO AUTO_CLOSE
+# (defensive: if queued_at can't be parsed we can't tell the flag's age, so
+#  don't fail-open close — wait for either a valid last-op or the next routine fire)
+# -------------------------------------------------------
+workdir="$(mktemp -d)"
+hb_setup "$workdir"
+echo '{"queued_by":"daily-auto-close"}' \
+  > "$workdir/.claude-code-hermit/state/pending-close.json"
+# NO last-operator-action.json
+echo '{"session_state":"in_progress","session_id":"S-003"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-21T01:00:00+00:00" node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+run_test "drain: pending-close missing queued_at + absent last-op → NO AUTO_CLOSE (defensive)" bash -c "[ '$out' != 'AUTO_CLOSE' ]"
+cleanup
+
+# -------------------------------------------------------
+# drain.14. stale queued_at + VALID old last-op (>10min) → AUTO_CLOSE
+# (a stale flag is still actionable when last-op proves a real lull; the staleness
+#  guard only suppresses the fail-open path, not the standard lull-check path)
+# -------------------------------------------------------
+workdir="$(mktemp -d)"
+hb_setup "$workdir"
+echo '{"queued_at":"2026-05-19T00:00:00+00:00","queued_by":"daily-auto-close"}' \
+  > "$workdir/.claude-code-hermit/state/pending-close.json"
+echo '{"at":"2026-05-21T00:30:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
+echo '{"session_state":"in_progress","session_id":"S-004"}' > "$workdir/.claude-code-hermit/state/runtime.json"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-21T01:00:00+00:00" node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+run_test "drain: stale queued_at + valid >10min last-op → AUTO_CLOSE (lull-check path unaffected by guard)" bash -c "[ '$out' = 'AUTO_CLOSE' ]"
+cleanup
+
 echo ""
 echo "=== empty-12h-archive exclusion in weekly-review / reflect-precheck ==="
 echo ""
