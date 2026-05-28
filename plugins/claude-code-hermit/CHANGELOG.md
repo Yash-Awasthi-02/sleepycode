@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **heartbeat: start subcommand reads state file before writing** — fixes "File has not been read yet" failure on always-on restart when `state/heartbeat-monitor.runtime.json` exists from a prior session.
 ### Changed
 
 - **hermit-evolve step 10** — after printing the upgrade summary, the skill now fires the standard Operator Notification (channel DM or push fallback) with a condensed one-line message. Always-on operators no longer miss upgrades that completed while they weren't watching the terminal. Closes #141.
