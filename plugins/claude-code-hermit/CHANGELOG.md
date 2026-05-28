@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **reflection-judge: per-code suppress counters** — `reflection-state.json → counters.judge_suppress_by_code` now accumulates suppression counts by canonical code (`no-evidence`, `no-sessions`, `covered-by-memory`). The reflect skill passes the per-code map in its State Update payload; `update-reflection-state.js` merges it cumulatively. `/hermit-health` surfaces the non-zero mix (e.g. `suppress mix — no-evidence:12, covered-by-memory:3`) on the reflect routine bullet, making the Component Health "gate may be too strict" signal verifiable.
+
 ## [1.1.5] - 2026-05-25
 
 ### Added
