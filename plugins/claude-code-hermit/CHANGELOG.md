@@ -6,6 +6,8 @@
 
 - **proposal-triage: status-aware dedup (#159)** — open proposals (`proposed`/`deferred`/`dismissed`) still hard-block as `DUPLICATE`; `accepted`/`resolved` surface via `closest_prop` metadata and let evaluation continue, instead of silently killing follow-up proposals on shared infrastructure. Adds explicit "same problem" definition: shared integrations/APIs/data stores are not grounds for suppression on their own.
 - **heartbeat: start subcommand reads state file before writing** — fixes "File has not been read yet" failure on always-on restart when `state/heartbeat-monitor.runtime.json` exists from a prior session.
+- **heartbeat start: deterministic dedup via persisted task_id** — step 4 now reads `state/heartbeat-monitor.runtime.json` and TaskStops the recorded `task_id` before falling back to a TaskList description scan. Prevents duplicate monitors when the daily `heartbeat-restart` routine fires while a prior monitor is still alive. Also satisfies the CC Write read-before-write contract for step 6 (fixes "File has not been read yet" on always-on restart).
+
 ### Changed
 
 - **hermit-evolve step 10** — after printing the upgrade summary, the skill now fires the standard Operator Notification (channel DM or push fallback) with a condensed one-line message. Always-on operators no longer miss upgrades that completed while they weren't watching the terminal. Closes #141.
