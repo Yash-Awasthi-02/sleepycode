@@ -4,6 +4,7 @@ description: Per-activity coaching analysis from Strava. Computes zone breakdown
 allowed-tools:
   - Read
   - Write
+  - Edit
   - mcp__strava__check-strava-connection
   - mcp__strava__get-athlete-zones
   - mcp__strava__get-recent-activities
@@ -83,5 +84,20 @@ subjective_notes: "<string>"             # include only when notes exist from st
 ---
 ```
 Body: the full output above.
+
+7b. Write signal-only coaching observations to `.claude-code-hermit/sessions/SHELL.md` Findings.
+
+   From the computed metrics and coaching note, derive 0–N observations that carry a coaching signal worth tracking across sessions: a flagged cardiac drift, a zone-distribution anomaly, a recovery estimate that conflicts with subjective RPE, an efficiency regression vs the prior mean. Do NOT write routine confirmations ("session completed normally") unless they represent a pattern break. If nothing clears the signal bar, skip this step.
+
+   For each qualifying observation, append one line under `## Findings` using Edit, anchoring on the HTML comment for stability across repeated runs:
+
+   ```
+   old_string: "<!-- Anything unexpected found during work. Proposal-worthy items get their own file. -->"
+   new_string:  "<!-- Anything unexpected found during work. Proposal-worthy items get their own file. -->\nCoaching observation [<label>]: <one-line description grounded in a specific metric>"
+   ```
+
+   Labels are kebab-case and reused across sessions for consistency. Prefer an existing label over inventing a synonym. Seed vocabulary: `cooldown-hr-elevated`, `vo2max-stimulus-confirmed`, `cardiac-drift-high`, `interval-pacing-inconsistent`, `recovery-insufficient`, `efficiency-regression`. Add a new kebab-case label only when none fit.
+
+   These lines feed reflect's `current-session` evidence path. Recurring observations graduate to proposals via reflect's project-memory pipeline (label + session ID tracked until pattern threshold is met).
 
 8. Return the formatted output to the caller.
