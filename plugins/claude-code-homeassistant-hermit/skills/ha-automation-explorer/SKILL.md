@@ -1,71 +1,83 @@
 ---
 name: ha-automation-explorer
-description: Browse and explain the Home Assistant automations you already have — list them grouped by topic, filter and explain by keyword, or sort by last-fired. Use when the operator asks "what automations do I have", "what does X do", or which automations are stale.
+description: Browse and explain the hermit's Home Assistant automations — list by topic, filter by keyword with plain-language YAML explanations, or sort by last-fired. Read-only. Use when the operator asks "what automations do I have / what does this one do / which haven't fired."
 allowed-tools:
   - Bash
   - Read
-  - Glob
-  - Grep
+  - mcp__homeassistant__GetDateTime
 ---
 
 # HA Automation Explorer
 
-Browse and explain existing automations. Three modes based on `$ARGUMENTS`:
+Read-only. No writes, no proposals, no actuation.
 
-- **Empty** → inventory grouped by topic
-- **`--last-fired`** → stale view sorted by last execution
-- **`<keyword>`** → filter by name/id and explain matching automations
+## Shared preamble (all modes)
 
-Use the stored language from OPERATOR.md (`## HA hermit` section) for all user-facing output.
+1. Read operator language from OPERATOR.md (`## HA hermit` section). Use this locale for all output.
+2. Read `.claude-code-hermit/raw/snapshot-ha-normalized-latest.json`. Check the file's `mtime` with `stat`. If missing or older than 24 hours, append this warning to all output:
+   > "Context snapshot is stale — run `/claude-code-homeassistant-hermit:ha-refresh-context` for accurate entity data."
+3. Extract `entity_index` and `silence_summary` from the snapshot. Build the automation list: all entries in `entity_index` whose key starts with `automation.`.
 
-## Steps
+## Mode 1 — List all automations
 
-1. In parallel: run `${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-automations` (on non-zero exit, report the error verbatim and stop) and read `.claude-code-hermit/raw/snapshot-ha-normalized-latest.json`. Extract from the snapshot:
-   - `silence_summary.dead_automations` — list of `{entity_id, last_triggered, days_silent, never_fired}` entries
-   - `entity_index` — per-entity state map (used by `--last-fired`)
+Invoked as `/claude-code-homeassistant-hermit:ha-automation-explorer` (no args).
 
-   If the snapshot is missing, tell the operator to run `/claude-code-homeassistant-hermit:ha-refresh-context` first and stop.
+1. If the automation list is empty, output: "No automations found in the context snapshot." Stop.
+2. Group automations by topic, inferring from `friendly_name` (from `attributes.friendly_name`) and `entity_id`. Buckets (best-effort — no area registry exists):
+   - **Security**: alarm, lock, door, gate, camera, motion, presence
+   - **Comfort**: climate, temperature, heating, cooling, fan, blind, curtain, cover
+   - **Presence**: arrive, leave, away, home, person
+   - **Energy**: power, energy, solar, charge, saving
+   - **Other**: anything that doesn't fit the above
+3. Derive a one-line description from `friendly_name` for each automation. Do not fetch configs here.
+4. Mark automations that appear in `silence_summary.dead_automations` with `⚠ dead (N days)`. For `never_fired: true` entries, use `⚠ never fired`.
+5. Output the catalog grouped by topic:
+   ```
+   **Security**
+   - automation.alarm_away — "Arm alarm when everyone leaves" ⚠ dead (12 days)
 
-2. **Route by mode:**
+   **Comfort**
+   - automation.morning_blinds — "Open blinds at sunrise"
+   ```
 
-**Mode 1 — no args (inventory):**
+## Mode 2 — Explain automations matching a keyword
 
-Group automations by topic using `entity_id` and `friendly_name` heuristics. Suggested groups (collapse to "other" if no clear match): security, comfort, presence, energy, lighting, other.
+Invoked as `/claude-code-homeassistant-hermit:ha-automation-explorer <keyword>`.
 
-One line per automation:
-- Friendly name (or `entity_id` if absent) + enabled/disabled (from `state`: `on`=enabled)
-- Mark dead/never-fired by cross-referencing `silence_summary.dead_automations` on `entity_id`. Use a clear visual marker (e.g. `⚠ dead — N days` or `⚠ never fired`). Do not recompute — read directly from the snapshot.
+1. Filter the automation list: keep entries where `keyword` appears (case-insensitive) in `friendly_name` or `entity_id`.
+2. If no matches: output "No automations matching '<keyword>'." Stop.
+3. If more than 8 matches, the keyword is too broad to explain at once. List the matching `entity_id` + `friendly_name` pairs and ask the operator to narrow the keyword. Do not fetch any configs. Stop.
+4. For each match, check `attributes.id`. If null (YAML-packaged automation, not retrievable via REST), note: "Config not retrievable — automation is YAML-packaged." Skip the config fetch for that entry.
+5. For each match with a numeric `id`, fetch its config:
+   ```
+   ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha get-automation-config <id>
+   ```
+6. Explain the fetched YAML in plain language in the operator's locale:
+   - **Triggers**: what starts this automation (time, state change, event, etc.)
+   - **Conditions**: any guards that must be true for it to run
+   - **Actions**: what it does, step by step
+   - **State**: enabled / disabled; `⚠ dead` if in `silence_summary.dead_automations`
 
-If no automations are returned, say "No automations found on this instance."
+## Mode 3 — Sort by last fired
 
-**Mode 2 — `<keyword>` (filter + explain):**
+Invoked as `/claude-code-homeassistant-hermit:ha-automation-explorer --last-fired`.
 
-Case-insensitive substring match on `entity_id` and `friendly_name` from the `list-automations` output.
+1. Call `mcp__homeassistant__GetDateTime` for the current UTC timestamp.
+2. Sort all automations by `entity_index[entity_id].attributes.last_triggered` descending (most recently fired first). Automations with null `last_triggered` go at the bottom.
+3. Compute human-readable "N days ago" using the timestamp from Step 1. For null `last_triggered`: show "never fired."
+4. Enrich with `silence_summary.dead_automations` to mark stale entries — do NOT call `fetch-history`. An automation is dead if it appears in `silence_summary.dead_automations` (30+ days silent while enabled, or never fired).
+5. Output the sorted roster, one automation per line:
+   ```
+   1. automation.morning_blinds — "Open blinds at sunrise" — fired 2 days ago
+   2. automation.alarm_away — "Arm alarm when everyone leaves" — fired 14 days ago ⚠ dead
+   ...
+   N. automation.old_routine — "Old routine" — never fired ⚠ dead
+   ```
+6. End with: "X automations total. Y dead or never fired."
 
-If no matches: say "No automations match '<keyword>'." and stop.
+## Notes
 
-For each match with a **non-null `id`**: fetch all configs in parallel, then explain each.
-
-```
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha get-automation-config <id>
-```
-
-Produce a plain-language explanation of triggers, conditions, and actions in the stored locale. Keep each explanation concise — one short paragraph or a brief bullet list.
-
-For each match with `id: null` (YAML-packaged automation): note that the config is not retrievable via REST and report the friendly_name and current state only. (YAML-packaged automations have no numeric id — see CLAUDE.md "HA API gotchas".)
-
-**Mode 3 — `--last-fired` (stale view):**
-
-Build a last-fired table from `entity_index` in the snapshot. For each `automation.*` entity, read:
-- `entity_index[entity_id].attributes.last_triggered` — ISO timestamp or null
-- `entity_index[entity_id].state` — `on`/`off`
-
-Cross-reference `silence_summary.dead_automations` to pick up pre-computed `days_silent` and `never_fired` flags for the dead ones.
-
-Sort ascending by last-fired time (never-fired last). Display a table or list:
-- Each row: friendly_name, last triggered (human-readable, stored locale), days since
-- Highlight: `never fired` (enabled automations with `last_triggered: null`) and any automation present in `silence_summary.dead_automations` (mark `⚠ dead — N days` using its `days_silent`). The snapshot's own `silence_summary.thresholds` define "dead" — do not apply a separate day cutoff, so the highlight always matches the snapshot's classification.
-
-Do **not** call `fetch-history` or use `automation.*` history entries to infer execution — `silence_summary.dead_automations` and `last_triggered` from the snapshot are the sanctioned sources.
-
-If the entity_index contains no automation entries, say "No automation state found in snapshot — try `/claude-code-homeassistant-hermit:ha-refresh-context`."
+- This skill is the on-demand browsing view. `ha-analyze-patterns` is the scheduled, proposal-generating silence audit — it remains authoritative for surfacing dead automations via the proposal pipeline.
+- **Mode 1 and Mode 3 flag never-fired automations differently, by design.** Mode 1 reads `silence_summary.dead_automations`, which only lists a never-fired automation once it is 30+ days old — so a recently-created automation that has never fired is *not* flagged in Mode 1. Mode 3 reads `attributes.last_triggered` directly, so it shows "never fired" immediately regardless of age.
+- For deep pattern analysis, use `/claude-code-homeassistant-hermit:ha-analyze-patterns`.
+- For building new automations, use `/claude-code-homeassistant-hermit:ha-build-automation`.
