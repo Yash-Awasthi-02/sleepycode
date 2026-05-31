@@ -22,8 +22,12 @@ def skill_text() -> str:
 @pytest.fixture(scope="module")
 def changelog_unreleased() -> str:
     text = CHANGELOG.read_text(encoding="utf-8")
+    # The hatch entry starts in [Unreleased] and moves to a versioned section
+    # once released. Only treat [Unreleased] as authoritative when it actually
+    # documents hatch — an unrelated feature's [Unreleased] entry must not
+    # shadow it. Otherwise fall back to the latest versioned section.
     m = re.search(r"## \[Unreleased\]([\s\S]*?)(?=\n## \[)", text)
-    if not m:
+    if not m or "hatch" not in m.group(1):
         m = re.search(r"## \[\d+\.\d+\.\d+\][^\n]*\n([\s\S]*?)(?=\n## \[)", text)
     assert m, "No changelog section found in CHANGELOG.md"
     return m.group(1)
