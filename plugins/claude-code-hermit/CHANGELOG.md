@@ -5,12 +5,14 @@
 ### Fixed
 
 - **cost-tracker: reset per-session cost/tokens on session change** — `getCumulativeCost` now resets the running total when `.status.json` belongs to a different hermit session, so session reports record per-session spend instead of all-time cumulative carryover. Closes #190.
+- **brief/proposal-list/heartbeat/reflect: fresh-read annotations on state-reading steps** — adds an inline nudge to each skill's load-bearing current-state reads instructing the agent to re-read the file now rather than reuse a value from a pre-compaction context summary; prevents stale proposal statuses and session state from appearing in operator-facing outputs after compaction. Closes #192.
 - **scripts/log-routine-event.sh: resolve hermit root by walking up from CWD** — CronCreate prompts fire with the session's primary working directory as `$PWD`, which may be a subdirectory of the hermit root; the script now walks up to the nearest ancestor containing `.claude-code-hermit/` so the metrics append lands in the right place instead of failing with "No such file or directory". Closes #180.
 
 ### Changed
 
 - **brief: push-notification fallback** — the always-on brief now delivers via the standard Operator Notification pattern (channel DM or push fallback) instead of requiring a configured channel, so push-only operators get a condensed one-liner rather than a silent no-op when no channel is reachable. Closes #174.
 - **session/heartbeat: bind completion notification to idle transition** — completion notification is now the final step of the Work-done flow (§6), not a standalone action; the autonomous heartbeat-pickup branch explicitly routes to §6 instead of a bare notify. Prevents sessions staying `in_progress` after autonomous task completion, which caused stale-session heartbeat alerts and delayed report archival. Closes #173.
+- **heartbeat: digest renders proposal titles** — suppressed `proposal-pending:<PROP-NNN>` entries in the daily digest now render as `PROP-NNN "title"` (read from proposal frontmatter) instead of the bare dedup key, so operators can identify pending proposals without opening the repo; falls back to the bare key on zero or multiple file matches. Closes #191.
 
 ## [1.1.6] - 2026-05-28
 
