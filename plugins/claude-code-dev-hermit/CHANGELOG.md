@@ -1,10 +1,36 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.11] - 2026-05-31
 
 ### Added
 
 - **worktree-boundary-guard hook** — when a session runs in a linked git worktree, blocks `Edit`/`Write` whose target escapes into the main checkout. Self-limiting (inert outside worktrees, so no profile gate); carve-out for shared `.claude-code-hermit/` state; disable with `WORKTREE_GUARD=off`.
+
+### Changed
+
+- **core requirement bumped to `>=1.1.7`** — aligns `required_core_version`, `requires`, and `dependencies` with the latest core release.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/worktree-boundary-guard.js` | New PreToolUse hook for Edit/Write |
+| `scripts/worktree-boundary-guard.test.js` | Tests for worktree-boundary-guard |
+| `hooks/hooks.json` | Added PreToolUse entry for Edit\|Write matcher |
+| `CLAUDE.md` | Documented worktree-boundary-guard |
+| `state-templates/CLAUDE-APPEND.md` | Added worktree boundary rules to §Git Safety |
+| `state-templates/CLAUDE-APPEND-SAFETY.md` | Added worktree boundary rules to §Git Safety |
+| `docs/GIT-SAFETY.md` | Describes guard behavior and WORKTREE_GUARD=off escape hatch |
+| `.claude-plugin/hermit-meta.json` | `required_core_version` bumped to `>=1.1.7` |
+| `.claude-plugin/plugin.json` | `dependencies[0].version` bumped to `^1.1.7` |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Refresh the CLAUDE-APPEND block.** Re-run `/claude-code-dev-hermit:hatch` in each target project (or `/claude-code-hermit:hermit-evolve` which sibling-syncs all hermit plugin blocks). The updated template includes the worktree boundary rules in §Git Safety.
+
+No `config.json` changes required.
 
 ## [0.3.10] - 2026-05-23
 
