@@ -49,7 +49,7 @@ Rules:
 
 ## Quick Reference
 
-`/session-start` `/session` `/session-close` `/pulse` `/brief` `/heartbeat` `/watch` `/reflect` `/reflect-scheduled-checks` `/hermit-routines` `/hermit-settings` `/proposal-list` `/proposal-act` `/proposal-create` `/capability-brainstorm` `/hermit-evolve` `/channel-setup` `/channel-responder` `/docker-setup` `/docker-security` `/hatch` `/smoke-test` `/hermit-brain` `/hermit-evolution` `/hermit-health` `/weekly-review` `/migrate` `/knowledge` `/hermit-doctor`
+`/session-start` `/session` `/session-close` `/pulse` `/brief` `/heartbeat` `/daily-auto-close` `/watch` `/reflect` `/reflect-scheduled-checks` `/hermit-routines` `/hermit-settings` `/proposal-list` `/proposal-act` `/proposal-create` `/capability-brainstorm` `/hermit-evolve` `/channel-setup` `/channel-responder` `/docker-setup` `/docker-security` `/hatch` `/smoke-test` `/hermit-brain` `/hermit-evolution` `/hermit-health` `/weekly-review` `/migrate` `/knowledge` `/hermit-doctor`
 (All prefixed with `/claude-code-hermit:`)
 
 ## Operator Notification

@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.1.7] - 2026-05-31
 
 ### Fixed
 
@@ -13,6 +13,28 @@
 - **brief: push-notification fallback** — the always-on brief now delivers via the standard Operator Notification pattern (channel DM or push fallback) instead of requiring a configured channel, so push-only operators get a condensed one-liner rather than a silent no-op when no channel is reachable. Closes #174.
 - **session/heartbeat: bind completion notification to idle transition** — completion notification is now the final step of the Work-done flow (§6), not a standalone action; the autonomous heartbeat-pickup branch explicitly routes to §6 instead of a bare notify. Prevents sessions staying `in_progress` after autonomous task completion, which caused stale-session heartbeat alerts and delayed report archival. Closes #173.
 - **heartbeat: digest renders proposal titles** — suppressed `proposal-pending:<PROP-NNN>` entries in the daily digest now render as `PROP-NNN "title"` (read from proposal frontmatter) instead of the bare dedup key, so operators can identify pending proposals without opening the repo; falls back to the bare key on zero or multiple file matches. Closes #191.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/cost-tracker.js` | Reset running total on session change |
+| `skills/brief/SKILL.md` | Fresh-read annotation; push-notification fallback |
+| `skills/proposal-list/SKILL.md` | Fresh-read annotation |
+| `skills/heartbeat/SKILL.md` | Fresh-read annotation; digest renders proposal titles |
+| `skills/reflect/SKILL.md` | Fresh-read annotation |
+| `skills/session/SKILL.md` | Bind completion notification to idle transition |
+| `scripts/log-routine-event.sh` | Walk up to hermit root from CWD |
+| `plugins/claude-code-hermit/CLAUDE.md` | Add `daily-auto-close` to skills list |
+| `state-templates/CLAUDE-APPEND.md` | Add `daily-auto-close` to quick reference |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Refresh skills.** Updated skill files are delivered automatically on the next `/plugin update`.
+
+No `config.json` changes required.
 
 ## [1.1.6] - 2026-05-28
 
