@@ -393,7 +393,7 @@ printf -- '---\ntitle: Test\ntype: undeclared-widget\ncreated: 2025-01-01\n---\n
 printf -- '## Work Products\n- known-type: a declared type\n\n## Raw Captures\n' \
   > "$workdir/.claude-code-hermit/knowledge-schema.md"
 run_test "startup-context (schema drift — undeclared type)" bash -c \
-  "AGENT_DIR='$workdir/.claude-code-hermit' CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/startup-context.js' | grep -qF -- 'undeclared-widget'"
+  "out=\$(AGENT_DIR='$workdir/.claude-code-hermit' CLAUDE_PLUGIN_ROOT='$REPO_ROOT' node '$REPO_ROOT/scripts/startup-context.js'); echo \"\$out\" | grep -qF -- '---Schema Drift---' && echo \"\$out\" | grep -qF -- 'undeclared-widget'"
 cleanup
 
 # 37b. startup-context — schema drift: declared type is silent
