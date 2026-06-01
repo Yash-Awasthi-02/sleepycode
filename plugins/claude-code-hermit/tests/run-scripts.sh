@@ -118,7 +118,7 @@ printf -- '---\ntitle: big\ntype: briefing\ncreated: 2026-06-01T00:00:00+00:00\n
 outfile="$(mktemp)"
 node "$REPO_ROOT/scripts/knowledge-lint.js" "$workdir/.claude-code-hermit" > "$outfile" 2>&1
 run_test "knowledge-lint (stub exempts oversized)" bash -c \
-  "! grep -q 'context-stubbed' '$outfile'"
+  "! grep -q 'context-stubbed' \"$outfile\""
 run_test "knowledge-lint (unstubbed oversized still flagged)" grep -q 'oversized' "$outfile"
 rm -f "$outfile"
 cleanup
