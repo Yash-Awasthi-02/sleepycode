@@ -1,6 +1,6 @@
 {
   "name": "claude-code-dev-hermit",
-  "version": "0.3.11",
+  "version": "0.3.12",
   "dependencies": [
     {
       "name": "claude-code-hermit",

@@ -1,10 +1,35 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.12] - 2026-06-01
 
 ### Added
 
 - **domain-brainstorm skill** — on-demand codebase friction brainstorm. Reads git churn, last test signal (`state/last-test.json`), manifest↔lockfile drift, and README coverage to emit at most 2 `[prefix]`-tagged improvement PROPs per invocation. Operator-invoked only; per-skill kill criteria (cut if triage-survival < 25% or PROP-acceptance < 30% after ≥8 runs).
+
+### Changed
+
+- **install/update commands use `--scope local`** — README and HOW-TO-USE corrected from `--scope project` (now invalid in recent Claude Code releases).
+- **single-pass exception for domain-brainstorm proposals** — `CLAUDE-APPEND.md` and `CLAUDE-APPEND-SAFETY.md` note that condition (1) of the three-condition gate is waived for ideas surfaced by `/claude-code-dev-hermit:domain-brainstorm`.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/domain-brainstorm/SKILL.md` | New operator-invoked brainstorm skill |
+| `CLAUDE.md` | Documented domain-brainstorm in Plugin Structure |
+| `state-templates/CLAUDE-APPEND.md` | Single-pass exception for domain-brainstorm proposals |
+| `state-templates/CLAUDE-APPEND-SAFETY.md` | Same single-pass exception |
+| `README.md` | `--scope project` → `--scope local` |
+| `docs/HOW-TO-USE.md` | `--scope project` → `--scope local`; domain-brainstorm tip added |
+| `tests/skill-structure.test.js` | Added domain-brainstorm to skill matrix |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Refresh the CLAUDE-APPEND block.** Re-run `/claude-code-dev-hermit:hatch` in each target project (or `/claude-code-hermit:hermit-evolve` which sibling-syncs all hermit plugin blocks). The updated template adds the single-pass exception to `§Dev Proposal Categories`.
+
+No `config.json` changes required.
 
 ## [0.3.11] - 2026-05-31
 
