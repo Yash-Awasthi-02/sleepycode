@@ -1,14 +1,6 @@
 ---
 name: domain-brainstorm
 description: On-demand fitness-voice brainstorm — reads Strava history and training-goal signals to surface at most 2 coverage-gap or imbalance ideas, each gated by proposal-triage before becoming a PROP. Invoke when the operator asks "what am I neglecting?", "anything off with my training?", or "brainstorm training gaps". Never runs autonomously.
-allowed-tools:
-  - Read
-  - Glob
-  - Bash
-  - mcp__strava__check-strava-connection
-  - mcp__strava__get-athlete-profile
-  - mcp__strava__get-athlete-stats
-  - mcp__strava__get-recent-activities
 ---
 
 # Domain Brainstorm
@@ -65,6 +57,8 @@ Evidence Source: capability-brainstorm
 Evidence: <one paragraph: gap sentence + named grounding items>
 ```
 
+`Evidence Source: capability-brainstorm` is intentional, not a copy-paste: it is the recurrence-bypass token recognized by `proposal-create`'s three-condition rule (a brainstorm pass establishes the candidate, so condition 1 is waived). There is no separate `domain-brainstorm` token. Real provenance is carried by the `tags` below and the `brainstorm-emit` metrics event.
+
 Set frontmatter: `source: auto-detected`, `category: improvement`, `tags: [domain-brainstorm, ideation]`.
 
 Parse the verdict:
@@ -75,10 +69,10 @@ Parse the verdict:
 After each verdict, append a metrics event (Node stdlib, no deps):
 
 ```bash
-node -e "const fs=require('fs'); fs.appendFileSync('.claude-code-hermit/state/proposal-metrics.jsonl', JSON.stringify({ts:new Date().toISOString(),type:'brainstorm-emit',skill:'domain-brainstorm',verdict:'<CREATE|SUPPRESS|DUPLICATE>',proposal_id:'<PROP-NNN or null>'})+'\n','utf-8');"
+node -e "const fs=require('fs'); fs.appendFileSync('.claude-code-hermit/state/proposal-metrics.jsonl', JSON.stringify({ts:'<now ISO>',type:'brainstorm-emit',skill:'domain-brainstorm',verdict:'<CREATE|SUPPRESS|DUPLICATE>',proposal_id:'<PROP-NNN or null>'})+'\n','utf-8');"
 ```
 
-This event is what the kill-criteria audit reads — `proposal-create`'s own `created` event does not carry per-skill provenance.
+Use the `config.json` timezone for `<now ISO>` (matching `proposal-create`), so this file isn't a mix of UTC and local timestamps. This event is what the kill-criteria audit reads — `proposal-create`'s own `created` event does not carry per-skill provenance.
 
 Do NOT invoke `proposal-triage` directly — `/claude-code-hermit:proposal-create` handles it.
 
