@@ -38,11 +38,18 @@ function emitArtifacts(artifacts, budget, headerFn, parts) {
   let used = 0;
   for (const a of artifacts) {
     const header = headerFn(a);
-    const body = a.body || '';
     const available = budget - used - header.length;
     if (available <= 0) break;
-    const snippet = body.slice(0, available);
-    const entry = header + snippet + (snippet.length < body.length ? '\n[...]\n' : '');
+    const stub = typeof a.fm.injection_stub === 'string' ? a.fm.injection_stub.trim() : '';
+    let entry;
+    if (stub) {
+      if (stub.length > available) continue; // too long for remaining budget — skip rather than garble
+      entry = header + stub;
+    } else {
+      const body = a.body || '';
+      const snippet = body.slice(0, available);
+      entry = header + snippet + (snippet.length < body.length ? '\n[...]\n' : '');
+    }
     parts.push(entry);
     used += entry.length;
   }
