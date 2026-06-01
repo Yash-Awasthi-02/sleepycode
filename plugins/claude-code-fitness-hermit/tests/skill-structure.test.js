@@ -20,7 +20,12 @@ const SKILL_DIR = path.join(__dirname, '..', 'skills');
 // Per-skill expectations. Update if a skill's gate count changes.
 // gates: 0 → skill has no Gate N — section structure (e.g., read-only status skills).
 const SKILLS = [
+  { name: 'activity-deep-dive', gates: 0 },
+  { name: 'capture-activity-rpe', gates: 0 },
   { name: 'domain-brainstorm', gates: 5 }, // Gate 0..4
+  { name: 'hatch', gates: 0 },
+  { name: 'set-rpe', gates: 0 },
+  { name: 'weekly-coaching-patterns', gates: 0 },
 ];
 
 const { ok, summary } = makeReporter();

@@ -7,7 +7,7 @@ description: On-demand fitness-voice brainstorm — reads Strava history and tra
 
 ## Kill criteria (read before running)
 
-After ≥8 invocations, read `state/proposal-metrics.jsonl` and filter events where `type:"brainstorm-emit"` and `skill:"domain-brainstorm"`. Count CREATE vs total emits with ideas (triage-survival) and read `status:` of the resulting PROP files (PROP-acceptance). If triage-survival < 25% or PROP-acceptance < 30%, cut this skill rather than tune it — signal-to-noise isn't there.
+After ≥8 invocations, read `.claude-code-hermit/state/proposal-metrics.jsonl` and filter events where `type:"brainstorm-emit"` and `skill:"domain-brainstorm"`. Count CREATE vs total emits with ideas (triage-survival) and read `status:` of the resulting PROP files (PROP-acceptance). If triage-survival < 25% or PROP-acceptance < 30%, cut this skill rather than tune it — signal-to-noise isn't there.
 
 ### Gate 0 — Gather inputs
 
@@ -30,7 +30,7 @@ Last 8 weeks of activities. Return: per-week count + total minutes by sport/acti
 This keeps heavy multi-page fetching off the main context and respects rate limits.
 
 **Logged subjective and coverage signals**
-Glob `.claude-code-hermit/compiled/activity-*.md` and any `compiled/weekly-*.md` files modified within the last 30 days — read the first 15 lines of each (frontmatter + opening paragraph). Read `state/activity-notes.json` to check which signal dimensions (RPE, sleep, macros) actually have entries vs gaps.
+Glob `.claude-code-hermit/compiled/activity-*.md` and any `.claude-code-hermit/compiled/weekly-*.md` files modified within the last 30 days — read the first 15 lines of each (frontmatter + opening paragraph). Read `state/activity-notes.json` to check which signal dimensions (RPE, sleep, macros) actually have entries vs gaps.
 
 ### Gate 1 — Generate ideas (max 2)
 
