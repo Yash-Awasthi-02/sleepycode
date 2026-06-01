@@ -207,7 +207,23 @@ assert 'from' not in d, 'should not report a version when there is no config'
 rm -rf "$proj"
 
 # -------------------------------------------------------
-# 7. missing _hermit_versions only -> from 0.0.0, clean errors
+# 7. malformed config.json -> errors[config_json_invalid], not no_config
+# -------------------------------------------------------
+proj="$(mktemp -d)"; mkdir -p "$proj/.claude-code-hermit"
+printf '{"_hermit_versions":' > "$proj/.claude-code-hermit/config.json"
+run_plan "$proj/.claude-code-hermit" local "$proj/plan.json"
+run_test "malformed config.json -> errors[config_json_invalid], not no_config" python3 -c "
+import json
+d=json.load(open('$proj/plan.json'))
+codes=[e['code'] for e in d['errors']]
+assert 'config_json_invalid' in codes, codes
+assert 'no_config' not in codes, codes
+assert 'from' not in d, 'should not report a version when config is invalid'
+"
+rm -rf "$proj"
+
+# -------------------------------------------------------
+# 8. missing _hermit_versions only -> from 0.0.0, clean errors
 # -------------------------------------------------------
 proj="$(mktemp -d)"; mkdir -p "$proj/.claude-code-hermit"
 echo '{"model":"sonnet"}' > "$proj/.claude-code-hermit/config.json"
@@ -221,7 +237,7 @@ assert d['errors']==[], d['errors']
 rm -rf "$proj"
 
 # -------------------------------------------------------
-# 8. Operator value preserved: present nested key (non-default) omitted
+# 9. Operator value preserved: present nested key (non-default) omitted
 #    (script-level guard for idempotent Step 9 — never re-lists a set key)
 # -------------------------------------------------------
 proj="$(mktemp -d)"; mkdir -p "$proj/.claude-code-hermit"
@@ -245,7 +261,7 @@ assert 'heartbeat.waiting_timeout' not in paths, paths
 rm -rf "$proj"
 
 # -------------------------------------------------------
-# 9. no_hatch_target: required flag missing -> errors[no_hatch_target]
+# 10. no_hatch_target: required flag missing -> errors[no_hatch_target]
 # -------------------------------------------------------
 proj="$(mktemp -d)"; mkdir -p "$proj/.claude-code-hermit"
 echo '{"_hermit_versions":{"claude-code-hermit":"1.1.6"}}' > "$proj/.claude-code-hermit/config.json"
