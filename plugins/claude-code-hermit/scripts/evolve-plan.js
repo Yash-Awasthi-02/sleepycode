@@ -188,11 +188,18 @@ function buildPlan({ hermitDir, pluginRoot, hatchTarget }) {
   }
   plan.hatch_target = hatchTarget;
 
+  const configPath = path.join(hermitDir, 'config.json');
   let config;
   try {
-    config = readJSON(path.join(hermitDir, 'config.json'));
+    config = readJSON(configPath);
   } catch (e) {
-    errors.push({ code: 'no_config', message: `config.json not found or unreadable: ${e.message}` });
+    if (e && e.code === 'ENOENT') {
+      errors.push({ code: 'no_config', message: 'config.json not found' });
+    } else if (e && e.name === 'SyntaxError') {
+      errors.push({ code: 'config_json_invalid', message: `config.json is not valid JSON: ${e.message}` });
+    } else {
+      errors.push({ code: 'config_unreadable', message: `config.json unreadable: ${e.message}` });
+    }
     return plan;
   }
 
