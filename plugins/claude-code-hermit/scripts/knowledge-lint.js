@@ -18,7 +18,7 @@ const { readFrontmatter, readFileWithFrontmatter, newestByType, globDirRecursive
 
 function parseSchema(schemaPath) {
   // Returns { workProducts: Set<string>, rawCaptures: Set<string> }, null if present but empty, false if missing.
-  // Bullet grammar: lines matching `^-\s+([\w-]+):` under each section heading.
+  // Bullet grammar: lines matching `^-\s+([\w-]+):` or `^-\s+\*\*([\w-]+)\*\*:` under each section heading.
   let text;
   try { text = fs.readFileSync(schemaPath, 'utf8'); } catch { return false; }
   text = text.replace(/<!--[\s\S]*?-->/g, '');
@@ -29,7 +29,7 @@ function parseSchema(schemaPath) {
     if (/^##\s+Work Products\b/.test(line)) { section = 'work'; continue; }
     if (/^##\s+Raw Captures\b/.test(line)) { section = 'raw'; continue; }
     if (/^##/.test(line)) { section = null; continue; }
-    const m = line.match(/^-\s+([\w-]+):/);
+    const m = line.match(/^-\s+(?:\*\*)?([\w-]+)(?:\*\*)?:/);
     if (!m) continue;
     if (section === 'work') workProducts.add(m[1]);
     if (section === 'raw') rawCaptures.add(m[1]);
