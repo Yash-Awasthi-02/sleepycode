@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- **startup-context: schema-drift warning at session start** — surfaces a "Schema Drift" block when any `compiled/` artifact has a `type` not declared in `knowledge-schema.md ## Work Products`, closing the up-to-7-day lag before the weekly Knowledge Health check fires. Silent when schema is absent/empty (weekly review handles that) or when all types are declared. Reuses the existing `parseSchema` logic from `knowledge-lint.js`. Closes #208.
+
 ## [1.1.7] - 2026-05-31
 
 ### Fixed
