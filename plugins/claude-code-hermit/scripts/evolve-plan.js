@@ -166,6 +166,10 @@ function computeClaudeAppend(plan, pluginRoot, hermitDir, hatchTarget, errors) {
   try {
     targetBlock = markerOnward(fs.readFileSync(targetFile, 'utf8'));
   } catch (e) {
+    if (e && e.code !== 'ENOENT') {
+      errors.push({ code: 'claude_target_unreadable', message: `${targetFile} unreadable: ${e.message}` });
+      return;
+    }
     // file missing -> append case
   }
 
