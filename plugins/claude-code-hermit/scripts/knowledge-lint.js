@@ -29,10 +29,11 @@ function parseSchema(schemaPath) {
     if (/^##\s+Work Products\b/.test(line)) { section = 'work'; continue; }
     if (/^##\s+Raw Captures\b/.test(line)) { section = 'raw'; continue; }
     if (/^##/.test(line)) { section = null; continue; }
-    const m = line.match(/^-\s+(?:\*\*)?([\w-]+)(?:\*\*)?:/);
+    const m = line.match(/^-\s+(?:\*\*([\w-]+)\*\*|([\w-]+)):/);
     if (!m) continue;
-    if (section === 'work') workProducts.add(m[1]);
-    if (section === 'raw') rawCaptures.add(m[1]);
+    const type = m[1] || m[2];
+    if (section === 'work') workProducts.add(type);
+    if (section === 'raw') rawCaptures.add(type);
   }
   if (workProducts.size === 0 && rawCaptures.size === 0) return null;
   return { workProducts, rawCaptures };
