@@ -1,17 +1,17 @@
 ---
 name: issue-proposals
 description: |
-  Repo-internal routine skill. Fetches open `ready`-labelled GitHub issues on
-  gtapps/claude-code-hermit, filters out ones with linked open PRs or existing proposals,
-  picks one, runs it through /tackle-issue --investigate-only as a viability gate, and on a
-  SHIP / SHIP WITH CAVEAT recommendation creates a hermit proposal via
-  /claude-code-hermit:proposal-create. One issue per run; dedup by gh-issue-<N> tag across
-  all proposal statuses. Not shipped to downstream operators — hardcoded to this repo.
+  Repo-internal routine skill. Fetches open GitHub issues on gtapps/claude-code-hermit,
+  filters out ones with linked open PRs or existing proposals, picks one, runs it through
+  /tackle-issue --investigate-only as a viability gate, and on a SHIP / SHIP WITH CAVEAT
+  recommendation creates a hermit proposal via /claude-code-hermit:proposal-create. One
+  issue per run; dedup by gh-issue-<N> tag across all proposal statuses. Not shipped to
+  downstream operators — hardcoded to this repo.
 ---
 
 # Issue Proposals
 
-Routine skill: autonomous issue→proposal pipeline. Fetches one open `ready` GitHub issue,
+Routine skill: autonomous issue→proposal pipeline. Fetches one open GitHub issue,
 vets it through `/tackle-issue --investigate-only`, and creates a proposal only if the
 verdict is SHIP or SHIP WITH CAVEAT.
 
@@ -35,14 +35,13 @@ Stop cleanly. Do not emit an error — this is a routine no-op, not a failure.
 ```bash
 gh issue list \
   --repo gtapps/claude-code-hermit \
-  --label ready \
   --state open \
   --json number,title,url,updatedAt,labels \
   --limit 30
 ```
 
 If the result is an empty array: append to SHELL.md Progress Log:
-`[HH:MM] issue-proposals — no ready open issues` and stop.
+`[HH:MM] issue-proposals — no open issues` and stop.
 
 ### 3. PR filter
 
