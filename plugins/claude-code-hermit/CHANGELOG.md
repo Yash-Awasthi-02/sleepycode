@@ -1,25 +1,48 @@
 # Changelog
 
-## [Unreleased]
+## [1.1.9] - 2026-06-04
 
 ### Added
 
-- **session-close: `shutdown_skill` config hook** — fires a configured skill on full close (operator and `--auto`), before archival, as the counterpart to `boot_skill`, for stopping always-on services. Closes #259.
-- **docs: clarify OPERATOR.md vs CLAUDE.md** — FAQ entry and how-to-use pointer; behavioral rules belong in CLAUDE.md, not OPERATOR.md. Closes #262.
+- **session-close: `shutdown_skill` config hook** — fires before archival on both operator and `--auto` close paths, as the counterpart to `boot_skill`, for stopping always-on services. Best-effort: a wedged stop cannot lose the session report. Closes #259.
+- **channel-responder: capture interactive channel patterns as SHELL.md findings** — after responding via channel, appends durable preference or recurrence signals to `## Findings` so reflect can treat them as current-session evidence. Closes #253.
+- **reflect: batch reflection-judge calls** — spawns all pending judge calls in one parallel pass instead of serially, cutting reflect wall-clock on large proposal queues. Closes #236.
+- **brief: surface plugin upgrade in always-on morning brief** — the morning brief now mentions an available plugin update when one is detected. Closes #254.
+- **brief: suppress evening "session still open" note when `always_on` + `daily-auto-close` enabled** — avoids a spurious reminder in configurations that intentionally keep sessions running 24/7.
 - **session-close: memory-review fallback when reflect short-circuits** — captures single-session discoveries on operator closes where reflect's cadence precheck returns EMPTY. Skipped on `--auto` by construction. Closes #230.
+- **docs: clarify OPERATOR.md vs CLAUDE.md** — FAQ entry and how-to-use pointer; behavioral rules belong in CLAUDE.md, not OPERATOR.md. Closes #262.
 
 ### Fixed
 
-- **hermit-routines: validate `pluginRoot` before the load reset** — `load` aborts with an error if `$CLAUDE_PLUGIN_ROOT` is empty or its `scripts/` are missing, before the Step 3 CronDelete sweep. Prevents a bad plugin root from tearing down working routine CronCreates and leaving them unreplaced. Closes #251.
-- **session bootstrap: drop `disable-model-invocation` from session skill** — always-on multi-step boot invokes it via the Skill tool, which the flag rejected; bare hermits (single step) were unaffected, making the failure look intermittent (#229).
-- **hatch: always default `push_notifications: true` on fresh hatch** — removed the channel-choice derivation that wrote `false` whenever a channel was selected. The runtime guard in `CLAUDE-APPEND.md` already enforces channel-first delivery with push as fallback, so the hatch-time override was discarding the fallback unnecessarily. Both Quick and Advanced modes now leave `push_notifications` at the template default (`true`); re-init still preserves the existing value.
+- **hermit-routines: validate `pluginRoot` before the load reset** — `load` aborts if `$CLAUDE_PLUGIN_ROOT` is empty or its `scripts/` are missing, before the Step 3 CronDelete sweep, preventing a bad plugin root from tearing down working routine CronCreates. Closes #251.
+- **session bootstrap: drop `disable-model-invocation` from session skill** — always-on multi-step boot invokes via the Skill tool, which the flag rejected; bare hermits were unaffected, making the failure look intermittent. Closes #229.
+- **hatch: always default `push_notifications: true` on fresh hatch** — removed the channel-choice derivation that wrote `false` whenever a channel was selected; the runtime guard in CLAUDE-APPEND already enforces channel-first delivery with push as fallback.
+- **brief: drop doubled `hermit-evolve` call in brief upgrade notice** — deduplicate the evolve instruction that appeared twice in the upgrade nudge.
+- **hatch: render actual `push_notifications` value in Step 10 report** — the step now shows the resolved value rather than always printing `true`.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/hermit-start.py` | Add `shutdown_skill: null` default |
+| `skills/session-close/SKILL.md` | Fire `shutdown_skill` before archival; memory-review fallback |
+| `skills/channel-responder/SKILL.md` | Add §4 interactive pattern capture to SHELL.md findings |
+| `skills/reflect/SKILL.md` | Batch reflection-judge calls in parallel |
+| `skills/brief/SKILL.md` | Upgrade notice; suppress evening note; fix doubled evolve call |
+| `skills/hatch/SKILL.md` | Fix push_notifications report value; mention shutdown_skill |
+| `state-templates/config.json.template` | Add `shutdown_skill: null` key |
+| `docs/config-reference.md` | Document `shutdown_skill` |
 
 ### Upgrade Instructions
 
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
 1. Read `.claude-code-hermit/config.json`.
-2. If `push_notifications` is `false`, ask the operator: "Push notifications are currently disabled. With this update push acts as a fallback when your channel is unreachable — would you like to enable it? (y / n)".
-3. If yes: set `push_notifications: true` in config.json and write the file.
+2. If `push_notifications` is `false`, ask: "Push notifications are currently disabled — with this update they act as a channel fallback when your primary channel is unreachable. Enable? (y/n)".
+3. If yes: set `push_notifications: true` and write the file.
 4. If no: leave config.json unchanged.
+
+**Note:** `shutdown_skill` is a new config key (counterpart to `boot_skill`). Evolve presents it automatically; leave `null` unless a service teardown skill exists.
 
 ## [1.1.8] - 2026-06-01
 
