@@ -247,8 +247,8 @@ Note: `multiSelect: true` is intentional — all four plugins can be selected at
 
 - All plugins are selected by default — deselect to skip
 - If no plugins are selected, skip all plugin installs
-- For each selected plugin, install it immediately:
-  `claude plugin install <plugin>@claude-plugins-official --scope project`
+- For each selected plugin, install it immediately at the hermit's scope (`core_install_scope` from Step 2; fall back to `project` when null):
+  `claude plugin install <plugin>@claude-plugins-official --scope <core_install_scope>`
 
 For each accepted plugin, also add the corresponding `scheduled_checks` entries to config.json:
 
