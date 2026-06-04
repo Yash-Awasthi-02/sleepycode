@@ -2,11 +2,32 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
-## [Unreleased]
+## [0.1.9] - 2026-06-04
+
+### Changed
+
+- **deps: core requirement raised to >=1.1.9** — tracks core 1.1.9 release.
 
 ### Fixed
 
 - **ha-integration-health: refresh stale/missing snapshot before analysis** — the daily check used to skip and exit 0 when `snapshot-ha-normalized-latest.json` was stale or missing, so in always-on deployments (where `daily-ha-context` doesn't run during waiting) it never produced output and `reflect-scheduled-checks` filed a backwards proposal to lengthen the interval. It now self-heals by running `refresh-context` first; if HA is unreachable it skips with a distinct `refresh failed` message so the backoff counter isn't tripped.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `.claude-plugin/hermit-meta.json` | `required_core_version` and `requires` bumped to `>=1.1.9` |
+| `.claude-plugin/plugin.json` | `dependencies.claude-code-hermit` bumped to `^1.1.9` |
+| `skills/ha-integration-health/SKILL.md` | Self-heal stale/missing context snapshot before analysis |
+| `src/ha_agent_lab/cli.py` | Refresh context before integration-health check |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`.
+
+1. **Ensure core is at least 1.1.9.** Run `/plugin update claude-code-hermit` if not already on 1.1.9 or later.
+
+No `config.json` changes required.
 
 ## [0.1.8] - 2026-06-01
 
