@@ -127,7 +127,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "ha" and args.ha_command == "integration-health":
-        return _handle_integration_health(root)
+        return _handle_integration_health(root, config)
 
     if args.command == "ha" and args.ha_command == "refresh-context":
         try:
@@ -338,20 +338,28 @@ def _handle_fetch_history(root: Path, config: Any, window_days: int, entity_over
     return 0
 
 
-def _handle_integration_health(root: Path) -> int:
+def _handle_integration_health(root: Path, config: Any) -> int:
     today = date.today().isoformat()
     header = f"ha-integration-health findings — {today}"
     snapshot_path = normalized_context_path(root)
 
+    stale = False
     try:
         mtime = datetime.fromtimestamp(snapshot_path.stat().st_mtime, tz=UTC)
-        if datetime.now(UTC) - mtime > timedelta(hours=24):
-            print(f"{header}\nNo actionable findings. (skipped: snapshot stale or missing)")
+        stale = datetime.now(UTC) - mtime > timedelta(hours=24)
+    except OSError:
+        stale = True
+
+    if stale:
+        try:
+            client = HomeAssistantClient(config)
+            refresh_context(root, client)
+        except HomeAssistantError as exc:
+            print(f"{header}\nNo actionable findings. (skipped: snapshot stale, refresh failed — {exc})")
             return 0
+
+    try:
         normalized = json.loads(snapshot_path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        print(f"{header}\nNo actionable findings. (skipped: snapshot stale or missing)")
-        return 0
     except (OSError, json.JSONDecodeError) as exc:
         print(f"{header}\nNo actionable findings. (skipped: snapshot unreadable — {exc})")
         return 0

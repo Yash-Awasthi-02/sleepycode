@@ -94,35 +94,94 @@ def test_cli_integration_health_emits_existing_stdout_shape(tmp_path: Path, caps
     snapshot = {"entity_index": idx, "unavailable_entities": unavail}
     (raw / "snapshot-ha-normalized-latest.json").write_text(json.dumps(snapshot), encoding="utf-8")
 
-    rc = _handle_integration_health(tmp_path)
+    rc = _handle_integration_health(tmp_path, object())
     out = capsys.readouterr().out
     assert rc == 0
     assert out.startswith("ha-integration-health findings —")
     assert "Degraded domains:" in out
 
 
-def test_cli_integration_health_skips_when_snapshot_missing(tmp_path: Path, capsys):
+def _setup_refresh_monkeypatch(monkeypatch, cli_mod, snapshot_path: Path) -> None:
+    idx, unavail = _make_entities("sensor", 6, 4)
+    fresh = {"entity_index": idx, "unavailable_entities": unavail}
+
+    def fake_refresh(root, client):
+        snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+        snapshot_path.write_text(json.dumps(fresh), encoding="utf-8")
+
+    monkeypatch.setattr(cli_mod, "refresh_context", fake_refresh)
+    monkeypatch.setattr(cli_mod, "HomeAssistantClient", lambda config: object())
+
+
+def test_cli_integration_health_refreshes_and_proceeds_when_snapshot_missing(tmp_path: Path, capsys, monkeypatch):
+    import ha_agent_lab.cli as cli_mod
     from ha_agent_lab.cli import _handle_integration_health
 
-    rc = _handle_integration_health(tmp_path)
+    snapshot_path = tmp_path / ".claude-code-hermit" / "raw" / "snapshot-ha-normalized-latest.json"
+    _setup_refresh_monkeypatch(monkeypatch, cli_mod, snapshot_path)
+
+    rc = _handle_integration_health(tmp_path, object())
     out = capsys.readouterr().out
     assert rc == 0
-    assert "skipped: snapshot stale or missing" in out
+    assert "skipped" not in out
+    assert "Degraded domains:" in out
 
 
-def test_cli_integration_health_skips_when_snapshot_stale(tmp_path: Path, capsys, monkeypatch):
+def test_cli_integration_health_refreshes_and_proceeds_when_snapshot_stale(tmp_path: Path, capsys, monkeypatch):
+    import os
+    import ha_agent_lab.cli as cli_mod
     from ha_agent_lab.cli import _handle_integration_health
 
     raw = tmp_path / ".claude-code-hermit" / "raw"
     raw.mkdir(parents=True)
     snapshot_path = raw / "snapshot-ha-normalized-latest.json"
     snapshot_path.write_text("{}", encoding="utf-8")
-
     stale_time = (datetime.now(UTC) - timedelta(hours=25)).timestamp()
-    import os
     os.utime(snapshot_path, (stale_time, stale_time))
+    _setup_refresh_monkeypatch(monkeypatch, cli_mod, snapshot_path)
 
-    rc = _handle_integration_health(tmp_path)
+    rc = _handle_integration_health(tmp_path, object())
     out = capsys.readouterr().out
     assert rc == 0
-    assert "skipped: snapshot stale or missing" in out
+    assert "skipped" not in out
+    assert "Degraded domains:" in out
+
+
+def test_cli_integration_health_skips_cleanly_when_refresh_fails(tmp_path: Path, capsys, monkeypatch):
+    import ha_agent_lab.cli as cli_mod
+    from ha_agent_lab.cli import _handle_integration_health
+    from ha_agent_lab.ha_api import HomeAssistantError
+
+    def fail_refresh(root, client):
+        raise HomeAssistantError("HA unreachable")
+
+    monkeypatch.setattr(cli_mod, "HomeAssistantClient", lambda config: object())
+    monkeypatch.setattr(cli_mod, "refresh_context", fail_refresh)
+
+    rc = _handle_integration_health(tmp_path, object())
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "refresh failed" in out
+
+
+def test_cli_integration_health_refreshes_when_stat_raises_oserror(tmp_path: Path, capsys, monkeypatch):
+    import ha_agent_lab.cli as cli_mod
+    from ha_agent_lab.cli import _handle_integration_health
+
+    snapshot_path = tmp_path / ".claude-code-hermit" / "raw" / "snapshot-ha-normalized-latest.json"
+    _setup_refresh_monkeypatch(monkeypatch, cli_mod, snapshot_path)
+
+    real_stat = Path.stat
+
+    def boom_stat(self, *args, **kwargs):
+        if self == snapshot_path:
+            raise PermissionError("stat denied")
+        return real_stat(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "stat", boom_stat)
+
+    rc = _handle_integration_health(tmp_path, object())
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "skipped" not in out
+    assert "Degraded domains:" in out
