@@ -16,9 +16,6 @@ All notable changes to this project will be documented in this file.
 ### Changed
 
 - **routine-weekly-load-review: elevation-weighted load** — run distance is scaled by a gradient multiplier (1.0–1.5×) into `adjusted_km`; spike/dip flags compare adjusted figures (falls back to raw `km` for weeks logged before this change). Channel output shows both raw and load-adjusted distance.
-
-### Changed
-
 - **required_core_version: bumped to >=1.1.9** — aligns with the issue-proposals routine added in core 1.1.9.
 
 ### Files affected
