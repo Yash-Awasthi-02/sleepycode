@@ -4,6 +4,7 @@
 
 ### Added
 
+- **docs: clarify OPERATOR.md vs CLAUDE.md** — FAQ entry and how-to-use pointer; behavioral rules belong in CLAUDE.md, not OPERATOR.md. Closes #262.
 - **session-close: memory-review fallback when reflect short-circuits** — captures single-session discoveries on operator closes where reflect's cadence precheck returns EMPTY. Skipped on `--auto` by construction. Closes #230.
 
 ### Fixed
