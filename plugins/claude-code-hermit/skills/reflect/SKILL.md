@@ -16,7 +16,7 @@ If `$ARGUMENTS` contains `--quick` (invoked as `/claude-code-hermit:reflect --qu
 - **Bind `$PHASE = adult`** — skip the compute phase eval.
 - **Skip the cost_spike read, proposal scan, Resolution Check, and Component Health section.** Only the live SHELL.md scan + judge + outcomes path runs.
 - Read SHELL.md `## Findings` and `## Blockers` for actionable patterns. **Only Tier-1 + `Evidence Source: current-session` candidates are eligible** — see § Three-Condition Rule, condition 1. Candidates that would need archived-session evidence or belong to Tier 2/3 are deferred silently to the next scheduled reflect.
-- For each candidate that passes the evidence integrity rule: run `claude-code-hermit:proposal-triage`, then `claude-code-hermit:reflection-judge`. ACCEPT/DOWNGRADE verdicts route through the standard Outcomes path (micro-approval queue for Tier 1/2, `/claude-code-hermit:proposal-create` for Tier 3).
+- For each candidate that passes the evidence integrity rule, run `claude-code-hermit:proposal-triage`. Collect candidates where triage returned CREATE, then make a single `claude-code-hermit:reflection-judge` call for those candidates (see § Evidence Validation for input/output format). Route each ACCEPT/DOWNGRADE verdict through the standard Outcomes path (micro-approval queue for Tier 1/2, `/claude-code-hermit:proposal-create` for Tier 3).
 - Append one Progress Log line: `[HH:MM] reflect (quick, post-routine) — N candidates; verdicts: accept=A downgrade=D suppress=S; outcomes: <list or "none">`.
 - **Do not call `update-reflection-state.js`** — quick runs are event-driven, not cadence ticks. Mutating `last_run_at` would suppress the next scheduled reflect. Consequence: judge verdicts from quick runs do not accumulate into the Component Health counters (`judge_accept` / `judge_suppress`); on daemons with frequent `reflect_after` use, those counters will under-represent total judge activity. This is intentional — cadence preservation wins.
 - Then stop. Do not continue to the scheduled-reflect steps below.
@@ -150,16 +150,24 @@ If the pattern is only visible to reflect via inference (cost log, token counter
 
 ## Evidence Validation
 
-Before acting on any proposal candidate, delegate to `claude-code-hermit:reflection-judge`.
+Before acting on any proposal candidate, delegate to `claude-code-hermit:reflection-judge`. Collect **all** candidates first, then make a **single** invocation — the judge returns one verdict line per candidate. A single candidate is still passed as a batch of one.
 
-Pass each candidate as:
+Pass candidates as a sequence of blocks separated by a blank line:
 ```
 Candidate: <title>
 Tier: <1|2|3>
 Evidence Source: archived-session | current-session | scheduled-check/<id> | operator-request
 Evidence: <summary>
 Sessions: <S-001, S-002, ...> (or "none")
+
+Candidate: <next title>
+Tier: <1|2|3>
+Evidence Source: ...
+Evidence: ...
+Sessions: ...
 ```
+
+The judge returns one verdict line per candidate, matched by `<title>`. Apply the routing below to each line independently.
 
 `Evidence Source:` defaults to `archived-session` if omitted. Plugin-check candidates use `Evidence Source: scheduled-check/<id>` with `Sessions: none`. Tier-1 candidates with live SHELL.md evidence use `Evidence Source: current-session` with `Sessions: current` (see § Three-Condition Rule, condition 1).
 
@@ -169,7 +177,7 @@ Sessions: <S-001, S-002, ...> (or "none")
 - **DOWNGRADE:<new-tier>** or **DOWNGRADE:<new-tier> (<source>)** — proceed at the revised tier
 - **SUPPRESS** — if suppressed with code `no-sessions`, note the candidate in SHELL.md Findings for future revisit. Otherwise drop silently.
 
-Only act on ACCEPT and DOWNGRADE verdicts.
+Only act on ACCEPT and DOWNGRADE verdicts. `proposal-triage` (the gate in § Proposal Tier Classification) is single-candidate — invoke it per-candidate, not as a batch.
 
 ## Outcomes
 
