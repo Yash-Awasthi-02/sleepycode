@@ -219,6 +219,26 @@ The `cost-tracker` hook tracks spend automatically. For detailed token optimizat
 
 Quick summary: set per-session budgets with `/hermit-settings budget` (warns at 80%, recommends closing at 100%) and project-level budgets in OPERATOR.md.
 
+### Cheap always-on
+
+Four levers, in rough order of impact:
+
+**1. Whole-session model** (`config.model: "haiku"`). The single highest-leverage cut. Every idle turn — heartbeat, routines, interactive — inherits the session model. Tradeoff: your interactive work and idle task pickup also drop to Haiku. It is whole-session, not heartbeat-only. Set via `/hermit-settings` or directly in `config.json`.
+
+**2. Per-routine model override** (since v1.0.20). Routines that are self-contained and stateless (URL checks, threshold comparisons, file audits) can run their skill in a subagent at a cheaper model:
+
+```json
+{"id": "cortex-refresh", "schedule": "0 6 * * *", "skill": "...", "model": "haiku"}
+```
+
+Not suitable for routines whose value is chat or transcript output (subagent output collapses to one line) or for `heartbeat-restart` (must run in-session). See the [Routines](#routines) section above and [config-reference](config-reference.md#idle-agency--routines).
+
+**3. Interval and active hours.** Cost is wakes/day × cost/wake. Widen `heartbeat.every` (default 5 min) or tighten `active_hours` in `config.json`. Only `EVALUATE`/`AUTO_CLOSE` wakes cost tokens — the `--peek` poll between them is free.
+
+**4. Checklist curation.** A shorter, sharper `HEARTBEAT.md` lets the free OK precheck path fire more often, skipping the full LLM eval. `/claude-code-hermit:heartbeat edit` warns when the list exceeds 10 items.
+
+**Measure before and after:** run `/claude-code-hermit:cost-reflect` to see spend broken down by trigger source (`heartbeat`, `routine:<id>`, `other`) and by token type. The `routine:<id>` rows are the ones a per-routine model override shrinks; `heartbeat` is the one that responds to interval/checklist changes; `other` covers interactive and unattributed turns.
+
 ---
 
 ## 5. Reconnecting After Disconnects

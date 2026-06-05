@@ -12,6 +12,7 @@ const { costByType } = require('./lib/pricing');
 const COLD_START_OUTPUT_MAX = 1000; // tokens
 
 const MAX_TOP_SESSIONS = 3;
+const MAX_TOP_SOURCES = 5;
 const MAX_CHARS = 1500;
 
 function parseLogEntries(costLog) {
@@ -60,6 +61,7 @@ function run() {
   let coldStartTurns = 0;
   let coldStartCost = 0;
   const sessionMap = {}; // session_id -> { cost, turns, byType }
+  const sourceMap = {};
 
   for (const e of window) {
     const model = e.model || 'sonnet';
@@ -94,6 +96,10 @@ function run() {
       s.byType.cacheRead  += types.cacheRead;
       s.byType.output     += types.output;
     }
+
+    // Per-source attribution; legacy entries without 'source' bucket to 'other'
+    const src = e.source || 'other';
+    sourceMap[src] = (sourceMap[src] || 0) + entryCost;
   }
 
   const total = totals.input + totals.cacheWrite + totals.cacheRead + totals.output;
@@ -109,6 +115,10 @@ function run() {
       return { id: sid.slice(0, 8), cost: s.cost, turns: s.turns, dominant: label };
     });
 
+  // All source entries sorted desc by cost; tail count used for the '+N more' line
+  const allSources = Object.entries(sourceMap).sort((a, b) => b[1] - a[1]);
+  const hasRoutineRow = allSources.some(([src]) => src.startsWith('routine:'));
+
   const header = `### Cost by token type (${days}d · ${formatCost(total)} · ${turns} turns / ${sessions} sessions)\n` +
     `- cache_read ${formatCost(totals.cacheRead)} (${pct(totals.cacheRead, total)})` +
     ` · cache_write ${formatCost(totals.cacheWrite)} (${pct(totals.cacheWrite, total)})` +
@@ -119,6 +129,21 @@ function run() {
     ? `\n### Cold starts\n- ${coldStartTurns} turn${coldStartTurns === 1 ? '' : 's'} · ${formatCost(coldStartCost)} (${pct(coldStartCost, total)}) — cache-write, no cache-read, <${COLD_START_OUTPUT_MAX} output tokens\n`
     : '';
 
+  const subagentFootnote = hasRoutineRow
+    ? `\n_routines with a model override run their skill in a subagent; only the in-session dispatch cost is counted here_\n`
+    : '';
+
+  function buildSourceSection(n) {
+    if (n <= 0 || allSources.length === 0) return '';
+    const rest = allSources.length - n;
+    const rows = allSources.slice(0, n).map(([src, cost]) => {
+      const label = src === 'other' ? `${src} _(non-scheduled)_` : src;
+      return `- ${label}: ${formatCost(cost)} (${pct(cost, total)})`;
+    });
+    if (rest > 0) rows.push(`- +${rest} more sources`);
+    return `\n### Cost by source\n${rows.join('\n')}\n`;
+  }
+
   function buildTopSection(n) {
     if (n <= 0 || topSessions.length === 0) return '';
     const lines = topSessions.slice(0, n).map(s =>
@@ -127,12 +152,16 @@ function run() {
     return `\n### Top sessions\n${lines}\n`;
   }
 
-  // Enforce ≤1500 chars by dropping top-sessions entries until it fits
-  for (let n = MAX_TOP_SESSIONS; n >= 0; n--) {
-    const body = header + coldSection + buildTopSection(n);
-    if (body.length <= MAX_CHARS || n === 0) {
-      process.stdout.write(body);
-      return;
+  // Enforce ≤1500 chars by dropping rows from both sections until it fits.
+  // Source rows shed first (lowest-value for operators with many routines),
+  // then top-sessions, mirroring the existing degradation pattern.
+  for (let m = MAX_TOP_SOURCES; m >= 0; m--) {
+    for (let n = MAX_TOP_SESSIONS; n >= 0; n--) {
+      const body = header + coldSection + buildSourceSection(m) + subagentFootnote + buildTopSection(n);
+      if (body.length <= MAX_CHARS || (m === 0 && n === 0)) {
+        process.stdout.write(body);
+        return;
+      }
     }
   }
 }

@@ -831,6 +831,151 @@ run_test "cost-reflect: missing log → 'No cost data' (exit 0)" bash -c \
 cleanup
 
 # -------------------------------------------------------
+# cost-tracker: classifySource / scanTriggerMarkers unit tests
+# -------------------------------------------------------
+
+TRACKER_LIB="$REPO_ROOT/scripts/cost-tracker.js"
+
+# Exports the new symbols
+run_test "cost-tracker: exports classifySource and scanTriggerMarkers" bash -c \
+  "node -e \"const t=require('$TRACKER_LIB'); ['classifySource','scanTriggerMarkers'].forEach(k=>{ if(typeof t[k]!=='function') throw new Error(k+' missing'); });\""
+
+# classifySource: heartbeat marker
+run_test "cost-tracker: classifySource(HEARTBEAT_EVALUATE) = heartbeat" bash -c \
+  "node -e \"const {classifySource}=require('$TRACKER_LIB'); const r=classifySource('some prefix HEARTBEAT_EVALUATE rest'); if(r!=='heartbeat') throw new Error('got '+r);\""
+
+run_test "cost-tracker: classifySource(heartbeat run) = heartbeat" bash -c \
+  "node -e \"const {classifySource}=require('$TRACKER_LIB'); const r=classifySource('/claude-code-hermit:heartbeat run'); if(r!=='heartbeat') throw new Error('got '+r);\""
+
+# classifySource: routine marker
+run_test "cost-tracker: classifySource([hermit-routine:daily]) = routine:daily" bash -c \
+  "node -e \"const {classifySource}=require('$TRACKER_LIB'); const r=classifySource('[hermit-routine:daily]'); if(r!=='routine:daily') throw new Error('got '+r);\""
+
+run_test "cost-tracker: classifySource([hermit-routine:cortex-refresh]) = routine:cortex-refresh" bash -c \
+  "node -e \"const {classifySource}=require('$TRACKER_LIB'); const r=classifySource('text [hermit-routine:cortex-refresh] more text'); if(r!=='routine:cortex-refresh') throw new Error('got '+r);\""
+
+# classifySource: no marker → other
+run_test "cost-tracker: classifySource(no marker) = other" bash -c \
+  "node -e \"const {classifySource}=require('$TRACKER_LIB'); const r=classifySource('just a normal operator message'); if(r!=='other') throw new Error('got '+r);\""
+
+run_test "cost-tracker: classifySource(empty) = other" bash -c \
+  "node -e \"const {classifySource}=require('$TRACKER_LIB'); const r=classifySource(''); if(r!=='other') throw new Error('got '+r);\""
+
+# classifySource: skill-template noise must NOT match (false-positive guard)
+# These strings appear as tool_result content when routines register
+run_test "cost-tracker: classifySource rejects [hermit-routine:*] (template glob)" bash -c \
+  "node -e \"const {classifySource}=require('$TRACKER_LIB'); const r=classifySource('[hermit-routine:*]'); if(r!=='other') throw new Error('got '+r);\""
+
+run_test "cost-tracker: classifySource rejects [hermit-routine:<id>] (template placeholder)" bash -c \
+  "node -e \"const {classifySource}=require('$TRACKER_LIB'); const r=classifySource('[hermit-routine:<id>]'); if(r!=='other') throw new Error('got '+r);\""
+
+# classifySource: unsanitized id with disallowed chars yields other (not a partial match)
+run_test "cost-tracker: classifySource rejects id with pipe/newline" bash -c \
+  "node -e \"const {classifySource}=require('$TRACKER_LIB'); const r=classifySource('[hermit-routine:foo|bar]'); if(r!=='other') throw new Error('got '+r);\""
+
+# classifySource: id length-capped at 64 chars
+run_test "cost-tracker: classifySource caps id at 64 chars" bash -c \
+  "node -e \"
+const {classifySource}=require('$TRACKER_LIB');
+const longId='a'.repeat(80);
+const r=classifySource('[hermit-routine:'+longId+']');
+if(!r.startsWith('routine:')) throw new Error('expected routine:..., got '+r);
+const id=r.slice('routine:'.length);
+if(id.length!==64) throw new Error('id length '+id.length+', want 64');
+\""
+
+# scanTriggerMarkers: backward scan finds routine marker past tool_result boundary
+# Simulates: human([hermit-routine:daily]) → assistant(tool_use) → user(tool_result) → assistant(usage)
+# The billed entry is the last assistant; scanTriggerMarkers should find the human entry's marker.
+run_test "cost-tracker: scanTriggerMarkers finds routine past tool_result" bash -c \
+  "node -e \"
+const {scanTriggerMarkers}=require('$TRACKER_LIB');
+const lines=[
+  JSON.stringify({type:'user',message:{content:'[hermit-routine:daily] Read runtime.json. Invoke /reflect.'}}),
+  JSON.stringify({type:'assistant',message:{content:[{type:'tool_use',id:'t1',name:'Read',input:{}}]}}),
+  JSON.stringify({type:'user',message:{content:[{tool_use_id:'t1',type:'tool_result',content:'ok'}]}}),
+  JSON.stringify({type:'assistant',message:{usage:{input_tokens:100,output_tokens:50}}})
+];
+const text=scanTriggerMarkers(lines,3);
+if(!text.includes('[hermit-routine:daily]')) throw new Error('marker not found in: '+text.slice(0,200));
+\""
+
+# scanTriggerMarkers: turn-boundary stops at prior billed assistant
+# Ensures a routine from a PREVIOUS turn can't bleed into the current turn's source
+run_test "cost-tracker: scanTriggerMarkers respects turn boundary" bash -c \
+  "node -e \"
+const {scanTriggerMarkers}=require('$TRACKER_LIB');
+const lines=[
+  JSON.stringify({type:'user',message:{content:'[hermit-routine:old-routine] prior turn'}}),
+  JSON.stringify({type:'assistant',message:{usage:{input_tokens:50,output_tokens:20}}}),
+  JSON.stringify({type:'user',message:{content:'operator message with no marker'}}),
+  JSON.stringify({type:'assistant',message:{usage:{input_tokens:100,output_tokens:50}}})
+];
+const text=scanTriggerMarkers(lines,3);
+if(text.includes('[hermit-routine:old-routine]')) throw new Error('prior turn marker bled in: '+text.slice(0,200));
+\""
+
+# -------------------------------------------------------
+# cost-reflect.js: source attribution tests
+# -------------------------------------------------------
+
+# Fixture log with known source values + legacy untagged entries
+REFLECT_SRC_WORKDIR="$(setup_workdir)"
+REFLECT_SRC_DATE="$(date -u -d '1 day ago' +%Y-%m-%d 2>/dev/null || date -u -v-1d +%Y-%m-%d 2>/dev/null || echo "$(date -u +%Y-%m-%d)")"
+
+cat > "$REFLECT_SRC_WORKDIR/.claude/cost-log.jsonl" <<SRCEOF
+{"timestamp":"${REFLECT_SRC_DATE}T10:00:00.000Z","session_id":"s1","source":"heartbeat","model":"sonnet","input_tokens":0,"cache_write_tokens":0,"cache_read_tokens":100000,"output_tokens":0,"total_tokens":100000,"estimated_cost_usd":0.03}
+{"timestamp":"${REFLECT_SRC_DATE}T10:01:00.000Z","session_id":"s2","source":"routine:reflect","model":"sonnet","input_tokens":0,"cache_write_tokens":0,"cache_read_tokens":100000,"output_tokens":2000,"total_tokens":102000,"estimated_cost_usd":0.06}
+{"timestamp":"${REFLECT_SRC_DATE}T10:02:00.000Z","session_id":"s3","source":"other","model":"sonnet","input_tokens":0,"cache_write_tokens":0,"cache_read_tokens":50000,"output_tokens":5000,"total_tokens":55000,"estimated_cost_usd":0.09}
+{"timestamp":"${REFLECT_SRC_DATE}T10:03:00.000Z","session_id":"s4","model":"sonnet","input_tokens":0,"cache_write_tokens":0,"cache_read_tokens":50000,"output_tokens":1000,"total_tokens":51000,"estimated_cost_usd":0.021}
+SRCEOF
+
+REFLECT_SRC_OUT="$(cd "$REFLECT_SRC_WORKDIR" && node "$REPO_ROOT/scripts/cost-reflect.js" .claude-code-hermit 2>&1)"
+
+run_test "cost-reflect: Cost by source section present" bash -c \
+  "echo '$REFLECT_SRC_OUT' | grep -q 'Cost by source'"
+
+run_test "cost-reflect: heartbeat source row present" bash -c \
+  "echo '$REFLECT_SRC_OUT' | grep -q 'heartbeat'"
+
+run_test "cost-reflect: routine:reflect source row present" bash -c \
+  "echo '$REFLECT_SRC_OUT' | grep -q 'routine:reflect'"
+
+run_test "cost-reflect: other (non-scheduled) label present" bash -c \
+  "echo '$REFLECT_SRC_OUT' | grep -q 'non-scheduled'"
+
+run_test "cost-reflect: legacy entry (no source) bucketed to other" bash -c \
+  "echo '$REFLECT_SRC_OUT' | grep -q 'other'"
+
+run_test "cost-reflect: routine row triggers subagent footnote" bash -c \
+  "echo '$REFLECT_SRC_OUT' | grep -qi 'subagent'"
+
+run_test "cost-reflect (source fixture): output ≤1500 chars" bash -c \
+  "[ \$(echo '$REFLECT_SRC_OUT' | wc -c) -le 1500 ]"
+
+cleanup
+
+# ~20-source cap fixture: verify ≤1500 chars with many distinct routine sources
+REFLECT_MANY_WORKDIR="$(setup_workdir)"
+REFLECT_MANY_DATE="$(date -u -d '1 day ago' +%Y-%m-%d 2>/dev/null || date -u -v-1d +%Y-%m-%d 2>/dev/null || echo "$(date -u +%Y-%m-%d)")"
+
+{
+  for i in $(seq 1 20); do
+    echo "{\"timestamp\":\"${REFLECT_MANY_DATE}T10:$(printf '%02d' "$i"):00.000Z\",\"session_id\":\"s${i}\",\"source\":\"routine:routine-${i}\",\"model\":\"sonnet\",\"input_tokens\":0,\"cache_write_tokens\":0,\"cache_read_tokens\":10000,\"output_tokens\":500,\"total_tokens\":10500,\"estimated_cost_usd\":0.01}"
+  done
+} > "$REFLECT_MANY_WORKDIR/.claude/cost-log.jsonl"
+
+REFLECT_MANY_OUT="$(cd "$REFLECT_MANY_WORKDIR" && node "$REPO_ROOT/scripts/cost-reflect.js" .claude-code-hermit 2>&1)"
+
+run_test "cost-reflect: 20-source fixture produces output" bash -c "[ -n '$REFLECT_MANY_OUT' ]"
+run_test "cost-reflect: 20-source fixture ≤1500 chars" bash -c \
+  "[ \$(echo '$REFLECT_MANY_OUT' | wc -c) -le 1500 ]"
+run_test "cost-reflect: 20-source fixture shows +N more sources line" bash -c \
+  "echo '$REFLECT_MANY_OUT' | grep -q 'more sources'"
+
+cleanup
+
+# -------------------------------------------------------
 # Summary
 # -------------------------------------------------------
 print_results

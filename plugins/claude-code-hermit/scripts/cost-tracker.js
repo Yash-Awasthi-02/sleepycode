@@ -50,6 +50,54 @@ function detectModel(modelStr) {
   return 'sonnet';
 }
 
+// Stringify an entry's message.content regardless of whether it's a string or a content-block array.
+// Real transcripts use both shapes (confirmed in live ops-hermit data).
+function entryText(entry) {
+  const c = entry.message?.content;
+  if (!c) return '';
+  return typeof c === 'string' ? c : JSON.stringify(c);
+}
+
+// Scan backward from billedIndex through the current turn (stopping at the previous
+// assistant-with-usage entry or the tail start) and return concatenated entry text.
+// Turn-boundary is load-bearing: the 128KB tail often contains several stacked turns,
+// so without this bound a prior routine's marker can bleed into a later turn's source.
+function scanTriggerMarkers(lines, billedIndex) {
+  const parts = [];
+  for (let j = billedIndex - 1; j >= 0; j--) {
+    try {
+      const prev = JSON.parse(lines[j]);
+      // Stop at the previous billed assistant turn — that's the turn boundary
+      if (prev.type === 'assistant' && prev.message?.usage) break;
+      parts.push(entryText(prev));
+    } catch {}
+  }
+  return parts.join(' ');
+}
+
+// Classify a turn's trigger source from the scanned text of its entries.
+// Only the two marker-driven sources are claimed; everything else is 'other'
+// (the non-scheduled bucket, typically the largest row in practice).
+// Routine ids are validated only for presence/uniqueness in config — the
+// strict charset here ([A-Za-z0-9._-]+) is the classifier's own gate, and
+// it is confirmed to reject skill-template noise ([hermit-routine:*], <id> placeholders)
+// that appears in tool_result entries when routines register.
+function classifySource(triggerText) {
+  if (!triggerText) return 'other';
+  if (triggerText.includes('HEARTBEAT_EVALUATE') ||
+      triggerText.includes('/claude-code-hermit:heartbeat run')) {
+    return 'heartbeat';
+  }
+  // Strict charset — must match a real routine id, never a placeholder or glob
+  const routineMatch = triggerText.match(/\[hermit-routine:([A-Za-z0-9._-]+)\]/);
+  // Length-cap to 64 chars so ids can't overflow markdown table cells
+  if (routineMatch) return `routine:${routineMatch[1].slice(0, 64)}`;
+  // log-routine-event.sh fallback: present in tool_result when the skill fires the marker
+  const logMatch = triggerText.match(/log-routine-event\.sh\s+([A-Za-z0-9._-]+)/);
+  if (logMatch) return `routine:${logMatch[1].slice(0, 64)}`;
+  return 'other';
+}
+
 function readLastTurnUsage(transcriptPath) {
   const TAIL_BYTES = 131072; // 128KB — read from end, avoid loading full transcript
   try {
@@ -69,7 +117,9 @@ function readLastTurnUsage(transcriptPath) {
         const entry = JSON.parse(lines[i]);
         if (entry.type === 'assistant' && entry.message?.usage) {
           const u = entry.message.usage;
-          // Detect operator interaction for operator_turns tracking
+          // Detect operator interaction for operator_turns tracking.
+          // Note: real transcripts use type:'user', not type:'human', so this is
+          // effectively always false in production — left intact for future correctness.
           let hadHumanTurn = false;
           for (let j = i - 1; j >= 0; j--) {
             try {
@@ -78,6 +128,8 @@ function readLastTurnUsage(transcriptPath) {
               break; // stop at first valid entry before this assistant turn
             } catch {}
           }
+          const triggerText = scanTriggerMarkers(lines, i);
+          const source = classifySource(triggerText);
           return {
             inputTokens:      u.input_tokens || 0,
             cacheWriteTokens: u.cache_creation_input_tokens || 0,
@@ -85,6 +137,7 @@ function readLastTurnUsage(transcriptPath) {
             outputTokens:     u.output_tokens || 0,
             model:            entry.message.model || '',
             hadHumanTurn,
+            source,
           };
         }
       } catch {}
@@ -369,7 +422,7 @@ async function run(data) {
       return null;
     }
 
-    const { inputTokens, cacheWriteTokens, cacheReadTokens, outputTokens, model: rawModel, hadHumanTurn } = turn;
+    const { inputTokens, cacheWriteTokens, cacheReadTokens, outputTokens, model: rawModel, hadHumanTurn, source } = turn;
     const model = detectModel(rawModel);
 
     const totalTokens = inputTokens + cacheWriteTokens + cacheReadTokens + outputTokens;
@@ -387,6 +440,7 @@ async function run(data) {
     const logEntry = {
       timestamp: new Date().toISOString(),
       session_id: runtimeSessionId || sessionId,
+      source,
       model,
       input_tokens: inputTokens,
       cache_write_tokens: cacheWriteTokens,
@@ -424,7 +478,7 @@ async function run(data) {
   }
 }
 
-module.exports = { run, getCumulativeCost };
+module.exports = { run, getCumulativeCost, classifySource, scanTriggerMarkers };
 
 if (require.main === module) {
   (async () => {
