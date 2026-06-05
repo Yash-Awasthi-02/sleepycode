@@ -1,10 +1,34 @@
 # Changelog
 
-## [Unreleased]
+## [0.3.14] - 2026-06-05
 
 ### Changed
 
 - **hatch + dev-quality: drop `code-review` companion plugin** — `code-review@claude-plugins-official` is built into Claude Code since v2.1.150; removed it from hatch's companion picker and the `/dev-quality` install guard (#279).
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/hatch/SKILL.md` | Removed `code-review` from companion plugin picker |
+| `skills/dev-quality/SKILL.md` | Updated references from `/code-review:code-review` to native `/code-review` |
+| `state-templates/CLAUDE-APPEND.md` | Updated `/code-review:code-review` reference to native `/code-review` |
+| `state-templates/CLAUDE-APPEND-SAFETY.md` | Updated `/code-review:code-review` reference to native `/code-review` |
+| `CLAUDE.md` | Updated constraint prose and skill description |
+| `README.md` | Updated dev-quality skill description |
+| `docs/HOW-TO-USE.md` | Updated code-review invocation reference |
+| `docs/WORKFLOW.md` | Updated code-review invocation reference |
+| `docs/RECOMMENDED-PLUGINS.md` | Replaced code-review section with built-in note |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Update the plugin.** Run `claude plugin update claude-code-dev-hermit --scope local` (or the scope you used at install).
+
+No `config.json` changes required.
+
+**Note:** If you have `code-review@claude-plugins-official` installed, it still works — the native `/code-review` is also available and no longer requires the companion plugin.
 
 ## [0.3.13] - 2026-06-04
 
