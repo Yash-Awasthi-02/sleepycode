@@ -9,6 +9,11 @@
 ### Added
 
 - **hatch: git init on fresh dirs** — when hatching in an empty, non-git directory (e.g. a dedicated ops-hermit workspace), offers a local `git init` so the hermit's build artifacts are versioned from day one. Existing projects and re-inits are untouched. Closes #282.
+- **cost-reflect: structural cost audit skill** — breaks 7-day spend into token-type drivers (cache_read / cache_write / output / input), flags cold-start overhead, and attributes cost per session. Read-only report; opt-in as a weekly routine via `/hermit-settings`. Closes #295.
+
+### Changed
+
+- **cost-tracker: pricing moved to `lib/pricing.js`** — shared with cost-reflect; no behavior change.
 - **hermit-routines: optional per-routine `model` override** — run lightweight routines (URL checks, threshold comparisons) on Haiku via subagent dispatch to cut idle cost. Ignored on `heartbeat-restart`; not for routines whose value is chat/transcript output. Closes #289.
 
 ### Files affected
@@ -16,6 +21,12 @@
 | File | Change |
 |------|--------|
 | `skills/hatch/SKILL.md` | git-init eligibility probe (Step 1.5), new Step 7.5, Quick confirm Git: line, Step 10 report line |
+| `skills/cost-reflect/SKILL.md` | new skill |
+| `scripts/lib/pricing.js` | new — PRICING table, costByType(), calculateCost() |
+| `scripts/cost-reflect.js` | new — token-type breakdown + cold-start + per-session analyzer |
+| `scripts/cost-tracker.js` | consume lib/pricing.js |
+| `tests/run-scripts.sh` | pricing regression + cost-reflect fixture tests |
+| `docs/skills.md` | cost-reflect row in Channel-Friendly Summaries |
 
 ## [1.1.9] - 2026-06-04
 
