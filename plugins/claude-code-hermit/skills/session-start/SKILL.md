@@ -9,7 +9,7 @@ Notify the operator per the channel policy in CLAUDE.md (§ Operator Notificatio
 
 ## `--task` flag (non-interactive autonomous start)
 
-If invoked as `session-start --task '<text>'`: use `<text>` as the task and bypass ALL operator interaction. Skip the NEXT-TASK.md presentation (step 6), the "What should I work on next?" / "What should I help with?" prompts (steps 9b/10), the Tags prompt (step 11), the step-12 first-step confirmation, and the "After confirming the plan with the operator" plan-confirmation prose in the task-source paths. Do not ask for plan confirmation. Steps 1–4 run unchanged; create the session via `claude-code-hermit:session-mgr` and proceed autonomously.
+If invoked as `session-start --task '<text>'`: use `<text>` as the task and bypass interactive prompts/questions only. Operator notifications in step 8 still follow the channel policy above. Skip the NEXT-TASK.md presentation (step 6), the "What should I work on next?" / "What should I help with?" prompts (steps 9b/10), the Tags prompt (step 11), the step-12 first-step confirmation, and the "After confirming the plan with the operator" plan-confirmation prose in the task-source paths. Do not ask for plan confirmation. Steps 1–4 run unchanged; create the session via `claude-code-hermit:session-mgr` and proceed autonomously.
 
 When starting a new session:
 
