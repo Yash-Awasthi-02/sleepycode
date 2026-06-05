@@ -763,11 +763,11 @@ REFLECT_OLD="$(date -u -d '8 days ago' +%Y-%m-%d 2>/dev/null || date -u -v-8d +%
 
 # Write fixture entries to the cost log
 cat > "$REFLECT_WORKDIR/.claude/cost-log.jsonl" <<LOGEOF
-{"timestamp":"${REFLECT_IN_WINDOW}T10:00:00.000Z","session_id":"session-A","model":"sonnet","input_tokens":0,"cache_write_tokens":0,"cache_read_tokens":100000,"output_tokens":0,"total_tokens":100000,"estimated_cost_usd":0.03}
-{"timestamp":"${REFLECT_IN_WINDOW}T10:01:00.000Z","session_id":"session-A","model":"sonnet","input_tokens":0,"cache_write_tokens":50000,"cache_read_tokens":0,"output_tokens":500,"total_tokens":50500,"estimated_cost_usd":0.195}
-{"timestamp":"${REFLECT_IN_WINDOW}T10:02:00.000Z","session_id":"session-A","model":"haiku","input_tokens":0,"cache_write_tokens":0,"cache_read_tokens":200000,"output_tokens":2000,"total_tokens":202000,"estimated_cost_usd":0.024}
-{"timestamp":"${REFLECT_IN_WINDOW}T10:03:00.000Z","session_id":"session-B","model":"opus","input_tokens":0,"cache_write_tokens":0,"cache_read_tokens":0,"output_tokens":100000,"total_tokens":100000,"estimated_cost_usd":7.5}
-{"timestamp":"${REFLECT_IN_WINDOW}T10:04:00.000Z","session_id":"session-D","model":"sonnet","input_tokens":0,"cache_write_tokens":0,"cache_read_tokens":20000,"output_tokens":1000,"total_tokens":21000,"estimated_cost_usd":0.021}
+{"timestamp":"${REFLECT_IN_WINDOW}T10:00:00.000Z","session_id":"sessionA1","model":"sonnet","input_tokens":0,"cache_write_tokens":0,"cache_read_tokens":100000,"output_tokens":0,"total_tokens":100000,"estimated_cost_usd":0.03}
+{"timestamp":"${REFLECT_IN_WINDOW}T10:01:00.000Z","session_id":"sessionA1","model":"sonnet","input_tokens":0,"cache_write_tokens":50000,"cache_read_tokens":0,"output_tokens":500,"total_tokens":50500,"estimated_cost_usd":0.195}
+{"timestamp":"${REFLECT_IN_WINDOW}T10:02:00.000Z","session_id":"sessionA1","model":"haiku","input_tokens":0,"cache_write_tokens":0,"cache_read_tokens":200000,"output_tokens":2000,"total_tokens":202000,"estimated_cost_usd":0.024}
+{"timestamp":"${REFLECT_IN_WINDOW}T10:03:00.000Z","session_id":"sessionB2","model":"opus","input_tokens":0,"cache_write_tokens":0,"cache_read_tokens":0,"output_tokens":100000,"total_tokens":100000,"estimated_cost_usd":7.5}
+{"timestamp":"${REFLECT_IN_WINDOW}T10:04:00.000Z","session_id":"sessionD4","model":"sonnet","input_tokens":0,"cache_write_tokens":0,"cache_read_tokens":20000,"output_tokens":1000,"total_tokens":21000,"estimated_cost_usd":0.021}
 {"timestamp":"${REFLECT_OLD}T10:00:00.000Z","session_id":"session-OLD","model":"sonnet","input_tokens":0,"cache_write_tokens":0,"cache_read_tokens":999999,"output_tokens":0,"total_tokens":999999,"estimated_cost_usd":99.9999}
 LOGEOF
 
@@ -799,14 +799,15 @@ run_test "cost-reflect: cold-start section present" bash -c \
 run_test "cost-reflect: 1 cold-start turn detected" bash -c \
   "echo '$REFLECT_OUT' | grep -q '1 turn.*cache-write'"
 
-# session-B is the most expensive (opus, $7.5 output) → appears first in Top sessions
-run_test "cost-reflect: session-B (opus output) is top session" bash -c \
-  "echo '$REFLECT_OUT' | grep -A5 'Top sessions' | grep -q 'session-'"
+# sessionB2 is the most expensive (opus, $7.5 output) → first line under Top sessions
+run_test "cost-reflect: sessionB (opus output) is top session" bash -c \
+  "echo '$REFLECT_OUT' | grep -A1 'Top sessions' | grep -q 'sessionB'"
 
-# session-D: sonnet, cache_read=20K tokens vs output=1K tokens — by token count cache_read>output,
-# but by sub-cost output ($0.015) > cache_read ($0.006) → dominant must be 'output', not 'cache_read'
+# sessionD4: sonnet, cache_read=20K tokens vs output=1K tokens — by token count cache_read>output,
+# but by sub-cost output (\$0.015) > cache_read (\$0.006) → dominant must be 'output', not 'cache_read'.
+# Targets only the sessionD line (8-char display IDs are distinct), so it actually exercises the logic.
 run_test "cost-reflect: dominant type by sub-cost not token volume" bash -c \
-  "echo '$REFLECT_OUT' | grep -E 'session-D|$(echo session-D | cut -c1-8)' | grep -qi 'output'"
+  "echo '$REFLECT_OUT' | grep 'sessionD' | grep -qi 'output'"
 
 # Output respects ≤1500 char cap
 run_test "cost-reflect: output ≤1500 chars" bash -c \

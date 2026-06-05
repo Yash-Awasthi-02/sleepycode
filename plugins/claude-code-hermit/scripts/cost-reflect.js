@@ -11,13 +11,12 @@ const { costByType } = require('./lib/pricing');
 // and output is small (i.e. this was a context-warm-up rather than real work).
 const COLD_START_OUTPUT_MAX = 1000; // tokens
 
-const COST_LOG = path.resolve('.claude/cost-log.jsonl');
 const MAX_TOP_SESSIONS = 3;
 const MAX_CHARS = 1500;
 
-function parseLogEntries() {
+function parseLogEntries(costLog) {
   try {
-    const content = fs.readFileSync(COST_LOG, 'utf-8').trim();
+    const content = fs.readFileSync(costLog, 'utf-8').trim();
     if (!content) return [];
     return content.split('\n').reduce((acc, line) => {
       try { acc.push(JSON.parse(line)); } catch {}
@@ -41,9 +40,11 @@ function run() {
   const stateDir = process.argv[2] || '.claude-code-hermit';
   const days = Math.max(1, parseInt(process.argv[3], 10) || 7);
 
+  // cost-log.jsonl is a sibling of the state dir (both under the project root).
+  const costLog = path.resolve(stateDir, '..', '.claude', 'cost-log.jsonl');
   const cutoffDate = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
 
-  const entries = parseLogEntries();
+  const entries = parseLogEntries(costLog);
 
   const window = entries.filter(e => {
     const d = (e.timestamp || '').slice(0, 10);
@@ -119,7 +120,7 @@ function run() {
     : '';
 
   function buildTopSection(n) {
-    if (topSessions.length === 0) return '';
+    if (n <= 0 || topSessions.length === 0) return '';
     const lines = topSessions.slice(0, n).map(s =>
       `- ${s.id}: ${formatCost(s.cost)} (${s.turns} turn${s.turns === 1 ? '' : 's'}, mostly ${s.dominant})`
     ).join('\n');
