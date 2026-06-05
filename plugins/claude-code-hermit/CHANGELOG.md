@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.1.10] - 2026-06-05
 
 ### Fixed
 
@@ -9,38 +9,47 @@
 ### Added
 
 - **session-start: `--task` handler** — non-interactive start seeds the task and bypasses all operator prompts; scheduled `--task` routines now work by design, not LLM inference.
-- **hatch: git init on fresh dirs** — when hatching in an empty, non-git directory (e.g. a dedicated ops-hermit workspace), offers a local `git init` so the hermit's build artifacts are versioned from day one. Existing projects and re-inits are untouched. Closes #282.
-- **cost-reflect: structural cost audit skill** — breaks 7-day spend into token-type drivers (cache_read / cache_write / output / input), flags cold-start overhead, and attributes cost per session. Read-only report; opt-in as a weekly routine via `/hermit-settings`. Closes #295.
-- **cost-tracker/cost-reflect: trigger-source attribution** — every `cost-log.jsonl` entry records its trigger source (`heartbeat`, `routine:<id>`, or `other`), and cost-reflect adds a **Cost by source** breakdown so idle spend can be traced to its origin. Closes #294.
+- **hatch: git init on fresh dirs** — when hatching in an empty, non-git directory, offers a local `git init` so hermit build artifacts are versioned from day one. Closes #282.
+- **cost-reflect: structural cost audit skill** — breaks 7-day spend into token-type drivers (cache_read / cache_write / output / input), flags cold-start overhead, and attributes cost per session. Opt-in as a weekly routine via `/hermit-settings`. Closes #295.
+- **cost-tracker/cost-reflect: trigger-source attribution** — every `cost-log.jsonl` entry records its trigger source (`heartbeat`, `routine:<id>`, or `other`); cost-reflect adds a **Cost by source** breakdown. Closes #294.
 - **session-discipline: context-hygiene rule** — delegate broad scans/research to `Explore` subagent; keeps main context lean.
-
-### Removed
-
-- **budget-enforcement layer** — `idle_budget`, `ask_budget`, the SHELL.md `Budget:` field, cost-tracker budget warnings, and `hermit-status` budget display removed (advisory-only, unused). All cost logging/reporting unchanged; doctor's cost check is now visibility-only.
-- **idle-tasks checklist** — `IDLE-TASKS.md` template, heartbeat pickup, and session-mgr idle-task reconciliation removed; autonomous work flows through reflection → proposal → NEXT-TASK.
-
-### Upgrade Instructions
-
-a. If `.claude-code-hermit/IDLE-TASKS.md` exists, offer the operator (via AskUserQuestion) to delete it or leave it as-is. Do not auto-migrate its contents.
-b. Note: `idle_budget`/`ask_budget` in `config.json` and any `**Budget:**` line in `SHELL.md` are now ignored; optionally remove them. No action required. Existing `.status.json` files may show a stale `budget_usd` field until the next cost-tracker write — harmless.
 
 ### Changed
 
 - **cost-tracker: pricing moved to `lib/pricing.js`** — shared with cost-reflect; no behavior change.
-- **hermit-routines: optional per-routine `model` override** — run lightweight routines (URL checks, threshold comparisons) on Haiku via subagent dispatch to cut idle cost. Ignored on `heartbeat-restart`; not for routines whose value is chat/transcript output. Closes #289.
+- **hermit-routines: optional per-routine `model` override** — run lightweight routines on Haiku via subagent dispatch to cut idle cost; ignored on `heartbeat-restart`. Closes #289.
+
+### Removed
+
+- **budget-enforcement layer** — `idle_budget`, `ask_budget`, SHELL.md `Budget:` field, cost-tracker budget warnings, and `hermit-status` budget display removed; doctor's cost check is now visibility-only.
+- **idle-tasks checklist** — `IDLE-TASKS.md` template, heartbeat pickup, and session-mgr idle-task reconciliation removed; autonomous work flows through reflection → proposal → NEXT-TASK.
 
 ### Files affected
 
 | File | Change |
 |------|--------|
-| `skills/hatch/SKILL.md` | git-init eligibility probe (Step 1.5), new Step 7.5, Quick confirm Git: line, Step 10 report line |
+| `skills/hatch/SKILL.md` | git-init eligibility probe and new Step 7.5 |
 | `skills/cost-reflect/SKILL.md` | new skill |
 | `scripts/lib/pricing.js` | new — PRICING table, costByType(), calculateCost() |
-| `scripts/cost-reflect.js` | new — token-type breakdown + cold-start + per-session analyzer |
-| `scripts/cost-tracker.js` | consume lib/pricing.js |
-| `tests/run-scripts.sh` | pricing regression + cost-reflect fixture tests |
+| `scripts/cost-reflect.js` | new — token-type breakdown, cold-start, per-session analyzer |
+| `scripts/cost-tracker.js` | consume lib/pricing.js; remove budget warnings |
+| `state-templates/CLAUDE-APPEND.md` | new context-hygiene rule under §Rules |
+| `state-templates/config.json.template` | remove `idle_budget` and `ask_budget` keys |
 | `docs/skills.md` | cost-reflect row in Channel-Friendly Summaries |
-| `state-templates/CLAUDE-APPEND.md` | New "Context hygiene" rule under § Rules |
+| `tests/run-scripts.sh` | pricing regression + cost-reflect fixture tests |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Update the plugin.** Run `claude plugin update claude-code-hermit --scope local` (or the scope you used at install).
+2. **Offer** the operator via AskUserQuestion to delete `.claude-code-hermit/IDLE-TASKS.md` if it exists; delete if confirmed, skip if declined.
+3. **Remove** `idle_budget` and `ask_budget` keys from `.claude-code-hermit/config.json` if present.
+4. **Remove** any `**Budget:**` line from `.claude-code-hermit/SHELL.md` if present.
+
+No `config.json` changes required for new keys.
+
+**Note:** Existing `.status.json` files may show a stale `budget_usd` field until the next cost-tracker write — harmless.
 
 ## [1.1.9] - 2026-06-04
 
