@@ -11,7 +11,7 @@
 Claude Code plugin that turns it into a 24/7 personal AI assistant. **Self-learning**, **Local**, **Cost-aware**, **Observable**, **One Claude subscription, multiple hermits**.
 
 <p align="center">
-  <img src="assets/demo.gif" alt="claude-code-hermit demo — Discord control, autonomous briefings, remote access" width="720" />
+  <img src="../claude-code-hermit/assets/cover.png" alt="Always-on Claude Code DevAgent" width="720" />
 </p>
 
 Hermit wires all the native Claude Code capabilities (`/loop`, `CronCreate`, channels, Monitor, auto-memory, native Tasks) to turn CC into a self-learning personal assistant.
