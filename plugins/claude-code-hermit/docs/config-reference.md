@@ -104,7 +104,7 @@ Modify with `/hermit-settings heartbeat`.
 |-----|------|---------|-------------|
 | `idle_behavior` | string | `"discover"` | What to do when idle: `"wait"` (check tasks/channels only) or `"discover"` (also run idle tasks, reflection, and priority alignment). |
 | `idle_budget` | string | `"$0.50"` | Maximum cost per idle task from `IDLE-TASKS.md`. |
-| `routines` | array | `[]` | Scheduled routines. Each entry: `{id, schedule, skill, run_during_waiting?, enabled}`. `schedule` is a 5-field cron expression (`minute hour dom month dow`) interpreted in `config.timezone`. |
+| `routines` | array | `[]` | Scheduled routines. Each entry: `{id, schedule, skill, run_during_waiting?, reflect_after?, model?, enabled}`. `schedule` is a 5-field cron expression (`minute hour dom month dow`) interpreted in `config.timezone`. `model` (optional, one of `opus`/`sonnet`/`haiku`) runs the skill in a subagent at that model to save cost on lightweight routines; omit to use the session model. Subagents run in isolated context and return only a one-line status — only use `model` on stateless routines (not ones whose primary value is chat/transcript output). Ignored on `heartbeat-restart`. |
 | `monitors` | array | `[]` | Declared background watches. Each entry: `{id, description, command, class?, persistent?, enabled, timeout_ms?}`. Auto-registered at session start via `/watch start`. `class` is `"stream"` or `"poll"` (documentation label only). Runtime state in `state/monitors.runtime.json`. |
 
 Modify with `/hermit-settings routines`, `/hermit-settings idle`.
@@ -128,6 +128,8 @@ At session start (and on every `/claude-code-hermit:hermit-routines load`), each
 DST transitions self-correct within 24h via the daily `heartbeat-restart` reload. **On the DST transition day itself, one fire may land at the wrong wall-clock hour.** If your `config.timezone` is null, schedules pass through to CronCreate unchanged (machine-local time used as-is).
 
 Schedules that cannot be expressed as a single CronCreate after shifting are passed through unchanged with a warning: mixed day-wrap on restricted-DOW schedules, and hour step patterns (`*/7`) that lose their structure. Avoid these in routines when `config.timezone` differs from the machine TZ; split into separate fixed-time entries instead.
+
+**Staggering routines.** When several routines run around the same time, offset them by a minute or two (the defaults do this: `reflect` at `0 9`, `scheduled-checks` at `5 9`). Co-scheduled routines fire as separate idle turns; a small stagger keeps each fire inside the prompt-cache window so they reuse warm context.
 
 ---
 
