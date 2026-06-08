@@ -8,13 +8,13 @@
 
 # claude-code-hermit
 
-Claude Code plugin that turns it into a 24/7 personal AI assistant. **Self-learning**, **Local**, **Cost-aware**, **Observable**, **One Claude subscription, multiple hermits**.
+Claude Code plugin that turns it into a 24/7 personal AI assistant. **Self-learning**, **Pro-Active**, **Cost-aware**, **Observable**, **One Claude subscription, multiple hermits**.
 
 <p align="center">
-  <img src="assets/cover.png" alt="Always-on Claude Code Agent" width="720" />
+  <img src="assets/cover.png" alt="Always-on Claude Code Agent" />
 </p>
 
-Hermit wires all the native Claude Code capabilities (`/loop`, `CronCreate`, channels, Monitor, auto-memory, native Tasks) to turn CC into a self-learning personal assistant.
+Claude Code is a session you start and end. **A hermit is one that never ends.** It wires the native primitives (`/loop`, `CronCreate`, channels, Monitor, auto-memory, native Tasks) into an always-on agent that runs on its own schedule, survives restarts, and learns from each session. It messages you first when something needs you and wakes the model only then, so idle time is effectively free.
 
 ```
 # Install
@@ -34,54 +34,51 @@ claude plugin install claude-code-hermit@claude-code-hermit --scope local
 
 ## What you get
 
-A hermit drops into any folder, runs around the clock, and is yours to shape. It's markdown and Node on top of Claude Code's own primitives, no proprietary runtime and no server, and everything it adds lives in `config.json` and `OPERATOR.md`:
+Markdown and Node on Claude Code's own primitives — no server, no proprietary runtime, the whole thing greppable. You already have these primitives; hermit is the wiring that makes them survive restarts, stay cheap while idle, and run unattended, plus a learning loop with no native equivalent. Everything is yours to shape: channels (Discord/Telegram), MCP servers, routines, watches, the heartbeat checklist, even its name and voice — ask it to change something, or edit the plain config and markdown yourself.
 
-- **`/loop`** re-runs a prompt on an interval; hermit turns it into a token-cheap **heartbeat** (`/heartbeat`) that sweeps a checklist you write. A Node precheck decides whether anything's worth waking the model, so a quiet heartbeat costs nothing, and alerts dedupe so a recurring one nags a few times then drops to a daily digest.
-- **`CronCreate`** gives idle-gated cron jobs; hermit registers your **routines** from `config.json`. Reflection, scheduled checks, a weekly review, and midnight auto-close ship enabled; add a morning brief, an evening summary, or your own. Idle-gated, timezone-correct (your wall clock, not the server's), and self-rearming so they never expire.
-- **Monitor** streams background events at zero token cost; hermit's **`/watch`** points persistent stream or poll monitors at anything (a log, a file tree, a CI run, an endpoint), declared in `config.json` or started on the fly in plain language. Silence costs nothing, so leave a dozen running.
-- **Remote control and channels** let you drive a live session from the official Claude app or claude.ai/code (handy for juggling several hermits with full context) or your phone, and optionally DM a hermit on Discord or Telegram; it's an authenticated, session-aware control plane on a durable session that survives sleep and network drops.
-- **Auto-memory** persists lessons; hermit layers a `raw/` to `compiled/` knowledge store with retention and budgeted re-injection into context at session start.
-- **Native Tasks** track a plan in-session; hermit projects them into `tasks-snapshot.md` and carries them across session archives.
-- **Deny patterns** and the **bash sandbox** fail closed; hermit makes the denylist profile-gated (the unattended agent is locked down harder than the supervised one) and `/hatch` auto-configures the sandbox and probes whether your host supports it.
+- **`/loop`** pays the model every tick. Hermit gates it behind a filesystem-only precheck — an idle **heartbeat** sweeps your checklist for **zero tokens**.
+- **`CronCreate`** jobs expire in 7 days and fire in the machine's timezone. Hermit's **routines** self-rearm daily and run on your wall clock, registered and managed by `/hermit-routines`.
+- **Monitor** streams die with the session. Hermit's **`/watch`** auto-starts from config (or plain language) and routes findings to your notifications. Silent when quiet.
+- **Channels** let you DM a session. Hermit's agent **acts** on it — *"accept PROP-014"*, *"status"* — and **pings you first** when something needs a yes/no.
+- **Auto-memory** just accumulates. Hermit **distills** `raw/` → `compiled/` and re-injects it within a context budget at session start.
+- **Native Tasks** vanish at session end. Hermit snapshots them so the plan survives archives.
+- **Deny patterns + sandbox** fail closed uniformly. Hermit **profile-gates** them — the unattended agent is locked down harder than the one you're watching.
 
-**Sessions self-manage.** Long-running daemons auto-archive at 12h idle and at midnight when you're away, so evidence reaches reflect and the weekly review without a manual close.
+**Sessions self-manage.** Daemons auto-archive at 12h idle and at midnight when you're away, so evidence reaches the learning loop without a manual close.
 
-**It reaches you first.** A hermit doesn't wait to be asked. It pings you the moment a watch or the heartbeat finds something, sends your morning brief, and surfaces decisions that need a yes/no. Delivery defaults to a native push notification (ideal for a headless dev hermit), or a Discord/Telegram DM if you've paired a channel, where you can reply to steer it. Toggle with `push_notifications`.
+**It reaches you first.** Notifications default to a native push (headless-friendly), or a Discord/Telegram DM you can reply to if you've paired a channel.
 
-**Cost scales with events, not time.** An idle always-on hermit is effectively free, because nothing wakes the model until something actually happens. You pay for findings, not for waiting.
+**Cost scales with events, not time.** Nothing wakes the model until something happens, so an idle hermit is effectively free.
 
 ---
 
-## The Learning Loop
+## It learns, you approve
 
-Hermit reflects at natural pauses: end of session, idle ticks, scheduled-check cadence. Most reflections never hit the LLM: a precheck script gates whether any of five phases (compute, resolution check, cost spike, digest, newborn) are actually due. When something is, hermit drafts a candidate.
+A hermit watches what keeps going wrong across sessions, proposes a fix, and asks you yes or no. It won't propose the same thing twice.
 
-Two subagents gate quality before anything reaches your inbox:
-- **`reflection-judge`** verifies that cited cross-session evidence actually exists in the report files.
-- **`proposal-triage`** deduplicates against existing proposals, cross-checks `MEMORY.md`, and applies the three-condition rule.
+At natural pauses — session end, idle ticks, scheduled cadence — it reflects. Most reflections never reach the model: a precheck script gates whether any phase (compute, resolution check, cost spike, digest, newborn) is actually due. When one is, two subagents vet the candidate before it reaches you:
 
-Survivors land as a proposal you can act on:
+- **`reflection-judge`** confirms the cited evidence actually exists in the session reports, so a proposal can't certify itself.
+- **`proposal-triage`** deduplicates against open proposals, cross-checks your `MEMORY.md` and `OPERATOR.md`, and applies a three-condition bar.
+
+Survivors land as a proposal you can act on from anywhere — including a DM:
 
 ```
-/claude-code-hermit:proposal-list                  # see what hermit found
-/claude-code-hermit:proposal-act accept PROP-003   # approve
+/claude-code-hermit:proposal-list                  # see what it found
+/claude-code-hermit:proposal-act accept PROP-003    # or just reply "accept PROP-003"
 ```
 
-What gets proposed: improvements, routines, new capabilities (skills, agents, heartbeat checks), constraints (OPERATOR.md guidance you confirm), and bugs.
-
-Voyager-style auto-curriculum, you're editor-in-chief. Under the hood, raw session journals distill into compiled artifacts that reload next session — the [raw-vs-compiled pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) Karpathy described for his wiki-LLM.
+What it proposes: improvements, routines, new capabilities (skills, agents, heartbeat checks), guardrails (OPERATOR.md guidance you confirm), and bugs. You're the acceptance gate for every change. Raw session journals distill into compiled artifacts that reload next session — the [raw/compiled pattern](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) Karpathy described for his wiki-LLM.
 
 ---
 
 ## Observable
 
-Three on-demand skills give you a live read on how your hermit is doing:
+Three on-demand skills, pullable from the Claude app, your terminal, or a DM:
 
-- **`/hermit-brain`** — open loops, fragile zones, and key learnings surfaced from recent sessions
-- **`/hermit-evolution`** — cost trends and how your hermit's behavior is shifting over time
+- **`/hermit-brain`** — open loops, fragile zones, and key learnings from recent sessions
+- **`/hermit-evolution`** — cost trends and how the hermit's behavior is shifting over time
 - **`/hermit-health`** — alert state, channel availability, and heartbeat status
-
-Each emits a compact snapshot you can pull from anywhere you're connected: the Claude app, your terminal, or a Discord/Telegram DM, with the answer coming back where you asked.
 
 ---
 
@@ -128,11 +125,14 @@ claude plugin update claude-code-hermit@claude-code-hermit --scope local
 
 ## Cost & local-first
 
-- **Per-call** token usage logged to `.claude/cost-log.jsonl` (model, input/output/cache split, USD estimate).
+You run on your own Claude subscription — no daily caps, no per-runtime-hour billing — and every token is logged where you can see it.
+
+- **Per-call** token usage logged to `.claude/cost-log.jsonl` (model, input/output/cache split, USD estimate, and what triggered the turn — heartbeat, routine, or interactive).
 - **Per-session** running total in `.status.json`; carried into archived session reports as frontmatter `cost_usd`.
 - **Per-day** rollup in `cost-summary.md`, regenerated on every cost-tracker tick.
 - **Morning brief** (when scheduled as a routine) reads `cost-summary.md` and includes yesterday's spend.
-No daily caps, no per-runtime-hour billing.
+
+Because idle always-on cost is effectively zero, one Claude subscription can run several hermits at once.
 
 ---
 
@@ -144,7 +144,7 @@ Domain plugins you stack on top of any hermit you've hatched.
 - [**`homeassistant-hermit`**](../claude-code-homeassistant-hermit/README.md) — *For Home Assistant users.* HA skills, safety hook, automation builder, Python CLI.
 - [**`fitness-hermit`**](../claude-code-fitness-hermit/README.md) — *Fitness focused.* Strava MCP wiring, activity deep-dives, weekly-load routines.
 
-Many operators run several hermits in parallel — one per domain. Each one is a `/hatch` away. They share nothing but the protocol; their memory, cost history, and routines are independent. See [Creating Your Own Hermit](docs/creating-your-own-hermit.md).
+Many operators run several hermits in parallel — one per domain. Each one is a `/hatch` away. They share nothing but the protocol; their memory, cost history, and routines are independent, and a single Claude subscription covers them all. See [Creating Your Own Hermit](docs/creating-your-own-hermit.md).
 
 ---
 
