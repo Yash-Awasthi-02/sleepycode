@@ -415,4 +415,37 @@ assert w[0]['status']=='warn', 'status: '+w[0]['status']
 \""
 cleanup
 
+# -------------------------------------------------------
+# install / uninstall without systemctl (Linux-only path)
+# -------------------------------------------------------
+if [ "$(uname -s)" = "Linux" ]; then
+
+workdir="$(setup_hermit)"
+write_config "$workdir"
+# fake-bin has tmux/pgrep stubs but no systemctl — simulates systemd-less host
+write_fake_tmux "$workdir/fake-bin" 0
+write_fake_pgrep "$workdir/fake-bin" 1
+run_test "install without systemctl → exit 0, prints crontab, no traceback" bash -c "
+  cd '$workdir'
+  out=\$(PATH='$workdir/fake-bin' '$(command -v python3)' '$WATCHDOG' install 2>&1)
+  echo \"\$out\"
+  echo \"\$out\" | grep -q 'crontab' || { echo 'FAIL: expected crontab guidance'; exit 1; }
+  echo \"\$out\" | grep -q 'Traceback' && { echo 'FAIL: got traceback'; exit 1; }
+  true"
+cleanup
+
+workdir="$(setup_hermit)"
+write_config "$workdir"
+write_fake_tmux "$workdir/fake-bin" 0
+write_fake_pgrep "$workdir/fake-bin" 1
+run_test "uninstall without systemctl → exit 0, no traceback" bash -c "
+  cd '$workdir'
+  out=\$(PATH='$workdir/fake-bin' '$(command -v python3)' '$WATCHDOG' uninstall 2>&1)
+  echo \"\$out\"
+  echo \"\$out\" | grep -q 'Traceback' && { echo 'FAIL: got traceback'; exit 1; }
+  true"
+cleanup
+
+fi  # Linux-only
+
 print_results
