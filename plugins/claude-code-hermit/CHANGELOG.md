@@ -4,6 +4,11 @@
 
 ### Added
 
+- **watchdog: external dead-session and wedge detector** — `scripts/hermit-watchdog.py` single-shot supervisor. Detects dead tmux sessions and restarts them; detects wedged sessions (frozen pane, monitor dead, operator silent) with nudge-then-escalate; re-arms the 4am `heartbeat-restart` when it misses. Shutdown-intent gate prevents resurrecting an intentionally-stopped hermit. Every action logged to `state/watchdog-events.jsonl`; restarts surface to operator channel via `session-start` step 3. Default disabled — opt in via `config.watchdog.enabled: true` + `bin/hermit-watchdog install`.
+- **watchdog: OS timer install/uninstall** — `bin/hermit-watchdog install` registers a systemd user timer (Linux/WSL2), LaunchAgent (macOS), or prints a crontab line (fallback). `bin/hermit-watchdog uninstall` tears it down.
+- **cost-log: incremental byte-offset index** — new `scripts/lib/cost-log.js` builds `state/cost-index.json` incrementally so `writeCostSummary` and `getCumulativeCost` are O(1) instead of O(n). Index rebuilt automatically on first run or log truncation. Resolves Known Limitation #1.
+- **cost-log: corrupt-line counter** — `cost-index.json` carries `skipped_corrupt_lines`; doctor's cost check warns when >0. Resolves Known Limitation #3.
+- **doctor: watchdog health check** — new `checkWatchdog()` reports enabled status, OS timer presence, recent restart count, and consecutive-stale count from `state/watchdog-events.jsonl`.
 - **recall: full-text search over sessions, compiled artifacts, and proposals** — `scripts/lib/search.js` + `scripts/search.js` CLI + `skills/recall/SKILL.md`. Pure-Node scan (no deps), TF scoring with frontmatter-field boosts, recency decay, and `file:line` snippets. Invoke via `/recall <query>` or channel DM ("what did I decide about X", "when did we last touch Y"). Closes the memory retrieval gap identified in the architecture review.
 - **cc-compat: centralized Claude Code format accessors** — new `scripts/lib/cc-compat.js` wraps every surface Anthropic owns and can change (hook-payload field names, transcript JSONL usage shape, cost-log path, best-effort CC version). A CC release now breaks one file loudly instead of five quietly.
 - **stop-pipeline: persist structured Stop-payload snapshot** — after each Stop, `state/cc-stop-snapshot.json` records `session_crons` and `background_tasks` as tri-state (`populated / empty / unsupported_or_unreachable`), `captured_at`, and `cc_version`. Sole writer: `stop-pipeline.js`.
@@ -28,6 +33,12 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
 1. Check whether `config.json` has `knowledge.compiled_budget_chars` set to `1000`. If so, update it to `2500`. If the operator has set a custom value other than `1000`, leave it as-is.
 2. The `/recall` skill is auto-discovered — no file changes needed for existing hermits.
+3. Seed `bin/hermit-watchdog` from `state-templates/bin/hermit-watchdog` if it does not already exist in `.claude-code-hermit/bin/`.
+4. Seed the `watchdog/` directory from `state-templates/watchdog/` (four files: `hermit-watchdog@.service`, `hermit-watchdog@.timer`, `com.hermit.watchdog.plist`, `crontab.txt`) into `.claude-code-hermit/watchdog/`, skipping any file that already exists.
+5. Add `"watchdog": {"enabled": false, "stale_factor": 2, "escalate_after": 3, "operator_grace": "15m"}` to `config.json` if the `watchdog` key is absent.
+6. Re-run `/docker-setup` (or surgically update `docker-entrypoint.hermit.sh` — add the `_wd_cycle` counter and `hermit-watchdog run` call inside the `while tmux has-session` loop) before running `hermit-docker update` if running a Docker hermit.
+
+The watchdog is **disabled by default**. To opt in: set `config.watchdog.enabled: true` via `/hermit-settings`, then run `bin/hermit-watchdog install` to register the OS timer.
 
 ## [1.1.10] - 2026-06-05
 

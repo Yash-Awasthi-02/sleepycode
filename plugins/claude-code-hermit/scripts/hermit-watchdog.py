@@ -380,12 +380,142 @@ def main():
                 do_rearm(session_name)
 
 
-if __name__ == '__main__':
-    if len(sys.argv) > 1 and sys.argv[1] not in ('run',):
-        sys.stderr.write(f'[watchdog] unknown subcommand: {sys.argv[1]}\n')
-        sys.exit(1)
+def _get_session_name():
+    """Read tmux session name from config for install commands."""
+    if not CONFIG_PATH.exists():
+        return 'hermit'
     try:
-        main()
-    except Exception as e:
-        sys.stderr.write(f'[watchdog] fatal: {e}\n')
-        sys.exit(0)  # fail-open: watchdog must never crash the calling shell
+        with open(CONFIG_PATH) as f:
+            cfg = json.load(f)
+        name = cfg.get('tmux_session_name', 'hermit-{project_name}')
+        return name.replace('{project_name}', Path.cwd().name)
+    except Exception:
+        return 'hermit'
+
+
+def _find_templates_dir():
+    """Locate state-templates/watchdog/ relative to this script's plugin root."""
+    script_dir = Path(__file__).resolve().parent
+    candidate = script_dir.parent / 'state-templates' / 'watchdog'
+    if candidate.is_dir():
+        return candidate
+    return None
+
+
+def cmd_install():
+    """Platform-dispatching install: systemd (Linux/WSL), launchd (macOS), cron fallback."""
+    import platform
+    import subprocess as sp
+
+    root = str(Path.cwd().resolve())
+    name = _get_session_name()
+    templates = _find_templates_dir()
+
+    def render(template_text):
+        return template_text.replace('{{NAME}}', name).replace('{{ROOT}}', root)
+
+    system = platform.system()
+
+    if system == 'Linux':
+        systemd_dir = Path.home() / '.config' / 'systemd' / 'user'
+        systemd_dir.mkdir(parents=True, exist_ok=True)
+        service_name = f'hermit-watchdog@{name}'
+
+        for tpl_name, out_name in [
+            ('hermit-watchdog@.service', f'{service_name}.service'),
+            ('hermit-watchdog@.timer', f'{service_name}.timer'),
+        ]:
+            if templates:
+                tpl = (templates / tpl_name).read_text()
+                (systemd_dir / out_name).write_text(render(tpl))
+            else:
+                sys.stderr.write(f'[watchdog] template {tpl_name} not found; skipping\n')
+
+        sp.run(['systemctl', '--user', 'daemon-reload'], check=False)
+        sp.run(['systemctl', '--user', 'enable', '--now', f'{service_name}.timer'], check=False)
+        print(f'[watchdog] Installed systemd user timer: {service_name}.timer')
+        print('[watchdog] To persist across reboots without a user session: loginctl enable-linger')
+
+    elif system == 'Darwin':
+        launch_agents = Path.home() / 'Library' / 'LaunchAgents'
+        launch_agents.mkdir(parents=True, exist_ok=True)
+        plist_name = f'com.hermit.watchdog.{name}.plist'
+        plist_path = launch_agents / plist_name
+
+        if templates:
+            tpl = (templates / 'com.hermit.watchdog.plist').read_text()
+            plist_path.write_text(render(tpl))
+        else:
+            sys.stderr.write('[watchdog] plist template not found; using inline fallback\n')
+            plist_path.write_text(render(
+                '<?xml version="1.0" encoding="UTF-8"?>\n'
+                '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" '
+                '"http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n'
+                '<plist version="1.0"><dict>'
+                '<key>Label</key><string>com.hermit.watchdog.{{NAME}}</string>'
+                '<key>ProgramArguments</key><array>'
+                '<string>{{ROOT}}/.claude-code-hermit/bin/hermit-watchdog</string>'
+                '<string>run</string></array>'
+                '<key>WorkingDirectory</key><string>{{ROOT}}</string>'
+                '<key>StartInterval</key><integer>300</integer>'
+                '<key>RunAtLoad</key><false/>'
+                '</dict></plist>\n'
+            ))
+        sp.run(['launchctl', 'load', str(plist_path)], check=False)
+        print(f'[watchdog] Installed LaunchAgent: {plist_name}')
+
+    else:
+        cron_line = f'*/5 * * * * cd {root} && .claude-code-hermit/bin/hermit-watchdog run 2>>.claude-code-hermit/state/watchdog.log'
+        print('[watchdog] systemd and launchd not available on this platform.')
+        print('[watchdog] Add the following line via `crontab -e`:')
+        print(f'  {cron_line}')
+
+
+def cmd_uninstall():
+    """Remove the installed OS timer for this project."""
+    import platform
+    import subprocess as sp
+
+    name = _get_session_name()
+    system = platform.system()
+
+    if system == 'Linux':
+        service_name = f'hermit-watchdog@{name}'
+        sp.run(['systemctl', '--user', 'disable', '--now', f'{service_name}.timer'], check=False)
+        systemd_dir = Path.home() / '.config' / 'systemd' / 'user'
+        for suffix in ('.service', '.timer'):
+            f = systemd_dir / f'{service_name}{suffix}'
+            try:
+                f.unlink()
+            except FileNotFoundError:
+                pass
+        sp.run(['systemctl', '--user', 'daemon-reload'], check=False)
+        print(f'[watchdog] Removed systemd timer: {service_name}.timer')
+
+    elif system == 'Darwin':
+        plist_name = f'com.hermit.watchdog.{name}.plist'
+        plist_path = Path.home() / 'Library' / 'LaunchAgents' / plist_name
+        if plist_path.exists():
+            sp.run(['launchctl', 'unload', str(plist_path)], check=False)
+            plist_path.unlink()
+        print(f'[watchdog] Removed LaunchAgent: {plist_name}')
+
+    else:
+        print('[watchdog] Cron entries must be removed manually with `crontab -e`.')
+
+
+if __name__ == '__main__':
+    subcommand = sys.argv[1] if len(sys.argv) > 1 else 'run'
+    if subcommand in ('run', ''):
+        try:
+            main()
+        except Exception as e:
+            sys.stderr.write(f'[watchdog] fatal: {e}\n')
+            sys.exit(0)  # fail-open: watchdog must never crash the calling shell
+    elif subcommand == 'install':
+        cmd_install()
+    elif subcommand == 'uninstall':
+        cmd_uninstall()
+    else:
+        sys.stderr.write(f'[watchdog] unknown subcommand: {subcommand}\n')
+        sys.exit(1)
