@@ -126,6 +126,19 @@ claude plugin update claude-code-hermit@claude-code-hermit --scope local
 
 ---
 
+## Configure it
+
+Set up interactively by `/hatch`, then tunable live with `/hermit-settings` (or just by asking the hermit). Principal `config.json` keys (default in **bold**, or noted inline) — full schema in the [Config Reference](plugins/claude-code-hermit/docs/config-reference.md):
+
+- **`agent_name`, `timezone`, `escalation`** — identity (`timezone` defaults `UTC`), plus how much it does before asking (`conservative` / **`balanced`** / `autonomous`).
+- **`channels`** — `channels.<discord|telegram|imessage>` with per-channel `enabled` (default `true`) + `allowed_users`, and `channels.primary` for outbound pings.
+- **`permission_mode`, `AGENT_HOOK_PROFILE`** — how freely the unattended agent acts (default `auto`; hook profiles `minimal` / **`standard`** / `strict`).
+- **`push_notifications`, `model`, `quality_gate.tier`** — notifications (default `true`), model override, and cleanup spend (**`budget`** / `balanced` / `quality`).
+- **`heartbeat.every`, `active_hours`, `idle_behavior`** — idle cadence (default `2h`), active window (default `08:00`–`23:00`), and what it does when idle (`wait` / **`discover`**).
+- **Routines & watches** — managed by `/hermit-routines` and `/watch`; both default to none.
+
+---
+
 ## Cost & local-first
 
 You run on your own Claude subscription — no daily caps, no per-runtime-hour billing — and every token is logged where you can see it.

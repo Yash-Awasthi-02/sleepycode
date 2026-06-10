@@ -8,13 +8,14 @@
 
 # claude-code-hermit
 
-Claude Code plugin that turns it into a 24/7 personal AI assistant. **Self-learning**, **Pro-Active**, **Cost-aware**, **Observable**, **One Claude subscription, multiple hermits**.
+Claude Code plugin that turns it into a 24/7 AI assistant. **Self-learning**, **Pro-Active**, **Cost-aware**, **Observable**, **One Claude subscription, multiple hermits**.
 
 <p align="center">
   <img src="assets/cover.png" alt="Always-on Claude Code Agent" />
 </p>
 
-Claude Code is a session you start and end. **A hermit is one that never ends.** It wires the native primitives (`/loop`, `CronCreate`, channels, Monitor, auto-memory, native Tasks) into an always-on agent that runs on its own schedule, survives restarts, and learns from each session. It messages you first when something needs you and wakes the model only then, so idle time is effectively free.
+
+**A hermit is a Claude Code session that doesn't end**: It wires the native primitives (`/loop`, `CronCreate`, `Channels`, `Monitor`, `Auto-memory`, `native Tasks`, etc) into an **always-on agent** that keeps its own state, routines, and memory across restarts, and reaches you on Discord, Telegram, or the Claude app when something needs a decision. It runs on your existing subscription, and one subscription runs several hermits.
 
 ```
 # Install
@@ -34,15 +35,15 @@ claude plugin install claude-code-hermit@claude-code-hermit --scope local
 
 ## What you get
 
-Markdown and Node on Claude Code's own primitives — no server, no proprietary runtime, the whole thing greppable. You already have these primitives; hermit is the wiring that makes them survive restarts, stay cheap while idle, and run unattended, plus a learning loop with no native equivalent. Everything is yours to shape: channels (Discord/Telegram), MCP servers, routines, watches, the heartbeat checklist, even its name and voice — ask it to change something, or edit the plain config and markdown yourself.
+Just Claude Code everything is yours to shape: channels (Discord/Telegram), MCP servers, routines, watches, the heartbeat checklist, Hermit adds persistance, a learning loop, and a quick setup to wire everything.
 
-- **`/loop`** pays the model every tick. Hermit gates it behind a filesystem-only precheck — an idle **heartbeat** sweeps your checklist for **zero tokens**.
-- **`CronCreate`** jobs expire in 7 days and fire in the machine's timezone. Hermit's **routines** self-rearm daily and run on your wall clock, registered and managed by `/hermit-routines`.
-- **Monitor** streams die with the session. Hermit's **`/watch`** auto-starts from config (or plain language) and routes findings to your notifications. Silent when quiet.
-- **Channels** let you DM a session. Hermit's agent **acts** on it — *"accept PROP-014"*, *"status"* — and **pings you first** when something needs a yes/no.
+- **Heartbeat** gates `/loop` behind a filesystem-only precheck so it stops paying the model every tick, sweeping your checklist for **zero tokens**.
+- **Routines** wrap `CronCreate` jobs that expire in 7 days and fire in the machine's timezone: they self-rearm daily, run on your wall clock, and are managed by `/hermit-routines`.
+- **`/watch`** wraps `Monitor` streams that die with the session: it auto-starts from config (or plain language) and routes findings to your notifications, silent when quiet.
+- **Channels** let you DM a session; the hermit agent acts on it (*"accept PROP-014"*, *"status"*) and **pings you first** when something needs a yes/no.
 - **Auto-memory** just accumulates. Hermit **distills** `raw/` → `compiled/` and re-injects it within a context budget at session start.
-- **Native Tasks** vanish at session end. Hermit snapshots them so the plan survives archives.
-- **Deny patterns + sandbox** fail closed uniformly. Hermit **profile-gates** them — the unattended agent is locked down harder than the one you're watching.
+- **Task snapshots** persist native `Tasks` past session end, so the plan survives archives.
+- **Profile-gated guardrails** scope `deny patterns + sandbox` per profile, locking the unattended agent down harder than the one you're watching.
 
 **Sessions self-manage.** Daemons auto-archive at 12h idle and at midnight when you're away, so evidence reaches the learning loop without a manual close.
 
@@ -52,7 +53,7 @@ Markdown and Node on Claude Code's own primitives — no server, no proprietary 
 
 ---
 
-## It learns, you approve
+## Learning Loop
 
 A hermit watches what keeps going wrong across sessions, proposes a fix, and asks you yes or no. It won't propose the same thing twice.
 
@@ -77,8 +78,10 @@ What it proposes: improvements, routines, new capabilities (skills, agents, hear
 Three on-demand skills, pullable from the Claude app, your terminal, or a DM:
 
 - **`/hermit-brain`** — open loops, fragile zones, and key learnings from recent sessions
-- **`/hermit-evolution`** — cost trends and how the hermit's behavior is shifting over time
-- **`/hermit-health`** — alert state, channel availability, and heartbeat status
+- **`/hermit-evolution`** — cost trend and behavior drift over weeks
+- **`/hermit-health`** — alerts, routines, channels, heartbeat state
+- **`/pulse`** — what it's doing right now
+- **`/brief`** — summary of recent work
 
 ---
 
@@ -120,6 +123,19 @@ See [Always-On Setup](docs/always-on.md) for the full guide. Want always-on with
 claude plugin update claude-code-hermit@claude-code-hermit --scope local
 /claude-code-hermit:hermit-evolve
 ```
+
+---
+
+## Configure it
+
+Set up interactively by `/hatch`, then tunable live with `/hermit-settings` (or just by asking the hermit). Principal `config.json` keys (default in **bold**, or noted inline) — full schema in the [Config Reference](docs/config-reference.md):
+
+- **`agent_name`, `timezone`, `escalation`** — identity (`timezone` defaults `UTC`), plus how much it does before asking (`conservative` / **`balanced`** / `autonomous`).
+- **`channels`** — `channels.<discord|telegram|imessage>` with per-channel `enabled` (default `true`) + `allowed_users`, and `channels.primary` for outbound pings.
+- **`permission_mode`, `AGENT_HOOK_PROFILE`** — how freely the unattended agent acts (default `auto`; hook profiles `minimal` / **`standard`** / `strict`).
+- **`push_notifications`, `model`, `quality_gate.tier`** — notifications (default `true`), model override, and cleanup spend (**`budget`** / `balanced` / `quality`).
+- **`heartbeat.every`, `active_hours`, `idle_behavior`** — idle cadence (default `2h`), active window (default `08:00`–`23:00`), and what it does when idle (`wait` / **`discover`**).
+- **Routines & watches** — managed by `/hermit-routines` and `/watch`; both default to none.
 
 ---
 
