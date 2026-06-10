@@ -796,6 +796,112 @@ run_test "cc-compat.js: ccVersion absent → null (no throw)" bash -c \
   "node -e \"const {ccVersion}=require('$CC_COMPAT_LIB'); const v=ccVersion({}); if(v!==null && typeof v!=='string') throw new Error('got '+v);\""
 
 # -------------------------------------------------------
+# lib/cost-log.js — incremental cost-log index
+# -------------------------------------------------------
+
+COST_LOG_LIB="$REPO_ROOT/scripts/lib/cost-log.js"
+COST_LOG_WORKDIR="$(setup_workdir)"
+COST_INDEX_PATH="$COST_LOG_WORKDIR/.claude-code-hermit/cost-index.json"
+COST_LOG_PATH="$COST_LOG_WORKDIR/.claude/cost-log.jsonl"
+
+# Exports present
+run_test "cost-log.js: exports required symbols" bash -c \
+  "node -e \"const c=require('$COST_LOG_LIB'); ['costIndexPath','readCostIndex','updateCostIndex','rebuildCostIndex'].forEach(k=>{ if(typeof c[k]!=='function') throw new Error(k+' missing'); });\""
+
+# costIndexPath resolves correctly
+run_test "cost-log.js: costIndexPath resolves to cost-index.json" bash -c \
+  "node -e \"const {costIndexPath}=require('$COST_LOG_LIB'); const p=costIndexPath('/proj/.claude-code-hermit'); if(!p.endsWith('/.claude-code-hermit/cost-index.json')) throw new Error('got '+p);\""
+
+# readCostIndex returns null when absent
+run_test "cost-log.js: readCostIndex absent → null" bash -c \
+  "node -e \"const {readCostIndex}=require('$COST_LOG_LIB'); if(readCostIndex('/tmp/no-such-index.json')!==null) throw new Error('want null');\""
+
+# Write known cost-log fixture, update index, check totals
+cat > "$COST_LOG_PATH" <<COSTEOF
+{"timestamp":"2026-01-01T10:00:00.000Z","session_id":"s1","source":"heartbeat","model":"sonnet","input_tokens":0,"cache_write_tokens":0,"cache_read_tokens":100000,"output_tokens":0,"total_tokens":100000,"estimated_cost_usd":0.03}
+{"timestamp":"2026-01-01T10:01:00.000Z","session_id":"s1","source":"other","model":"sonnet","input_tokens":0,"cache_write_tokens":50000,"cache_read_tokens":0,"output_tokens":500,"total_tokens":50500,"estimated_cost_usd":0.195}
+{"timestamp":"2026-01-02T10:00:00.000Z","session_id":"s2","source":"other","model":"haiku","input_tokens":0,"cache_write_tokens":0,"cache_read_tokens":200000,"output_tokens":2000,"total_tokens":202000,"estimated_cost_usd":0.024}
+COSTEOF
+
+run_test "cost-log.js: updateCostIndex computes correct totals" bash -c \
+  "node -e \"
+const {updateCostIndex,costIndexPath}=require('$COST_LOG_LIB');
+const idx=updateCostIndex('$COST_LOG_PATH','$COST_INDEX_PATH');
+const want={cost:0.03+0.195+0.024, tokens:100000+50500+202000, sessions:2};
+if(Math.abs(idx.total_cost_usd-want.cost)>1e-9) throw new Error('cost '+idx.total_cost_usd+' want '+want.cost);
+if(idx.total_tokens!==want.tokens) throw new Error('tokens '+idx.total_tokens);
+if(idx.total_sessions!==want.sessions) throw new Error('sessions '+idx.total_sessions);
+\""
+
+run_test "cost-log.js: by_date populated for both dates" bash -c \
+  "node -e \"
+const {readCostIndex}=require('$COST_LOG_LIB');
+const idx=readCostIndex('$COST_INDEX_PATH');
+if(!idx.by_date['2026-01-01']) throw new Error('missing 2026-01-01');
+if(!idx.by_date['2026-01-02']) throw new Error('missing 2026-01-02');
+if(idx.by_date['2026-01-01'].session_ids.length!==1) throw new Error('session_ids day1');
+\""
+
+run_test "cost-log.js: by_source buckets heartbeat vs other" bash -c \
+  "node -e \"
+const {readCostIndex}=require('$COST_LOG_LIB');
+const idx=readCostIndex('$COST_INDEX_PATH');
+if(!idx.by_source.heartbeat) throw new Error('missing heartbeat bucket');
+if(Math.abs(idx.by_source.heartbeat.cost-0.03)>1e-9) throw new Error('heartbeat cost');
+\""
+
+run_test "cost-log.js: byte_offset advances to file size" bash -c \
+  "node -e \"
+const fs=require('fs');
+const {readCostIndex}=require('$COST_LOG_LIB');
+const idx=readCostIndex('$COST_INDEX_PATH');
+const sz=fs.statSync('$COST_LOG_PATH').size;
+if(idx.byte_offset!==sz) throw new Error('offset '+idx.byte_offset+' want '+sz);
+\""
+
+# Second call with no new bytes is a no-op (offset stable, totals unchanged)
+run_test "cost-log.js: second updateCostIndex call is a no-op" bash -c \
+  "node -e \"
+const {updateCostIndex,readCostIndex}=require('$COST_LOG_LIB');
+const before=readCostIndex('$COST_INDEX_PATH');
+const after=updateCostIndex('$COST_LOG_PATH','$COST_INDEX_PATH');
+if(before.byte_offset!==after.byte_offset) throw new Error('offset changed');
+if(before.total_cost_usd!==after.total_cost_usd) throw new Error('cost changed');
+\""
+
+# Corrupt line increments skipped_corrupt_lines
+CORRUPT_LOG_PATH="$COST_LOG_WORKDIR/.claude/cost-log-corrupt.jsonl"
+CORRUPT_INDEX_PATH="$COST_LOG_WORKDIR/.claude-code-hermit/cost-index-corrupt.json"
+cat > "$CORRUPT_LOG_PATH" <<CORRUPTEOF
+{"timestamp":"2026-01-01T10:00:00.000Z","session_id":"x","model":"sonnet","total_tokens":1000,"estimated_cost_usd":0.01}
+NOT VALID JSON AT ALL
+{"timestamp":"2026-01-01T10:01:00.000Z","session_id":"x","model":"sonnet","total_tokens":2000,"estimated_cost_usd":0.02}
+CORRUPTEOF
+
+run_test "cost-log.js: corrupt line increments skipped_corrupt_lines" bash -c \
+  "node -e \"
+const {updateCostIndex}=require('$COST_LOG_LIB');
+const idx=updateCostIndex('$CORRUPT_LOG_PATH','$CORRUPT_INDEX_PATH');
+if(idx.skipped_corrupt_lines!==1) throw new Error('want 1 skipped, got '+idx.skipped_corrupt_lines);
+if(idx.total_tokens!==3000) throw new Error('want 3000 tokens, got '+idx.total_tokens);
+\""
+
+# Truncated log triggers rebuild (byte_offset > new fileSize)
+run_test "cost-log.js: truncated log triggers rebuild" bash -c \
+  "node -e \"
+const fs=require('fs');
+const {updateCostIndex,readCostIndex}=require('$COST_LOG_LIB');
+// Manufacture a stale index with a large offset
+const stale={version:1,byte_offset:999999,total_cost_usd:99,total_tokens:99,total_sessions:0,sessions_seen:[],by_source:{},by_date:{},skipped_corrupt_lines:0,updated_at:'2020-01-01T00:00:00.000Z'};
+fs.writeFileSync('$CORRUPT_INDEX_PATH',JSON.stringify(stale)+'\n');
+const idx=updateCostIndex('$CORRUPT_LOG_PATH','$CORRUPT_INDEX_PATH');
+if(idx.byte_offset===999999) throw new Error('offset not reset after rebuild');
+if(idx.total_cost_usd>10) throw new Error('totals not reset after rebuild');
+\""
+
+cleanup "$COST_LOG_WORKDIR"
+
+# -------------------------------------------------------
 # lib/pricing.js — shared pricing regression
 # Validates that extracting pricing into lib didn't change any output.
 # Golden values computed from the original cost-tracker.js constants.

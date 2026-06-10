@@ -132,6 +132,21 @@ function checkCost() {
       } catch {}
     }
     const detail = `today $${todayTotal.toFixed(4)} · ${kStr(todayTokens)}K tokens, ${kStr(todayCacheRead)}K cached`;
+
+    try {
+      const { costIndexPath, readCostIndex } = require('./lib/cost-log');
+      const idx = readCostIndex(costIndexPath(hermitDir));
+      if (idx && idx.skipped_corrupt_lines > 0) {
+        return {
+          id: 'cost',
+          status: 'warn',
+          detail: `${detail} — ${idx.skipped_corrupt_lines} corrupt cost-log line(s) skipped; budget figures may be stale`,
+        };
+      }
+    } catch {
+      // Non-fatal — cost-index absent on fresh install
+    }
+
     return { id: 'cost', status: 'ok', detail };
   } catch (e) {
     return { id: 'cost', status: 'fail', detail: `check failed: ${e.message}` };
