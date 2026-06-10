@@ -177,6 +177,7 @@ One writer per state file. No shared mutation bus.
 | `state/state-summary.md`       | generate-summary.js only                            | humans                                                        |
 | `state/monitors.runtime.json`  | watch skill only                                    | session-start (clear on start), session-close (stop all)      |
 | `state/heartbeat-monitor.runtime.json` | heartbeat skill only                        | heartbeat-start (write), heartbeat-stop (clear), heartbeat-restart (rewrite) |
+| `state/cc-stop-snapshot.json`  | stop-pipeline.js only                               | doctor-check.js (scheduler/background-task health check)      |
 | `state/.heartbeat`             | heartbeat-touch.js only                             | heartbeat (detect activity gaps)                              |
 | `state/.lifecycle.lock`        | hermit-start.py only                                | hermit-stop.py (cleanup)                                      |
 

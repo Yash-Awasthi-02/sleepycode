@@ -4,6 +4,13 @@
 
 ### Added
 
+- **cc-compat: centralized Claude Code format accessors** — new `scripts/lib/cc-compat.js` wraps every surface Anthropic owns and can change (hook-payload field names, transcript JSONL usage shape, cost-log path, best-effort CC version). A CC release now breaks one file loudly instead of five quietly.
+- **stop-pipeline: persist structured Stop-payload snapshot** — after each Stop, `state/cc-stop-snapshot.json` records `session_crons` and `background_tasks` as tri-state (`populated / empty / unsupported_or_unreachable`), `captured_at`, and `cc_version`. Sole writer: `stop-pipeline.js`.
+- **doctor: scheduler/background-task health check** — new `checkScheduler()` reads the snapshot and reports cron and task state with labeled staleness. Missing snapshot → ok ("not yet captured"); `unsupported_or_unreachable` → warn (never falsely reported as "0 crons").
+
+### Changed
+
+- **cost-tracker, suggest-compact: route hook-payload reads through cc-compat** — `entryText`, `isToolResult`, usage-field extraction, `session_id`, and `transcript_path` now delegate to `cc-compat.js`; `COST_LOG` path resolved via `costLogPath()`. Completes the centralization so every CC-owned read fails in one place. No behavior change; existing tests still pass.
 - **proposal-act/reflect: falsifiable success signals** — optional cost-per-session predicate (`success_signal` frontmatter field) on a proposal auto-resolves it when met; reflect evaluates via `scripts/eval-success-signal.js` against session-report `cost_usd` anchored at `accepted_date`. Closes #317-adjacent (§17.1 of architecture review).
 - **gate-agent memory: proposal-triage and reflection-judge now persist private heuristics (`memory: project`)** — triage learns suppression patterns, judge learns hollow-evidence shapes; guardrail forbids private memory as the sole suppress basis; over-suppression bounded by reflect's existing Component Health check.
 ### Security

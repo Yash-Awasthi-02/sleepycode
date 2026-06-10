@@ -9,10 +9,12 @@ const { run: costTracker } = require('./cost-tracker');
 const { run: suggestCompact } = require('./suggest-compact');
 const { run: sessionDiff } = require('./session-diff');
 const { run: evaluateSession } = require('./evaluate-session');
+const { sessionCrons, backgroundTasks, ccVersion } = require('./lib/cc-compat');
 const fs = require('fs');
 const path = require('path');
 
 const HEARTBEAT_FILE = path.resolve('.claude-code-hermit/state/.heartbeat');
+const SNAPSHOT_FILE = path.resolve('.claude-code-hermit/state/cc-stop-snapshot.json');
 
 async function main() {
   // Read stdin once
@@ -69,6 +71,22 @@ async function main() {
 
   // Guaranteed heartbeat touch — runs even if all stages fail
   try { fs.writeFileSync(HEARTBEAT_FILE, new Date().toISOString() + '\n'); } catch {}
+
+  // Write CC-stop-payload snapshot (tri-state, labeled with captured_at).
+  // sole writer for state/cc-stop-snapshot.json. Fail-open.
+  try {
+    const crons = sessionCrons(payload);
+    const tasks = backgroundTasks(payload);
+    const snapshot = {
+      captured_at: new Date().toISOString(),
+      cc_version: ccVersion(payload),
+      session_crons:    { state: crons.state, count: crons.count },
+      background_tasks: { state: tasks.state, count: tasks.count },
+    };
+    const tmp = SNAPSHOT_FILE + '.tmp';
+    fs.writeFileSync(tmp, JSON.stringify(snapshot, null, 2) + '\n', 'utf-8');
+    fs.renameSync(tmp, SNAPSHOT_FILE);
+  } catch {}
 
   // Emit suggest-compact as the ONLY stdout — Claude Code parses this for additionalContext
   if (compactSuggestion) {

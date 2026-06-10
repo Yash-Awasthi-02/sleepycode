@@ -492,6 +492,60 @@ function checkReflectLoop() {
   }
 }
 
+function checkScheduler() {
+  // Reads state/cc-stop-snapshot.json written by stop-pipeline.js on each Stop.
+  // The snapshot is point-in-time at last Stop, not live — the captured_at
+  // timestamp is always surfaced so staleness is visible rather than silently trusted.
+  //
+  // Missing snapshot → 'ok': not a failure. First run after upgrade always hits this.
+  // unsupported_or_unreachable → 'warn': field was absent, meaning old CC or
+  //   task registry unreachable. NEVER report this as "0 crons/tasks" — that
+  //   conflation is the silent-wrongness cc-compat exists to prevent.
+  try {
+    const snapshotPath = path.join(stateDir, 'cc-stop-snapshot.json');
+    if (!fs.existsSync(snapshotPath)) {
+      return {
+        id: 'scheduler',
+        status: 'ok',
+        detail: 'not yet captured (no Stop since upgrade)',
+      };
+    }
+
+    const snap = JSON.parse(fs.readFileSync(snapshotPath, 'utf8'));
+    const ts = snap.captured_at || 'unknown time';
+    // Format as a short ISO string (drop sub-seconds) for readability
+    const tsShort = ts.replace(/\.\d+Z$/, 'Z');
+
+    const crons = snap.session_crons || {};
+    const tasks = snap.background_tasks || {};
+
+    const isUnsupported = f => !f.state || f.state === 'unsupported_or_unreachable';
+
+    // Build per-field descriptions that never collapse absent → zero
+    function describeField(field, label) {
+      if (isUnsupported(field)) {
+        return `${label}: unsupported or unreachable`;
+      }
+      return `${label}: ${field.count} ${field.state === 'empty' ? '(empty)' : 'armed'}`;
+    }
+
+    const cronDesc = describeField(crons, 'crons');
+    const taskDesc = describeField(tasks, 'tasks');
+
+    const hasUnsupported = isUnsupported(crons) || isUnsupported(tasks);
+
+    const ccVer = snap.cc_version ? ` (cc ${snap.cc_version})` : '';
+    const detail = `${cronDesc}, ${taskDesc} — as of ${tsShort}${ccVer}`;
+
+    if (hasUnsupported) {
+      return { id: 'scheduler', status: 'warn', detail };
+    }
+    return { id: 'scheduler', status: 'ok', detail };
+  } catch (e) {
+    return { id: 'scheduler', status: 'fail', detail: `check failed: ${e.message}` };
+  }
+}
+
 // ----------------- Orchestration -----------------
 
 function runAllChecks() {
@@ -506,6 +560,7 @@ function runAllChecks() {
     checkDockerSecurity(),
     checkArchival(),
     checkReflectLoop(),
+    checkScheduler(),
   ];
 }
 
@@ -537,7 +592,7 @@ if (require.main === module) {
   module.exports = {
     checkConfig, checkHooks, checkStateFiles,
     checkCost, checkProposals, checkDependencies, checkPermissions,
-    checkDockerSecurity, checkArchival, checkReflectLoop,
+    checkDockerSecurity, checkArchival, checkReflectLoop, checkScheduler,
     satisfiesRange, cidrOverlap,
     runAllChecks, writeReport,
   };
