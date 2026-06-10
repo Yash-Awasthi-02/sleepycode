@@ -728,6 +728,74 @@ run_test "log-routine-event (no ancestor diagnostic)" bash -c \
 rm -rf "$nohermit"
 
 # -------------------------------------------------------
+# lib/cc-compat.js — CC-owned format accessors
+# -------------------------------------------------------
+
+CC_COMPAT_LIB="$REPO_ROOT/scripts/lib/cc-compat.js"
+
+# Exports present
+run_test "cc-compat.js: exports required symbols" bash -c \
+  "node -e \"const c=require('$CC_COMPAT_LIB'); ['sessionId','transcriptPath','sessionCrons','backgroundTasks','extractUsage','costLogPath','ccVersion'].forEach(k=>{ if(typeof c[k]!=='function') throw new Error(k+' missing or not a function'); });\""
+
+# sessionId: session_id preferred, sessionId fallback, absent → null
+run_test "cc-compat.js: sessionId reads session_id" bash -c \
+  "node -e \"const {sessionId}=require('$CC_COMPAT_LIB'); if(sessionId({session_id:'s1'})!=='s1') throw new Error('want s1');\""
+run_test "cc-compat.js: sessionId falls back to sessionId" bash -c \
+  "node -e \"const {sessionId}=require('$CC_COMPAT_LIB'); if(sessionId({sessionId:'s2'})!=='s2') throw new Error('want s2');\""
+run_test "cc-compat.js: sessionId absent → null" bash -c \
+  "node -e \"const {sessionId}=require('$CC_COMPAT_LIB'); if(sessionId({})!==null) throw new Error('want null');\""
+
+# transcriptPath: present → value, absent → null
+run_test "cc-compat.js: transcriptPath reads transcript_path" bash -c \
+  "node -e \"const {transcriptPath}=require('$CC_COMPAT_LIB'); if(transcriptPath({transcript_path:'/a'})!=='/a') throw new Error('want /a');\""
+run_test "cc-compat.js: transcriptPath absent → null" bash -c \
+  "node -e \"const {transcriptPath}=require('$CC_COMPAT_LIB'); if(transcriptPath({})!==null) throw new Error('want null');\""
+
+# sessionCrons: tri-state — absent, empty, populated
+run_test "cc-compat.js: sessionCrons absent → unsupported_or_unreachable" bash -c \
+  "node -e \"const {sessionCrons}=require('$CC_COMPAT_LIB'); const r=sessionCrons({}); if(r.state!=='unsupported_or_unreachable') throw new Error('got '+r.state);\""
+run_test "cc-compat.js: sessionCrons empty array → empty count 0" bash -c \
+  "node -e \"const {sessionCrons}=require('$CC_COMPAT_LIB'); const r=sessionCrons({session_crons:[]}); if(r.state!=='empty'||r.count!==0) throw new Error('got '+JSON.stringify(r));\""
+run_test "cc-compat.js: sessionCrons non-empty → populated count" bash -c \
+  "node -e \"const {sessionCrons}=require('$CC_COMPAT_LIB'); const r=sessionCrons({session_crons:[{},{}]}); if(r.state!=='populated'||r.count!==2) throw new Error('got '+JSON.stringify(r));\""
+
+# backgroundTasks: same tri-state
+run_test "cc-compat.js: backgroundTasks absent → unsupported_or_unreachable" bash -c \
+  "node -e \"const {backgroundTasks}=require('$CC_COMPAT_LIB'); const r=backgroundTasks({}); if(r.state!=='unsupported_or_unreachable') throw new Error('got '+r.state);\""
+run_test "cc-compat.js: backgroundTasks empty → empty count 0" bash -c \
+  "node -e \"const {backgroundTasks}=require('$CC_COMPAT_LIB'); const r=backgroundTasks({background_tasks:[]}); if(r.state!=='empty'||r.count!==0) throw new Error('got '+JSON.stringify(r));\""
+run_test "cc-compat.js: backgroundTasks populated → count 3" bash -c \
+  "node -e \"const {backgroundTasks}=require('$CC_COMPAT_LIB'); const r=backgroundTasks({background_tasks:[1,2,3]}); if(r.state!=='populated'||r.count!==3) throw new Error('got '+JSON.stringify(r));\""
+
+# extractUsage: golden values
+run_test "cc-compat.js: extractUsage golden — assistant entry with usage" bash -c \
+  "node -e \"
+const {extractUsage}=require('$CC_COMPAT_LIB');
+const entry={type:'assistant',message:{usage:{input_tokens:10,cache_creation_input_tokens:20,cache_read_input_tokens:30,output_tokens:40},model:'claude-sonnet-4-x'}};
+const u=extractUsage(entry);
+if(!u) throw new Error('expected object, got null');
+if(u.inputTokens!==10||u.cacheWriteTokens!==20||u.cacheReadTokens!==30||u.outputTokens!==40) throw new Error('field mismatch: '+JSON.stringify(u));
+if(!u.model.includes('sonnet')) throw new Error('model wrong: '+u.model);
+\""
+run_test "cc-compat.js: extractUsage non-assistant entry → null" bash -c \
+  "node -e \"const {extractUsage}=require('$CC_COMPAT_LIB'); if(extractUsage({type:'user',message:{content:'hi'}})!==null) throw new Error('want null');\""
+run_test "cc-compat.js: extractUsage assistant without usage → null" bash -c \
+  "node -e \"const {extractUsage}=require('$CC_COMPAT_LIB'); if(extractUsage({type:'assistant',message:{}})!==null) throw new Error('want null');\""
+
+# costLogPath: deterministic from a stateDir
+run_test "cc-compat.js: costLogPath resolves .claude/cost-log.jsonl" bash -c \
+  "node -e \"
+const {costLogPath}=require('$CC_COMPAT_LIB');
+const p=costLogPath('/project/.claude-code-hermit');
+if(!p.endsWith('/.claude/cost-log.jsonl')) throw new Error('got '+p);
+if(!p.includes('/project/')) throw new Error('project root missing: '+p);
+\""
+
+# ccVersion: returns null when absent, no throw
+run_test "cc-compat.js: ccVersion absent → null (no throw)" bash -c \
+  "node -e \"const {ccVersion}=require('$CC_COMPAT_LIB'); const v=ccVersion({}); if(v!==null && typeof v!=='string') throw new Error('got '+v);\""
+
+# -------------------------------------------------------
 # lib/pricing.js — shared pricing regression
 # Validates that extracting pricing into lib didn't change any output.
 # Golden values computed from the original cost-tracker.js constants.
