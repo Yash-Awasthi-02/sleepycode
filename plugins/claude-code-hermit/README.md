@@ -1,7 +1,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.1.10-green.svg" alt="Version 1.1.10" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.1.11-green.svg" alt="Version 1.1.11" /></a>
   <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/gtapps/claude-code-hermit/_gh_traffic_stats/.github/badges/clones.json" alt="Downloads" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
 </p>
@@ -74,12 +74,11 @@ What it proposes: improvements, routines, new capabilities (skills, agents, hear
 
 ## Observable
 
-Four on-demand skills, pullable from the Claude app, your terminal, or a DM:
+Three on-demand skills, pullable from the Claude app, your terminal, or a DM:
 
 - **`/hermit-brain`** — open loops, fragile zones, and key learnings from recent sessions
 - **`/hermit-evolution`** — cost trends and how the hermit's behavior is shifting over time
 - **`/hermit-health`** — alert state, channel availability, and heartbeat status
-- **`/recall <query>`** — full-text search over session reports, compiled artifacts, and proposals ("what did I decide about X", "when did we last touch Y")
 
 ---
 
