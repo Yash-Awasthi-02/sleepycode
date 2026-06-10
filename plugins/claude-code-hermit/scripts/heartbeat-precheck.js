@@ -170,7 +170,7 @@ if (sessionState === 'in_progress') {
   // staleAlertActive: keep waking while an active alert exists so the LLM can track resolution.
   const staleMs = parseDuration(hbConfig.stale_threshold, 2 * 3600000);
   const opQuiet = !usedActionFile || lastActionAt > now || (now - lastActionAt) > staleMs;
-  const staleAlertActive = !!alertState.alerts['stale-session'];
+  const staleAlertActive = !!(alertState.alerts ?? {})['stale-session'];
   if (opQuiet || staleAlertActive) emit('EVALUATE');
 }
 
