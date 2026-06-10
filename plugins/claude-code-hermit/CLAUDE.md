@@ -55,6 +55,15 @@ When a change needs to be applied to existing hermits (not just the template for
 
 Example: removing a line from an operator-editable file (like `HEARTBEAT.md`) that `hermit-evolve` would otherwise skip.
 
+## Feature defaults (research preview)
+
+Follow Claude Code's research-preview model: **new features ship enabled by default, opt-out not opt-in.** When you launch a new capability:
+
+- **Template default is on.** Set the feature enabled in `state-templates/config.json.template` (or the relevant default) so new hermits get it from `hatch` without extra steps.
+- **Upgrade Instructions enable it for existing hermits.** Write the `### Upgrade Instructions` so `hermit-evolve` turns the feature on for already-installed operators by default, rather than leaving it off pending opt-in. Note how to disable it for operators who don't want it.
+
+Reserve opt-in defaults for features that are genuinely risky, costly, or destructive: state why in the CHANGELOG when you choose opt-in over opt-out.
+
 ## Development
 
 To test locally against a target project:
