@@ -24,10 +24,13 @@ The caller passes a candidate proposal as:
 ```
 Title: <title>
 Evidence Source: archived-session | current-session | scheduled-check/<id> | operator-request | capability-brainstorm
+Evidence Origin: own-work | external-content
 Evidence: <one-paragraph evidence summary>
 ```
 
 `Evidence Source:` is optional. Default: `archived-session`.
+
+`Evidence Origin:` is optional. Default: `own-work`. External-content candidates are quarantined to Tier 3 upstream by `reflection-judge` and `reflect`; triage is not the primary gate for this control. Emit `origin: external-content` as additive metadata when present, for audit.
 
 ## Your private memory
 
@@ -106,12 +109,14 @@ overlap_compiled: <filename>
 prior_discussion: <S-NNN: "<excerpt>">
 memory_ref: <filename>
 failed_condition: <repeated-pattern|meaningful-consequence|operator-actionable>
+origin: external-content
 ```
 
 Rules:
 - `aligned: false` and `operator_excerpt` are always emitted together or not at all.
 - `failed_condition` is emitted only on `SUPPRESS` verdicts.
 - `closest_prop` is emitted when a near-miss proposal was found during dedup (even on `CREATE`).
+- `origin: external-content` is emitted only when the caller passed `Evidence Origin: external-content`.
 
 Your response is not complete without the verdict line. If you have finished reading files and have not yet emitted a verdict, emit it now before stopping.
 
