@@ -536,6 +536,15 @@ Why not `hermit-docker restart`: Docker's default stop_grace_period is 10s, whic
 
 ### 9. Verify
 
+**Enable the Docker watchdog.** Docker hermits run the watchdog from the entrypoint loop, so turn it on now:
+
+```
+jq '.watchdog.enabled = true' .claude-code-hermit/config.json > .claude-code-hermit/config.json.tmp \
+  && mv .claude-code-hermit/config.json.tmp .claude-code-hermit/config.json
+```
+
+This only flips `.watchdog.enabled` — the other watchdog tuning keys (`stale_factor`, `escalate_after`, `operator_grace`) are preserved.
+
 Run `.claude-code-hermit/bin/hermit-status` and show output. `no session` is the expected output on a fresh setup — it means the container is up and will start its first session on the next cron routine or channel message. Do **not** add `sleep` before `hermit-status`; if you need to wait for a session to appear, use `Monitor` with an `until`-loop (not chained sleeps).
 
 If healthy:
