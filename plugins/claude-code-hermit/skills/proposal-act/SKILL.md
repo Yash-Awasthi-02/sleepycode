@@ -72,31 +72,29 @@ When the operator accepts a proposal:
 
 4. Ask: **"How should this be implemented?"**
 
-   - **"Start implementing now"** (default, typical answer): handle session lifecycle, then execute in this turn.
+   - **"Start implementing now"** (default, typical answer): run the falsification gate, then handle session lifecycle, then execute in this turn.
+     **Falsification gate (runs first, before any session transition).** Verify the proposal is actionable as written with a read-only pass. Skip if the body contains `## Skill Improvement` (step (e) routes that to `/skill-creator`).
+
+       Agent selection — check the harness's available-skills list (never `claude plugin list` or disk checks):
+       - `feature-dev:feature-dev` in available-skills → use `feature-dev:code-explorer` as the subagent.
+       - `feature-dev:feature-dev` absent → fall back to the native `Plan` agent. Read only the returned text; ignore any file it writes under `~/.claude/plans/`.
+       - If the agent errors → log a one-line warning to SHELL.md Findings and continue to the session-lifecycle branch. Never block.
+
+       Invoke with the proposal's `## Context` and `## Proposed Solution` sections plus this fixed instruction:
+       > "You are a read-only falsification gate. Verify every cited path and symbol against the current code. Return line 1 as exactly: `REJECT: <already-done | partially-done | stale-paths | nonexistent-symbols | too-vague> — <one-line evidence>` or `PROCEED` (+ complete file list to modify). If REJECT, give file:line evidence. Do not produce a build plan for a rejected proposal. Do not write any files."
+
+       Append the returned line-1 verdict to the proposal's `## Operator Decision` section as provenance, then branch:
+       - `PROCEED` → continue to the session-lifecycle branch below (step (a)). Use the agent's complete file list over any files mentioned in the proposal body.
+       - `REJECT` (stop before any session transition — `session_state` and SHELL.md `Task:` stay untouched):
+         - **Interactive mode** → surface to the operator: *"Falsification gate: [verdict] — [evidence]. Proceed anyway? Y to override / N to re-scope the proposal first."* Y → continue to the session-lifecycle branch below (step (a)). N → stop; status stays `accepted`. Operator re-scopes and re-runs `/proposal-act accept PROP-NNN`.
+         - **Autonomous mode** → do not implement; notify via channel: *"PROP-NNN: falsification check — [evidence]. Reply 'override PROP-NNN' to implement anyway."*
      a. Use the `session_state` already read from `state/runtime.json` in step 3a to branch.
      b. **Idle:** delegate to `claude-code-hermit:session-mgr` to transition to `in_progress` and fill SHELL.md Task as "Implement PROP-NNN: <title>". Proceed to (e).
      c. **In progress:** confirm before switching: "Currently working on: <current task>. Switch to PROP-NNN? Y/N".
         - Yes: append `[HH:MM] switched to PROP-NNN: <title> (prior task: <prior task>)` to SHELL.md `## Progress Log`; overwrite SHELL.md `Task:` field with "Implement PROP-NNN: <title>"; `runtime.json session_state` stays `in_progress`. Proceed to (e).
         - No: fall back to "Create a session task" below.
      d. **Waiting:** fall back to "Create a session task" without asking, then notify: "PROP-NNN queued. Session is currently waiting."
-     d.5. **Falsification gate.** Before executing the Proposed Solution, run a read-only pass to verify the proposal is actionable as written. Skip if the body contains `## Skill Improvement` (step (e) routes that to `/skill-creator`).
-
-       Agent selection — check the harness's available-skills list (never `claude plugin list` or disk checks):
-       - `feature-dev:feature-dev` in available-skills → use `feature-dev:code-explorer` as the subagent.
-       - `feature-dev:feature-dev` absent → fall back to the native `Plan` agent. Read only the returned text; ignore any file it writes under `~/.claude/plans/`.
-       - If the agent errors → log a one-line warning to SHELL.md Findings and proceed to (e). Never block.
-
-       Invoke with the proposal's `## Context` and `## Proposed Solution` sections plus this fixed instruction:
-       > "You are a read-only falsification gate. Verify every cited path and symbol against the current code. Return line 1 as exactly: `REJECT: <already-done | partially-done | stale-paths | nonexistent-symbols | too-vague> — <one-line evidence>` or `PROCEED` (+ complete file list to modify). If REJECT, give file:line evidence. Do not produce a build plan for a rejected proposal. Do not write any files."
-
-       Append the returned line-1 verdict to the proposal's `## Operator Decision` section as provenance.
-
-       Branch on the verdict:
-       - `PROCEED` → continue to (e). Use the agent's complete file list over any files mentioned in the proposal body.
-       - `REJECT`:
-         - **Interactive mode** → surface to the operator: *"Falsification gate: [verdict] — [evidence]. Proceed anyway? Y to override / N to re-scope the proposal first."* Y → continue to (e) as-is. N → stop; status stays `accepted`. Operator re-scopes and re-runs `/proposal-act accept PROP-NNN`.
-         - **Autonomous mode** → do not implement; notify via channel: *"PROP-NNN: falsification check — [evidence]. Reply 'override PROP-NNN' to implement anyway."*
-     e. Read the proposal body and execute the Proposed Solution as the active task. If the body contains `## Skill Improvement`, use `/skill-creator` for the implementation. If the body is vague, ask the operator for clarification before proceeding.
+     e. Read the proposal body and execute the Proposed Solution as the active task. If the body contains `## Skill Improvement`, use `/skill-creator` for the implementation. If the body is vague, ask the operator for clarification before proceeding — unless the falsification gate already returned `PROCEED` with a file list, in which case actionability is confirmed and this check is skipped.
      e.5. **Quality gate (tier-branched).** Read `.claude-code-hermit/config.json` → `quality_gate.tier`. Resolve per this table:
 
          | Config state | Resolved tier |
