@@ -29,6 +29,14 @@ run_test "'Create a session task' option present" \
 run_test "'I'll handle it manually' option present" \
   grep -qF "I'll handle it manually" "$SKILL"
 
+# Falsification gate: must run before any session transition (guards against the
+# orphaned-step regression where session-state branches jumped straight to (e)).
+run_test "falsification gate present in 'Start implementing now'" \
+  grep -qF "Falsification gate (runs first" "$SKILL"
+
+run_test "falsification gate emits REJECT/PROCEED verdict" \
+  bash -c "grep -qF 'REJECT' \"$SKILL\" && grep -qF 'PROCEED' \"$SKILL\""
+
 # Quality-gate (e.5) tier-branched + NEXT-TASK template assertions.
 # Guards against losing the tier branching, judge invocation, or NEXT-TASK gating.
 run_test "step (e.5) references quality_gate.tier (not enabled)" \
