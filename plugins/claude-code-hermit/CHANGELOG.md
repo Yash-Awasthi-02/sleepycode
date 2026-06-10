@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **gate-agent memory: proposal-triage and reflection-judge now persist private heuristics (`memory: project`)** — triage learns suppression patterns, judge learns hollow-evidence shapes; guardrail forbids private memory as the sole suppress basis; over-suppression bounded by reflect's existing Component Health check.
+
 ### Changed
 
 - **heartbeat: gate in_progress stale-check on operator activity** — skip the per-tick LLM wake when `last-operator-action.json` shows activity within `stale_threshold`; the faithful Progress-Log check still runs when the operator is quiet beyond the threshold or a stale alert is already active. Falls back to the original unconditional wake on pre-upgrade installs (no `last-operator-action.json`) and on future-dated timestamps (clock skew). Closes #315.

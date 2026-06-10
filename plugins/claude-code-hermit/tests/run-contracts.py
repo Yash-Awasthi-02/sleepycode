@@ -1572,5 +1572,26 @@ class TestHermitRoutinesModelContract(unittest.TestCase):
                       'hermit-routines SKILL.md is missing the heartbeat-restart short-circuit guard phrase')
 
 
+class TestGateAgentMemoryContract(unittest.TestCase):
+    """Gate agents (proposal-triage, reflection-judge) must declare memory: project.
+
+    Guards against the frontmatter key being accidentally dropped, since it enables
+    persistent heuristic accumulation across invocations (17.3 gate-agent memory).
+    """
+
+    GATE_AGENTS = ['proposal-triage', 'reflection-judge']
+
+    def test_gate_agents_declare_memory_project(self):
+        for name in self.GATE_AGENTS:
+            path = REPO / 'agents' / f'{name}.md'
+            self.assertTrue(path.exists(), f'agents/{name}.md missing')
+            content = path.read_text()
+            parts = content.split('---\n', 2)
+            self.assertEqual(len(parts), 3, f'{name}: agent file missing closing --- of frontmatter')
+            head = parts[1]
+            self.assertIn('memory: project', head,
+                          f'{name}: frontmatter must declare "memory: project" (gate-agent memory feature)')
+
+
 if __name__ == '__main__':
     unittest.main()
