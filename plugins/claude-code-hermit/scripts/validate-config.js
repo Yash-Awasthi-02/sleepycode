@@ -190,6 +190,26 @@ function validate(config) {
     }
   }
 
+  if (config.watchdog && typeof config.watchdog === 'object') {
+    const wd = config.watchdog;
+    if (typeof wd.enabled !== 'boolean') {
+      warnings.push('watchdog.enabled: should be boolean');
+    }
+    if (wd.stale_factor !== undefined) {
+      if (typeof wd.stale_factor !== 'number' || wd.stale_factor <= 0) {
+        warnings.push('watchdog.stale_factor: should be a positive number');
+      }
+    }
+    if (wd.escalate_after !== undefined) {
+      if (!Number.isInteger(wd.escalate_after) || wd.escalate_after < 1) {
+        errors.push('watchdog.escalate_after: must be a positive integer');
+      }
+    }
+    if (wd.operator_grace !== undefined && typeof wd.operator_grace !== 'string') {
+      warnings.push('watchdog.operator_grace: should be a duration string (e.g. "15m")');
+    }
+  }
+
   if (config.env && typeof config.env === 'object') {
     for (const [k, v] of Object.entries(config.env)) {
       if (typeof v !== 'string') {

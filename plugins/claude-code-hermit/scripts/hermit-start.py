@@ -88,6 +88,12 @@ DEFAULT_CONFIG = {
         'compiled_budget_chars': 2500,
         'working_set_warn': 20,
     },
+    'watchdog': {
+        'enabled': False,
+        'stale_factor': 2,
+        'escalate_after': 3,
+        'operator_grace': '15m',
+    },
 }
 
 

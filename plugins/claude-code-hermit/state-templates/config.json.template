@@ -59,5 +59,11 @@
     "raw_retention_days": 14,
     "compiled_budget_chars": 2500,
     "working_set_warn": 20
+  },
+  "watchdog": {
+    "enabled": false,
+    "stale_factor": 2,
+    "escalate_after": 3,
+    "operator_grace": "15m"
   }
 }

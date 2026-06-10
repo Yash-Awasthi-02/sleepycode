@@ -4,6 +4,11 @@
 
 ### Added
 
+- **watchdog: external dead-session and wedge detector** — `scripts/hermit-watchdog.py` single-shot supervisor. Detects dead tmux sessions and restarts them; detects wedged sessions (frozen pane, monitor dead, operator silent) with nudge-then-escalate; re-arms the 4am `heartbeat-restart` when it misses. Shutdown-intent gate prevents resurrecting an intentionally-stopped hermit. Every action logged to `state/watchdog-events.jsonl`; restarts surface to operator channel via `session-start` step 3. Default disabled — opt in via `config.watchdog.enabled: true` + `bin/hermit-watchdog install`.
+- **watchdog: OS timer install/uninstall** — `bin/hermit-watchdog install` registers a systemd user timer (Linux/WSL2), LaunchAgent (macOS), or prints a crontab line (fallback). `bin/hermit-watchdog uninstall` tears it down.
+- **cost-log: incremental byte-offset index** — new `scripts/lib/cost-log.js` builds `state/cost-index.json` incrementally so `writeCostSummary` and `getCumulativeCost` are O(1) instead of O(n). Index rebuilt automatically on first run or log truncation. Resolves Known Limitation #1.
+- **cost-log: corrupt-line counter** — `cost-index.json` carries `skipped_corrupt_lines`; doctor's cost check warns when >0. Resolves Known Limitation #3.
+- **doctor: watchdog health check** — new `checkWatchdog()` reports enabled status, OS timer presence, recent restart count, and consecutive-stale count from `state/watchdog-events.jsonl`.
 - **procedure capture: reflect drafts a skill from a recurring procedure and installs it operator-gated** — when a multi-step procedure recurs across ≥2 sessions with no skill covering it, reflect writes a `procedure-brief` to `compiled/` and routes a `category: capability` PROP through triage→judge→proposal-create. On accept, `/skill-creator` authors the SKILL.md and the operator confirms the artifact before install to `.claude/skills/`. Two non-skippable gates; metric-driven kill criteria.
 - **channel-hook: channel-replies.jsonl** — append-only log of outbound reply-tool calls, written by `channel-hook.js` after every `last_reply_at` update. Provides the engagement history needed for routine-ROI analysis.
 - **reflect: routine ROI signal** — extends the routine-health check with a channel-engagement join: reads `channel-replies.jsonl`, computes a delivery-anchored, same-channel engagement ratio per routine, joins per-routine cost from `cost-log.jsonl`, and proposes Tier-1 disable or re-time when a channel-delivering routine has ≥10 fires and ≤20% engagement.
@@ -38,6 +43,12 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
 1. Check whether `config.json` has `knowledge.compiled_budget_chars` set to `1000`. If so, update it to `2500`. If the operator has set a custom value other than `1000`, leave it as-is.
 2. The `/recall` skill is auto-discovered — no file changes needed for existing hermits.
+3. Seed `bin/hermit-watchdog` from `state-templates/bin/hermit-watchdog` if it does not already exist in `.claude-code-hermit/bin/`.
+4. Seed the `watchdog/` directory from `state-templates/watchdog/` (four files: `hermit-watchdog@.service`, `hermit-watchdog@.timer`, `com.hermit.watchdog.plist`, `crontab.txt`) into `.claude-code-hermit/watchdog/`, skipping any file that already exists.
+5. Add `"watchdog": {"enabled": false, "stale_factor": 2, "escalate_after": 3, "operator_grace": "15m"}` to `config.json` if the `watchdog` key is absent.
+6. Re-run `/docker-setup` (or surgically update `docker-entrypoint.hermit.sh` — add the `_wd_cycle` counter and `hermit-watchdog run` call inside the `while tmux has-session` loop) before running `hermit-docker update` if running a Docker hermit.
+
+The watchdog is **disabled by default**. To opt in: set `config.watchdog.enabled: true` via `/hermit-settings`, then run `bin/hermit-watchdog install` to register the OS timer.
 
 ## [1.1.10] - 2026-06-05
 

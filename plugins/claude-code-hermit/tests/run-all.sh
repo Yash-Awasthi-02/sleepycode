@@ -26,4 +26,5 @@ bash "$SCRIPT_DIR/test-evolve-plan.sh"                     || rc=$?
 bash "$SCRIPT_DIR/test-archive-raw.sh"                     || rc=$?
 bash "$SCRIPT_DIR/test-eval-success-signal.sh"             || rc=$?
 bash "$SCRIPT_DIR/test-procedure-capture.sh"               || rc=$?
+bash "$SCRIPT_DIR/test-watchdog.sh"                        || rc=$?
 exit $rc

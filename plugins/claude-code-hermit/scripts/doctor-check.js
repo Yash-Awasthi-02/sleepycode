@@ -132,6 +132,21 @@ function checkCost() {
       } catch {}
     }
     const detail = `today $${todayTotal.toFixed(4)} · ${kStr(todayTokens)}K tokens, ${kStr(todayCacheRead)}K cached`;
+
+    try {
+      const { costIndexPath, readCostIndex } = require('./lib/cost-log');
+      const idx = readCostIndex(costIndexPath(hermitDir));
+      if (idx && idx.skipped_corrupt_lines > 0) {
+        return {
+          id: 'cost',
+          status: 'warn',
+          detail: `${detail} — ${idx.skipped_corrupt_lines} corrupt cost-log line(s) skipped; budget figures may be stale`,
+        };
+      }
+    } catch {
+      // Non-fatal — cost-index absent on fresh install
+    }
+
     return { id: 'cost', status: 'ok', detail };
   } catch (e) {
     return { id: 'cost', status: 'fail', detail: `check failed: ${e.message}` };
@@ -546,6 +561,56 @@ function checkScheduler() {
   }
 }
 
+// ----------------- Watchdog -----------------
+
+function checkWatchdog() {
+  try {
+    const config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+    const wCfg = config.watchdog || {};
+
+    if (!wCfg.enabled) {
+      return { id: 'watchdog', status: 'ok', detail: 'watchdog: disabled (opt-in via config.watchdog.enabled)' };
+    }
+
+    const statePath = path.join(stateDir, 'watchdog-state.json');
+    let consecutive = 0;
+    try {
+      const ws = JSON.parse(fs.readFileSync(statePath, 'utf-8'));
+      consecutive = ws.consecutive_stale || 0;
+    } catch {}
+
+    const eventsPath = path.join(stateDir, 'watchdog-events.jsonl');
+    const cutoff = new Date(Date.now() - 7 * MS_PER_DAY).toISOString();
+    let restarts = 0;
+    let nudges = 0;
+    let rearms = 0;
+    try {
+      const lines = fs.readFileSync(eventsPath, 'utf-8').split('\n');
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const e = JSON.parse(line);
+          if (e.ts < cutoff) continue;
+          if (e.action === 'restart') restarts++;
+          else if (e.action === 'nudge') nudges++;
+          else if (e.action === 're-arm-fallback') rearms++;
+        } catch {}
+      }
+    } catch {}
+
+    const parts = [`restarts: ${restarts}`, `nudges: ${nudges}`, `re-arms: ${rearms}`];
+    if (consecutive > 0) parts.push(`stale cycles in progress: ${consecutive}`);
+    const detail = `watchdog: enabled — ${parts.join(', ')} (last 7d)`;
+
+    if (restarts > 0 || consecutive > 0) {
+      return { id: 'watchdog', status: 'warn', detail };
+    }
+    return { id: 'watchdog', status: 'ok', detail };
+  } catch (e) {
+    return { id: 'watchdog', status: 'fail', detail: `check failed: ${e.message}` };
+  }
+}
+
 // ----------------- Orchestration -----------------
 
 function runAllChecks() {
@@ -561,6 +626,7 @@ function runAllChecks() {
     checkArchival(),
     checkReflectLoop(),
     checkScheduler(),
+    checkWatchdog(),
   ];
 }
 
@@ -593,6 +659,7 @@ if (require.main === module) {
     checkConfig, checkHooks, checkStateFiles,
     checkCost, checkProposals, checkDependencies, checkPermissions,
     checkDockerSecurity, checkArchival, checkReflectLoop, checkScheduler,
+    checkWatchdog,
     satisfiesRange, cidrOverlap,
     runAllChecks, writeReport,
   };

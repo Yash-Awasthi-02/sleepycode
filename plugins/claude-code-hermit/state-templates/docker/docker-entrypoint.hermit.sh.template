@@ -484,8 +484,14 @@ cleanup() {
 trap cleanup SIGTERM SIGINT
 
 echo "[docker-entrypoint] Watching tmux session: ${SESSION_NAME}"
+_wd_cycle=0
 while tmux has-session -t "$SESSION_NAME" 2>/dev/null; do
   sleep 30 &
   wait $! || true
+  _wd_cycle=$(( _wd_cycle + 1 ))
+  # Run watchdog every ~5 min (10 × 30s). No-op when watchdog.enabled is false.
+  if [ $(( _wd_cycle % 10 )) -eq 0 ] && [ -x ".claude-code-hermit/bin/hermit-watchdog" ]; then
+    .claude-code-hermit/bin/hermit-watchdog run 2>>".claude-code-hermit/state/watchdog.log" || true
+  fi
 done
 echo "[docker-entrypoint] tmux session ended — container exiting"
