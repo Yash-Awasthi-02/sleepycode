@@ -117,7 +117,7 @@ Out-of-session supervisor that detects dead or wedged sessions and restarts them
 
 Every nudge, restart, and re-arm is appended to `state/watchdog-events.jsonl`. Restarts also set `runtime.json.watchdog_restart_reason`; `session-start` announces the restart to the operator channel.
 
-**Install:** `bin/hermit-watchdog install` — systemd user timer on Linux/WSL2, LaunchAgent on macOS, cron line printed as fallback.
+**Install:** `bin/hermit-watchdog install` — systemd user timer on Linux/WSL2, LaunchAgent on macOS, cron line printed as fallback. Docker hermits don't need `install` — the entrypoint already runs the watchdog on its own ~5 min cycle.
 
 ---
 

@@ -407,9 +407,17 @@ def _find_templates_dir():
     return None
 
 
+def _print_cron_fallback(root):
+    cron_line = (f'*/5 * * * * cd {root} && .claude-code-hermit/bin/hermit-watchdog run '
+                 f'2>>.claude-code-hermit/state/watchdog.log')
+    print('[watchdog] Add the following line via `crontab -e`:')
+    print(f'  {cron_line}')
+
+
 def cmd_install():
     """Platform-dispatching install: systemd (Linux/WSL), launchd (macOS), cron fallback."""
     import platform
+    import shutil
     import subprocess as sp
 
     root = str(Path.cwd().resolve())
@@ -422,6 +430,13 @@ def cmd_install():
     system = platform.system()
 
     if system == 'Linux':
+        if not shutil.which('systemctl'):
+            print('[watchdog] systemctl not found — systemd is unavailable on this host.')
+            print('[watchdog] In the hermit Docker container the entrypoint already runs the '
+                  'watchdog on a ~5 min cycle; no install is needed there.')
+            _print_cron_fallback(root)
+            return
+
         systemd_dir = Path.home() / '.config' / 'systemd' / 'user'
         systemd_dir.mkdir(parents=True, exist_ok=True)
         service_name = f'hermit-watchdog@{name}'
@@ -470,21 +485,25 @@ def cmd_install():
         print(f'[watchdog] Installed LaunchAgent: {plist_name}')
 
     else:
-        cron_line = f'*/5 * * * * cd {root} && .claude-code-hermit/bin/hermit-watchdog run 2>>.claude-code-hermit/state/watchdog.log'
         print('[watchdog] systemd and launchd not available on this platform.')
-        print('[watchdog] Add the following line via `crontab -e`:')
-        print(f'  {cron_line}')
+        _print_cron_fallback(root)
 
 
 def cmd_uninstall():
     """Remove the installed OS timer for this project."""
     import platform
+    import shutil
     import subprocess as sp
 
     name = _get_session_name()
     system = platform.system()
 
     if system == 'Linux':
+        if not shutil.which('systemctl'):
+            print('[watchdog] systemctl not found — no systemd timer to remove.')
+            print('[watchdog] In Docker the watchdog runs via the entrypoint loop, not an OS timer.')
+            return
+
         service_name = f'hermit-watchdog@{name}'
         sp.run(['systemctl', '--user', 'disable', '--now', f'{service_name}.timer'], check=False)
         systemd_dir = Path.home() / '.config' / 'systemd' / 'user'
