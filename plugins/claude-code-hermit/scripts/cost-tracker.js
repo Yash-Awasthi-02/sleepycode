@@ -14,9 +14,11 @@ const { calculateCost } = require('./lib/pricing');
 const { readTasks, taskProgress } = require('./lib/tasks');
 const { kStr, formatTokens } = require('./lib/format');
 const { sessionId: ccSessionId, transcriptPath: ccTranscriptPath, entryText, isToolResult, extractUsage, costLogPath } = require('./lib/cc-compat');
+const { costIndexPath, updateCostIndex, readCostIndex } = require('./lib/cost-log');
 
 const MAX_STDIN = 1024 * 1024; // 1MB safety limit
 const COST_LOG = costLogPath('.claude-code-hermit');
+const COST_INDEX = costIndexPath('.claude-code-hermit');
 const SHELL_SESSION = path.resolve('.claude-code-hermit/sessions/SHELL.md');
 const STATUS_JSON = path.resolve('.claude-code-hermit/sessions/.status.json');
 const STATUS_JSON_TMP = path.resolve('.claude-code-hermit/sessions/.status.json.tmp');
@@ -25,13 +27,19 @@ const HEARTBEAT_FILE = path.resolve('.claude-code-hermit/state/.heartbeat');
 const COST_SUMMARY = path.resolve('.claude-code-hermit/cost-summary.md');
 const TASK_SNAPSHOT = path.resolve('.claude-code-hermit/tasks-snapshot.md');
 
-function readRuntimeSessionId() {
+let _runtimeCache;
+function readRuntimeJson() {
+  if (_runtimeCache !== undefined) return _runtimeCache;
   try {
-    const data = JSON.parse(fs.readFileSync(RUNTIME_JSON, 'utf-8'));
-    return data.session_id || '';
+    _runtimeCache = JSON.parse(fs.readFileSync(RUNTIME_JSON, 'utf-8'));
   } catch {
-    return '';
+    _runtimeCache = {};
   }
+  return _runtimeCache;
+}
+
+function readRuntimeSessionId() {
+  return readRuntimeJson().session_id || '';
 }
 
 function touchHeartbeat() {
@@ -149,7 +157,7 @@ function parseLogEntries() {
   }
 }
 
-function getCumulativeCost(newCost, newTokens, hadHumanTurn, currentSessionId) {
+function getCumulativeCost(newCost, newTokens, hadHumanTurn, currentSessionId, index) {
   // O(1) path: read running totals from .status.json
   try {
     const status = JSON.parse(fs.readFileSync(STATUS_JSON, 'utf-8'));
@@ -163,28 +171,32 @@ function getCumulativeCost(newCost, newTokens, hadHumanTurn, currentSessionId) {
       operatorTurns: (status.operator_turns || 0) + (hadHumanTurn ? 1 : 0),
     };
   } catch {
-    // First run or missing file — fall back to full scan
+    // First run or missing .status.json — fall back to index (O(1); index already updated)
   }
 
-  const entries = parseLogEntries();
-  let totalCost = 0;
-  let totalTokens = 0;
-  for (const entry of entries) {
-    totalCost += entry.estimated_cost_usd || 0;
-    totalTokens += entry.total_tokens || 0;
+  if (index) {
+    return {
+      cost: index.total_cost_usd,
+      tokens: index.total_tokens,
+      operatorTurns: hadHumanTurn ? 1 : 0,
+    };
   }
-  return {
-    cost: totalCost > 0 ? totalCost : newCost,
-    tokens: totalTokens > 0 ? totalTokens : newTokens,
-    operatorTurns: hadHumanTurn ? 1 : 0,
-  };
+
+  const idx = readCostIndex(COST_INDEX);
+  if (idx) {
+    return { cost: idx.total_cost_usd, tokens: idx.total_tokens, operatorTurns: hadHumanTurn ? 1 : 0 };
+  }
+  return { cost: newCost, tokens: newTokens, operatorTurns: hadHumanTurn ? 1 : 0 };
 }
 
 const MAX_SUMMARY_LEN = 120;
 
+function readRuntimeSessionState() {
+  return readRuntimeJson().session_state || 'unknown';
+}
+
 function writeStatusJson(shellContent, cumulative, sessionId) {
   const { cost: cumulativeCost, tokens: cumulativeTokens, operatorTurns: cumulativeOperatorTurns } = cumulative;
-  const statusMatch = shellContent.match(/\*\*Status:\*\*\s*(\S+)/);
   const taskMatch = shellContent.match(/## Task\n([\s\S]*?)(?=\n## |$)/);
   const blockersMatch = shellContent.match(/## Blockers\n([\s\S]*?)(?=\n## |$)/);
   const tasksMatch = shellContent.match(/\*\*Tasks Completed:\*\*\s*(\d+)/);
@@ -204,7 +216,7 @@ function writeStatusJson(shellContent, cumulative, sessionId) {
   const statusData = {
     updated: new Date().toISOString(),
     session_id: sessionId,
-    status: statusMatch ? statusMatch[1] : 'unknown',
+    status: readRuntimeSessionState(),
     task: task.split('\n')[0].substring(0, MAX_SUMMARY_LEN),
     plan_done: progress.done,
     plan_total: progress.total,
@@ -250,7 +262,9 @@ function writeTaskSnapshot(tasks, progress) {
   try { fs.writeFileSync(TASK_SNAPSHOT, content, 'utf-8'); } catch {}
 }
 
-function writeCostSummary() {
+function writeCostSummary(index) {
+  if (!index) return;
+
   const today = new Date().toISOString().slice(0, 10);
   try {
     const stat = fs.statSync(COST_SUMMARY);
@@ -262,64 +276,42 @@ function writeCostSummary() {
     // File missing — regenerate
   }
 
-  const entries = parseLogEntries();
-  if (entries.length === 0) return;
+  if (index.total_tokens === 0 && index.total_cost_usd === 0) return;
 
   const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+  const byDate = index.by_date || {};
 
-  const byDate = {};
-  const tokensByDate = {};
-  const sessionsByDate = {};
-  let totalCost = 0;
-  let totalTokens = 0;
-  const allSessions = new Set();
-
-  for (const e of entries) {
-    const date = (e.timestamp || '').slice(0, 10);
-    if (!date) continue;
-
-    const cost = e.estimated_cost_usd || 0;
-    const tok = e.total_tokens || 0;
-    totalCost += cost;
-    totalTokens += tok;
-    byDate[date] = (byDate[date] || 0) + cost;
-    tokensByDate[date] = (tokensByDate[date] || 0) + tok;
-
-    if (e.session_id) {
-      allSessions.add(e.session_id);
-      if (!sessionsByDate[date]) sessionsByDate[date] = new Set();
-      sessionsByDate[date].add(e.session_id);
-    }
-  }
-
-  const totalSessions = allSessions.size;
+  const totalCost = index.total_cost_usd || 0;
+  const totalTokens = index.total_tokens || 0;
+  const totalSessions = index.total_sessions || 0;
   const avgCost = totalSessions > 0 ? totalCost / totalSessions : 0;
   const avgSessionTokens = totalSessions > 0 ? totalTokens / totalSessions : 0;
-  const todayCost = byDate[today] || 0;
-  const todayTokens = tokensByDate[today] || 0;
-  const todaySessions = sessionsByDate[today] ? sessionsByDate[today].size : 0;
+
+  const todayEntry = byDate[today] || { cost: 0, tokens: 0, session_ids: [] };
+  const todayCost = todayEntry.cost;
+  const todayTokens = todayEntry.tokens;
+  const todaySessions = (todayEntry.session_ids || []).length;
 
   let weekCost = 0;
   let weekTokens = 0;
-  const weekSessions = new Set();
-  for (const [date, cost] of Object.entries(byDate)) {
+  const weekSessionIds = new Set();
+  for (const [date, entry] of Object.entries(byDate)) {
     if (date >= weekAgo) {
-      weekCost += cost;
-      weekTokens += tokensByDate[date] || 0;
-      if (sessionsByDate[date]) {
-        for (const s of sessionsByDate[date]) weekSessions.add(s);
-      }
+      weekCost += entry.cost || 0;
+      weekTokens += entry.tokens || 0;
+      for (const s of (entry.session_ids || [])) weekSessionIds.add(s);
     }
   }
-  const weekSessionCount = weekSessions.size;
+  const weekSessionCount = weekSessionIds.size;
   const weekAvg = weekSessionCount > 0 ? weekCost / weekSessionCount : 0;
 
   let trendTable = '| Date | Sessions | Cost | Tokens |\n|------|----------|------|--------|\n';
   for (let i = 0; i < 7; i++) {
     const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
-    const dCost = byDate[d] || 0;
-    const dTok = tokensByDate[d] || 0;
-    const dSessions = sessionsByDate[d] ? sessionsByDate[d].size : 0;
+    const entry = byDate[d] || { cost: 0, tokens: 0, session_ids: [] };
+    const dCost = entry.cost || 0;
+    const dTok = entry.tokens || 0;
+    const dSessions = (entry.session_ids || []).length;
     if (dCost > 0 || dSessions > 0) {
       trendTable += `| ${d} | ${dSessions} | $${dCost.toFixed(2)} | ${formatTokens(dTok)} |\n`;
     }
@@ -424,11 +416,15 @@ async function run(data) {
 
     fs.appendFileSync(COST_LOG, JSON.stringify(logEntry) + '\n', 'utf-8');
 
-    // Running total from .status.json (O(1)), falls back to full JSONL scan on first run
-    const cumulative = getCumulativeCost(roundedCost, totalTokens, hadHumanTurn, runtimeSessionId || sessionId);
+    // Update incremental index — O(1) in the common case; O(n) only on first run or log truncation.
+    // Must happen before getCumulativeCost so the index fallback sees this turn's line.
+    const costIdx = updateCostIndex(COST_LOG, COST_INDEX);
+
+    // Running total from .status.json (O(1)), falls back to index (O(1)) on first run
+    const cumulative = getCumulativeCost(roundedCost, totalTokens, hadHumanTurn, runtimeSessionId || sessionId, costIdx);
     const costStr = `$${cumulative.cost.toFixed(4)}`;
 
-    // Read SHELL.md for status — do NOT write back (avoids race condition with Claude's edits)
+    // Read SHELL.md for task/blockers — do NOT write back (avoids race condition with Claude's edits)
     try {
       const shellContent = fs.readFileSync(SHELL_SESSION, 'utf-8');
       writeStatusJson(shellContent, cumulative, runtimeSessionId || sessionId);
@@ -436,8 +432,7 @@ async function run(data) {
       // Non-fatal — session file may not exist yet
     }
 
-    // Regenerate cost summary (once per day)
-    writeCostSummary();
+    writeCostSummary(costIdx);
 
     // Return brief summary (pipeline writes this to stderr)
     return `[cost-tracker] ${model}: ${kStr(totalTokens)}K tokens (${kStr(cacheReadTokens)}K cached), $${cost.toFixed(4)} (cumulative: ${costStr})`;

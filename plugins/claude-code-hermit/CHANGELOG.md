@@ -5,6 +5,11 @@
 ### Added
 
 - **proposal-metrics-report.js: per-source triage-survival + acceptance rates** — `scripts/proposal-metrics-report.js` aggregates `proposal-metrics.jsonl` per autonomous source (reflect, capability-brainstorm, procedure-capture, scheduled-check), computing triage-survival (CREATE÷total) and acceptance (accepted÷created) with the ≥8-sample gate and 25%/30% kill thresholds. Kill criteria in `capability-brainstorm` and `reflect` (procedure-capture) now call the script instead of hand-grepping; `hermit-evolution` surfaces the full per-source table. Every keep/kill debate now runs on computed data.
+- **watchdog: external dead-session and wedge detector** — `scripts/hermit-watchdog.py` single-shot supervisor. Detects dead tmux sessions and restarts them; detects wedged sessions (frozen pane, monitor dead, operator silent) with nudge-then-escalate; re-arms the 4am `heartbeat-restart` when it misses. Shutdown-intent gate prevents resurrecting an intentionally-stopped hermit. Every action logged to `state/watchdog-events.jsonl`; restarts surface to operator channel via `session-start` step 3. Default disabled — opt in via `config.watchdog.enabled: true` + `bin/hermit-watchdog install`.
+- **watchdog: OS timer install/uninstall** — `bin/hermit-watchdog install` registers a systemd user timer (Linux/WSL2), LaunchAgent (macOS), or prints a crontab line (fallback). `bin/hermit-watchdog uninstall` tears it down.
+- **cost-log: incremental byte-offset index** — new `scripts/lib/cost-log.js` builds `state/cost-index.json` incrementally so `writeCostSummary` and `getCumulativeCost` are O(1) instead of O(n). Index rebuilt automatically on first run or log truncation. Resolves Known Limitation #1.
+- **cost-log: corrupt-line counter** — `cost-index.json` carries `skipped_corrupt_lines`; doctor's cost check warns when >0. Resolves Known Limitation #3.
+- **doctor: watchdog health check** — new `checkWatchdog()` reports enabled status, OS timer presence, recent restart count, and consecutive-stale count from `state/watchdog-events.jsonl`.
 - **procedure capture: reflect drafts a skill from a recurring procedure and installs it operator-gated** — when a multi-step procedure recurs across ≥2 sessions with no skill covering it, reflect writes a `procedure-brief` to `compiled/` and routes a `category: capability` PROP through triage→judge→proposal-create. On accept, `/skill-creator` authors the SKILL.md and the operator confirms the artifact before install to `.claude/skills/`. Two non-skippable gates; metric-driven kill criteria.
 - **channel-hook: channel-replies.jsonl** — append-only log of outbound reply-tool calls, written by `channel-hook.js` after every `last_reply_at` update. Provides the engagement history needed for routine-ROI analysis.
 - **reflect: routine ROI signal** — extends the routine-health check with a channel-engagement join: reads `channel-replies.jsonl`, computes a delivery-anchored, same-channel engagement ratio per routine, joins per-routine cost from `cost-log.jsonl`, and proposes Tier-1 disable or re-time when a channel-delivering routine has ≥10 fires and ≤20% engagement.
@@ -13,8 +18,15 @@
 - **stop-pipeline: persist structured Stop-payload snapshot** — after each Stop, `state/cc-stop-snapshot.json` records `session_crons` and `background_tasks` as tri-state (`populated / empty / unsupported_or_unreachable`), `captured_at`, and `cc_version`. Sole writer: `stop-pipeline.js`.
 - **doctor: scheduler/background-task health check** — new `checkScheduler()` reads the snapshot and reports cron and task state with labeled staleness. Missing snapshot → ok ("not yet captured"); `unsupported_or_unreachable` → warn (never falsely reported as "0 crons").
 
+### Removed
+
+- **SHELL.md: drop the cosmetic `Status` field** — `runtime.json session_state` is the sole lifecycle source; close outcome flows through the session-close → session-mgr payload, never extracted from SHELL.md. Existing SHELL.md files self-heal on next close (field is absent from the new template). Scripts and skills repointed to `runtime.json`.
+- **pulse: drop `--full` flag** — infra health is now `/hermit-health`'s sole responsibility. `/pulse` stays session-focused (SHELL, tasks, live cost) with a one-line alert bridge when `alert-state.json` has active entries.
+
 ### Changed
 
+- **hermit-health: absorb pulse --full unique sections** — adds micro-pending count, knowledge file counts, enriched reflect counters (runs/empty/output), and `in_progress` proposals to the existing alerts/routines/channel surface.
+- **docker-setup/docker-security: classified failure hints + `ports:` auto-edit** — error-recovery messages now suggest targeted fixes (daemon down, build error, port conflict, OAuth expiry) rather than "dump logs and re-run the whole wizard". In docker-security, the hard-gate ports conflict offers to auto-remove the base `ports:` block (with `.bak` backup) so LAN-containment containers can start without a manual hand-edit.
 - **cost-tracker, suggest-compact: route hook-payload reads through cc-compat** — `entryText`, `isToolResult`, usage-field extraction, `session_id`, and `transcript_path` now delegate to `cc-compat.js`; `COST_LOG` path resolved via `costLogPath()`. Completes the centralization so every CC-owned read fails in one place. No behavior change; existing tests still pass.
 - **proposal-act/reflect: falsifiable success signals** — optional cost-per-session predicate (`success_signal` frontmatter field) on a proposal auto-resolves it when met; reflect evaluates via `scripts/eval-success-signal.js` against session-report `cost_usd` anchored at `accepted_date`. Closes #317-adjacent (§17.1 of architecture review).
 - **gate-agent memory: proposal-triage and reflection-judge now persist private heuristics (`memory: project`)** — triage learns suppression patterns, judge learns hollow-evidence shapes; guardrail forbids private memory as the sole suppress basis; over-suppression bounded by reflect's existing Component Health check.
@@ -32,6 +44,12 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
 1. Check whether `config.json` has `knowledge.compiled_budget_chars` set to `1000`. If so, update it to `2500`. If the operator has set a custom value other than `1000`, leave it as-is.
 2. The `/recall` skill is auto-discovered — no file changes needed for existing hermits.
+3. Seed `bin/hermit-watchdog` from `state-templates/bin/hermit-watchdog` if it does not already exist in `.claude-code-hermit/bin/`.
+4. Seed the `watchdog/` directory from `state-templates/watchdog/` (four files: `hermit-watchdog@.service`, `hermit-watchdog@.timer`, `com.hermit.watchdog.plist`, `crontab.txt`) into `.claude-code-hermit/watchdog/`, skipping any file that already exists.
+5. Add `"watchdog": {"enabled": false, "stale_factor": 2, "escalate_after": 3, "operator_grace": "15m"}` to `config.json` if the `watchdog` key is absent.
+6. Re-run `/docker-setup` (or surgically update `docker-entrypoint.hermit.sh` — add the `_wd_cycle` counter and `hermit-watchdog run` call inside the `while tmux has-session` loop) before running `hermit-docker update` if running a Docker hermit.
+
+The watchdog is **disabled by default**. To opt in: set `config.watchdog.enabled: true` via `/hermit-settings`, then run `bin/hermit-watchdog install` to register the OS timer.
 
 ## [1.1.10] - 2026-06-05
 

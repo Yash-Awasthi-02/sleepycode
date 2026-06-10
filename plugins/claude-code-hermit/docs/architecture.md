@@ -182,6 +182,9 @@ One writer per state file. No shared mutation bus.
 | `state/cc-stop-snapshot.json`  | stop-pipeline.js only                               | doctor-check.js (scheduler/background-task health check)      |
 | `state/.heartbeat`             | heartbeat-touch.js only                             | heartbeat (detect activity gaps)                              |
 | `state/.lifecycle.lock`        | hermit-start.py only                                | hermit-stop.py (cleanup)                                      |
+| `state/cost-index.json`        | cost-tracker.js only                                | cost-tracker.js (writeCostSummary, getCumulativeCost fallback), doctor-check.js |
+| `state/watchdog-state.json`    | hermit-watchdog.py only                             | doctor-check.js (consecutive_stale)                           |
+| `state/watchdog-events.jsonl`  | hermit-watchdog.py only (append)                    | doctor-check.js (event counts), session-start (restart reason)|
 
 ---
 
@@ -334,8 +337,8 @@ Deny patterns block dangerous operations regardless of permission mode. See [Sec
 
 ## Known Limitations
 
-1. **O(n) cost-log scan** — `cost-tracker.js` reads the full `.claude/cost-log.jsonl` on every Stop hook. Fine for short sessions, slow for months-long always-on agents. Fix: sidecar summary file.
+1. ~~**O(n) cost-log scan**~~ — Fixed: `cost-tracker.js` now maintains `cost-index.json`, an incremental byte-offset index updated on every Stop hook. `writeCostSummary` and the `getCumulativeCost` fallback both render from the index; the O(n) scan only runs on first use or after log truncation.
 
 2. **Boot script timing** — `hermit-start.py` waits 3 seconds before sending commands to tmux. May not be enough on slow hardware. Fix: poll `tmux capture-pane` for readiness.
 
-3. **Silent cost-log corruption** — Malformed JSONL lines are silently skipped. If multiple entries corrupt, budget warnings fire late. Fix: count and log skipped lines.
+3. ~~**Silent cost-log corruption**~~ — Fixed: `cost-index.json` carries a `skipped_corrupt_lines` counter incremented on every `JSON.parse` failure; `doctor-check.js` surfaces a `warn` when the counter is non-zero.
