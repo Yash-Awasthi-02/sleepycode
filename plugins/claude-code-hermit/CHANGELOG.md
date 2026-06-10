@@ -2,9 +2,21 @@
 
 ## [Unreleased]
 
+### Added
+
+- **recall: full-text search over sessions, compiled artifacts, and proposals** — `scripts/lib/search.js` + `scripts/search.js` CLI + `skills/recall/SKILL.md`. Pure-Node scan (no deps), TF scoring with frontmatter-field boosts, recency decay, and `file:line` snippets. Invoke via `/recall <query>` or channel DM ("what did I decide about X", "when did we last touch Y"). Closes the memory retrieval gap identified in the architecture review.
+
 ### Changed
 
 - **heartbeat: gate in_progress stale-check on operator activity** — skip the per-tick LLM wake when `last-operator-action.json` shows activity within `stale_threshold`; the faithful Progress-Log check still runs when the operator is quiet beyond the threshold or a stale alert is already active. Falls back to the original unconditional wake on pre-upgrade installs (no `last-operator-action.json`) and on future-dated timestamps (clock skew). Closes #315.
+- **knowledge: raise compiled injection budget default 1000 → 2500, ceiling 4000 → 6000** — more domain context at session start for domain hermits; maxed budget is clamped to remaining headroom under the 9000-char hard cap so operator and session sections are never crowded. Pairs with `/recall` (push for orientation, pull for depth).
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. Check whether `config.json` has `knowledge.compiled_budget_chars` set to `1000`. If so, update it to `2500`. If the operator has set a custom value other than `1000`, leave it as-is.
+2. The `/recall` skill is auto-discovered — no file changes needed for existing hermits.
 
 ## [1.1.10] - 2026-06-05
 

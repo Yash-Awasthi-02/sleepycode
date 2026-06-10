@@ -235,7 +235,7 @@ OPERATOR.md is human-curated — your hermit reads it but never modifies it. Aut
 | Domain operational inputs | `raw/` |
 | Session state | `state/` |
 
-`compiled/` artifacts use the [frontmatter conventions](frontmatter-contract.md) with a required `type` field. Startup injection reads `compiled/` frontmatter and injects the newest artifact of each type within the configured char budget (`knowledge.compiled_budget_chars`, default 1000). Artifacts tagged `foundational` are always injected first.
+`compiled/` artifacts use the [frontmatter conventions](frontmatter-contract.md) with a required `type` field. Startup injection reads `compiled/` frontmatter and injects the newest artifact of each type within the configured char budget (`knowledge.compiled_budget_chars`, default 2500, range 500–6000). Artifacts tagged `foundational` are always injected first. For deep retrieval of specific history, use `/recall`.
 
 ---
 
