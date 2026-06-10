@@ -21,6 +21,9 @@ SESSION_CLOSE="$REPO_ROOT/skills/session-close/SKILL.md"
 run_test "session-close: tooling debrief question present" \
   grep -qF "What did I build ad-hoc this session" "$SESSION_CLOSE"
 
+run_test "session-close: re-derivation debrief question present" \
+  grep -qF "re-derive or re-discover" "$SESSION_CLOSE"
+
 run_test "session-close: debrief asks for quantified cost" \
   grep -qF "quantified cost" "$SESSION_CLOSE"
 

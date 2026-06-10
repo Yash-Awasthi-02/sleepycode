@@ -4,7 +4,7 @@
 
 ### Added
 
-- **session-close: tooling debrief in Lessons** — step 1 asks what was built ad-hoc this session (throwaway scripts, manual procedures, long waits a tool would remove) and persists one quantified Lesson line per item; arms procedure-capture recurrence upstream.
+- **session-close: close debrief in Lessons** — step 1 asks what was built ad-hoc this session (throwaway scripts, manual procedures, long waits a tool would remove) and what had to be re-derived that a compiled note should have covered; persists one quantified Lesson line per item (substantial re-derived knowledge goes to `compiled/`); arms procedure-capture recurrence upstream.
 
 ## [1.1.12] - 2026-06-10
 
