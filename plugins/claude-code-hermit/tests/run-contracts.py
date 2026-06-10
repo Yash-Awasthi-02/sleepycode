@@ -1581,16 +1581,34 @@ class TestGateAgentMemoryContract(unittest.TestCase):
 
     GATE_AGENTS = ['proposal-triage', 'reflection-judge']
 
+    def _frontmatter(self, name):
+        path = REPO / 'agents' / f'{name}.md'
+        self.assertTrue(path.exists(), f'agents/{name}.md missing')
+        parts = path.read_text().split('---\n', 2)
+        self.assertEqual(len(parts), 3, f'{name}: agent file missing closing --- of frontmatter')
+        return parts[1]
+
     def test_gate_agents_declare_memory_project(self):
         for name in self.GATE_AGENTS:
-            path = REPO / 'agents' / f'{name}.md'
-            self.assertTrue(path.exists(), f'agents/{name}.md missing')
-            content = path.read_text()
-            parts = content.split('---\n', 2)
-            self.assertEqual(len(parts), 3, f'{name}: agent file missing closing --- of frontmatter')
-            head = parts[1]
-            self.assertIn('memory: project', head,
+            self.assertIn('memory: project', self._frontmatter(name),
                           f'{name}: frontmatter must declare "memory: project" (gate-agent memory feature)')
+
+    def test_gate_agents_grant_write_edit(self):
+        """Memory curation needs Write/Edit granted and out of disallowedTools.
+
+        A silent revert of the tool grant breaks curation just as badly as
+        dropping the memory key, so guard it explicitly.
+        """
+        for name in self.GATE_AGENTS:
+            head = self._frontmatter(name)
+            self.assertIn('disallowedTools:', head,
+                          f'{name}: frontmatter missing disallowedTools key')
+            tools, disallowed = head.split('disallowedTools:', 1)
+            for tool in ('Write', 'Edit'):
+                self.assertIn(f'- {tool}\n', tools,
+                              f'{name}: "{tool}" must be granted in tools (memory curation)')
+                self.assertNotIn(f'- {tool}\n', disallowed,
+                                 f'{name}: "{tool}" must not be in disallowedTools')
 
 
 if __name__ == '__main__':

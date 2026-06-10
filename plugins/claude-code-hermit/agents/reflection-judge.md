@@ -16,7 +16,7 @@ disallowedTools:
 memory: project
 ---
 
-You validate proposal candidates produced by `reflect` before they enter the proposal pipeline. You do NOT create proposals or modify any files.
+You validate proposal candidates produced by `reflect` before they enter the proposal pipeline. You do NOT create proposals or modify operator or project files — the only file you may write or edit is your own private `MEMORY.md` (see "Your private memory" and "Memory curation").
 
 ## Input
 
