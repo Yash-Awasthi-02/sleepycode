@@ -22,6 +22,7 @@ View or modify the hermit configuration for this project.
 /claude-code-hermit:hermit-settings brief          — configure morning brief
 /claude-code-hermit:hermit-settings permissions    — configure unattended mode
 /claude-code-hermit:hermit-settings heartbeat      — enable/disable, interval, quiet mode, active hours
+/claude-code-hermit:hermit-settings watchdog       — enable/disable, stale_factor, escalate_after, operator_grace
 /claude-code-hermit:hermit-settings routines        — manage scheduled routines (add/edit/remove/enable/disable)
 /claude-code-hermit:hermit-settings idle             — set idle behavior (wait or discover)
 /claude-code-hermit:hermit-settings env              — view/edit environment variables
@@ -61,6 +62,7 @@ Operational:
   Morning brief:   disabled       → run: /claude-code-hermit:hermit-settings brief
   Idle behavior:   discover       → discover | wait
   Heartbeat:       disabled       → yes | no  (interval, active hours, stale threshold)
+  Watchdog:        disabled       → yes | no  (stale_factor, escalate_after, operator_grace)
   Routines:        2 configured   → run: /claude-code-hermit:hermit-settings routines
   Quality gate:    budget         → budget | balanced | quality
   Permission mode: auto           → default | acceptEdits | auto | plan | dontAsk | bypassPermissions
@@ -196,6 +198,28 @@ Update `permission_mode` in config.json.
   Then ask each field in sequence.
 - Update `heartbeat` object in config.json.
   - Note: "Heartbeat changes take effect on next `/claude-code-hermit:heartbeat start` or `hermit-start.py` run."
+
+**If argument is "watchdog":**
+- Show current watchdog config from `config.json`:
+  ```
+  Watchdog (config.json watchdog)
+
+    enabled         false
+    stale_factor    2
+    escalate_after  3
+    operator_grace  15m
+  ```
+- Ask: "Enable watchdog? (yes / no) [current: <value>]"
+- If yes: show the configurable sub-fields before asking each one:
+  ```
+  Watchdog sub-fields (press Enter to keep current value):
+    stale_factor    — missed-cycle tolerance multiplier (e.g. 2)          [current]
+    escalate_after  — consecutive stale cycles before escalation (e.g. 3) [current]
+    operator_grace  — silence window before alert fires (e.g. 15m, 1h)    [current]
+  ```
+  Then ask each field in sequence.
+- Update `watchdog` object in config.json.
+  - Note: "Changes take effect on the next watchdog run. To register or remove the OS timer: `bin/hermit-watchdog install` / `bin/hermit-watchdog uninstall`. Docker hermits run the watchdog from the entrypoint loop — no install step needed."
 
 **If argument is "routines":**
 - Show current routines from `config.routines` array:

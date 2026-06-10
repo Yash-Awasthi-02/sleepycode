@@ -1,5 +1,22 @@
 # Changelog
 
+## [Unreleased]
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Auto-enable the watchdog on Docker hermits.** If `docker-entrypoint.hermit.sh` exists in the project root (the artifact `/docker-setup` leaves behind), the watchdog scheduler is already wired into the entrypoint loop, so enable it:
+
+   ```
+   if [ -f docker-entrypoint.hermit.sh ]; then
+     jq '.watchdog.enabled = true' .claude-code-hermit/config.json > .claude-code-hermit/config.json.tmp \
+       && mv .claude-code-hermit/config.json.tmp .claude-code-hermit/config.json
+   fi
+   ```
+
+   Non-Docker hermits: `watchdog.enabled` stays `false`; opt in via `config.watchdog.enabled: true` + `bin/hermit-watchdog install`. To opt a Docker hermit back out, set `watchdog.enabled: false` via `/hermit-settings`.
+
 ## [1.1.11] - 2026-06-10
 
 ### Added
