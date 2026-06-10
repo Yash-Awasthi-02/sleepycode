@@ -13,9 +13,10 @@ const path = require('path');
 const { calculateCost } = require('./lib/pricing');
 const { readTasks, taskProgress } = require('./lib/tasks');
 const { kStr, formatTokens } = require('./lib/format');
+const { entryText, isToolResult, extractUsage, costLogPath } = require('./lib/cc-compat');
 
 const MAX_STDIN = 1024 * 1024; // 1MB safety limit
-const COST_LOG = path.resolve('.claude/cost-log.jsonl');
+const COST_LOG = costLogPath('.claude-code-hermit');
 const SHELL_SESSION = path.resolve('.claude-code-hermit/sessions/SHELL.md');
 const STATUS_JSON = path.resolve('.claude-code-hermit/sessions/.status.json');
 const STATUS_JSON_TMP = path.resolve('.claude-code-hermit/sessions/.status.json.tmp');
@@ -48,23 +49,6 @@ function detectModel(modelStr) {
   if (lower.includes('haiku')) return 'haiku';
   if (lower.includes('opus')) return 'opus';
   return 'sonnet';
-}
-
-// Stringify an entry's message.content regardless of whether it's a string or a content-block array.
-// Real transcripts use both shapes (confirmed in live ops-hermit data).
-function entryText(entry) {
-  const c = entry.message?.content;
-  if (!c) return '';
-  return typeof c === 'string' ? c : JSON.stringify(c);
-}
-
-// A user entry is a tool_result carrier (not a turn boundary) when its content
-// is an array containing any tool_result block. The triggering prompt that opens
-// a turn is a "real" user entry: string content, or an array with no tool_result.
-function isToolResult(entry) {
-  if (entry.type !== 'user') return false;
-  const c = entry.message?.content;
-  return Array.isArray(c) && c.some(b => b && b.type === 'tool_result');
 }
 
 // Scan backward from billedIndex through the current turn and return concatenated
@@ -129,8 +113,8 @@ function readLastTurnUsage(transcriptPath) {
     for (let i = lines.length - 1; i >= 0; i--) {
       try {
         const entry = JSON.parse(lines[i]);
-        if (entry.type === 'assistant' && entry.message?.usage) {
-          const u = entry.message.usage;
+        const usage = extractUsage(entry);
+        if (usage) {
           // Detect operator interaction for operator_turns tracking.
           // Note: real transcripts use type:'user', not type:'human', so this is
           // effectively always false in production — left intact for future correctness.
@@ -144,15 +128,7 @@ function readLastTurnUsage(transcriptPath) {
           }
           const triggerText = scanTriggerMarkers(lines, i);
           const source = classifySource(triggerText);
-          return {
-            inputTokens:      u.input_tokens || 0,
-            cacheWriteTokens: u.cache_creation_input_tokens || 0,
-            cacheReadTokens:  u.cache_read_input_tokens || 0,
-            outputTokens:     u.output_tokens || 0,
-            model:            entry.message.model || '',
-            hadHumanTurn,
-            source,
-          };
+          return { ...usage, hadHumanTurn, source };
         }
       } catch {}
     }

@@ -1539,6 +1539,125 @@ class TestRoutineModelValidation(unittest.TestCase):
         )
 
 
+class TestStopPayloadSnapshot(_TempDirTest):
+    """stop-pipeline.js writes state/cc-stop-snapshot.json from the Stop payload.
+
+    Guards against: snapshot not written, wrong tri-state, absent fields, or
+    missing captured_at. Also exercises checkScheduler() via doctor-check.js.
+    """
+
+    def _run_stop_pipeline(self, payload_dict, env_extra=None):
+        env = os.environ.copy()
+        env['CLAUDE_PLUGIN_ROOT'] = str(REPO)
+        if env_extra:
+            env.update(env_extra)
+        return subprocess.run(
+            ['node', str(REPO / 'scripts' / 'stop-pipeline.js')],
+            input=json.dumps(payload_dict), capture_output=True, text=True,
+            cwd=self._tmpdir, env=env, timeout=15,
+        )
+
+    def _run_doctor_check(self):
+        env = os.environ.copy()
+        env['CLAUDE_PLUGIN_ROOT'] = str(REPO)
+        result = subprocess.run(
+            ['node', str(REPO / 'scripts' / 'doctor-check.js'),
+             '.claude-code-hermit'],
+            capture_output=True, text=True,
+            cwd=self._tmpdir, env=env, timeout=15,
+        )
+        return json.loads(result.stdout) if result.returncode == 0 else {}
+
+    def _seed_hermit_state(self):
+        """Seed the minimal state/ layout so stop-pipeline doesn't error on missing files."""
+        state = Path(self._tmpdir) / '.claude-code-hermit' / 'state'
+        state.mkdir(parents=True, exist_ok=True)
+        sessions = Path(self._tmpdir) / '.claude-code-hermit' / 'sessions'
+        sessions.mkdir(parents=True, exist_ok=True)
+
+    def test_snapshot_written_with_populated_crons(self):
+        """session_crons present → snapshot written with state=populated."""
+        self._seed_hermit_state()
+        fixture = json.loads((FIXTURES / 'stop-hook-input-with-scheduler.json').read_text())
+        result = self._run_stop_pipeline(fixture)
+        self.assertEqual(result.returncode, 0)
+
+        snap_path = Path(self._tmpdir) / '.claude-code-hermit' / 'state' / 'cc-stop-snapshot.json'
+        self.assertTrue(snap_path.exists(), 'cc-stop-snapshot.json not written')
+        snap = json.loads(snap_path.read_text())
+        self.assertIn('captured_at', snap)
+        self.assertIsInstance(snap['captured_at'], str)
+        self.assertEqual(snap['session_crons']['state'], 'populated')
+        self.assertEqual(snap['session_crons']['count'], 2)
+        self.assertEqual(snap['background_tasks']['state'], 'empty')
+        self.assertEqual(snap['background_tasks']['count'], 0)
+
+    def test_snapshot_written_with_absent_fields(self):
+        """No session_crons/background_tasks in payload → unsupported_or_unreachable."""
+        self._seed_hermit_state()
+        fixture = json.loads((FIXTURES / 'stop-hook-input.json').read_text())
+        result = self._run_stop_pipeline(fixture)
+        self.assertEqual(result.returncode, 0)
+
+        snap_path = Path(self._tmpdir) / '.claude-code-hermit' / 'state' / 'cc-stop-snapshot.json'
+        self.assertTrue(snap_path.exists(), 'cc-stop-snapshot.json not written')
+        snap = json.loads(snap_path.read_text())
+        self.assertEqual(snap['session_crons']['state'], 'unsupported_or_unreachable')
+        self.assertEqual(snap['background_tasks']['state'], 'unsupported_or_unreachable')
+
+    def test_snapshot_not_reported_as_zero_crons_when_unreachable(self):
+        """unsupported_or_unreachable must NEVER appear as count-based "0" in doctor."""
+        self._seed_hermit_state()
+        # Write a snapshot with unsupported state directly
+        state_dir = Path(self._tmpdir) / '.claude-code-hermit' / 'state'
+        snap = {
+            'captured_at': '2026-06-10T09:00:00Z',
+            'cc_version': None,
+            'session_crons':    {'state': 'unsupported_or_unreachable', 'count': 0},
+            'background_tasks': {'state': 'empty', 'count': 0},
+        }
+        (state_dir / 'cc-stop-snapshot.json').write_text(json.dumps(snap))
+        # Also seed minimal config/hooks for doctor
+        (Path(self._tmpdir) / '.claude-code-hermit' / 'config.json').write_text('{}')
+        report = self._run_doctor_check()
+        checks = {c['id']: c for c in report.get('checks', [])}
+        self.assertIn('scheduler', checks)
+        detail = checks['scheduler']['detail']
+        # Must say "unsupported or unreachable", not "0 crons" or "0 armed"
+        self.assertIn('unsupported', detail.lower(),
+                      f'unsupported state rendered as count: {detail!r}')
+
+    def test_checkscheduler_missing_snapshot_is_ok(self):
+        """Missing snapshot → ok + 'not yet captured'."""
+        self._seed_hermit_state()
+        (Path(self._tmpdir) / '.claude-code-hermit' / 'config.json').write_text('{}')
+        report = self._run_doctor_check()
+        checks = {c['id']: c for c in report.get('checks', [])}
+        self.assertIn('scheduler', checks)
+        self.assertEqual(checks['scheduler']['status'], 'ok')
+        self.assertIn('not yet captured', checks['scheduler']['detail'])
+
+    def test_checkscheduler_populated_snapshot_ok_with_timestamp(self):
+        """Populated snapshot → ok, detail includes count and captured_at."""
+        self._seed_hermit_state()
+        state_dir = Path(self._tmpdir) / '.claude-code-hermit' / 'state'
+        snap = {
+            'captured_at': '2026-06-10T09:51:00Z',
+            'cc_version': '2.1.145',
+            'session_crons':    {'state': 'populated', 'count': 3},
+            'background_tasks': {'state': 'empty', 'count': 0},
+        }
+        (state_dir / 'cc-stop-snapshot.json').write_text(json.dumps(snap))
+        (Path(self._tmpdir) / '.claude-code-hermit' / 'config.json').write_text('{}')
+        report = self._run_doctor_check()
+        checks = {c['id']: c for c in report.get('checks', [])}
+        self.assertIn('scheduler', checks)
+        self.assertEqual(checks['scheduler']['status'], 'ok')
+        detail = checks['scheduler']['detail']
+        self.assertIn('3', detail)
+        self.assertIn('2026-06-10', detail)
+
+
 class TestHermitRoutinesModelContract(unittest.TestCase):
     """Structural contract for the model-override substitution in hermit-routines SKILL.md.
 
