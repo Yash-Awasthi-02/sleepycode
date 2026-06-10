@@ -482,18 +482,18 @@ cleanup
 
 MONITOR_SH="$REPO_ROOT/scripts/heartbeat-monitor.sh"
 
-# 20b. EVALUATE → HEARTBEAT_EVALUATE
+# 20b. EVALUATE on iter-1 → silent (cold-start suppression)
 stub="$(mktemp /tmp/hb-stub-XXXXX.js)"
 printf 'process.stdout.write("EVALUATE\\n");\n' > "$stub"
 out="$(HEARTBEAT_MONITOR_ONCE=1 HEARTBEAT_PRECHECK="$stub" bash "$MONITOR_SH" 60 /tmp 2>/dev/null)"
-run_test "heartbeat-monitor (EVALUATE → HEARTBEAT_EVALUATE)" bash -c "[ '$out' = 'HEARTBEAT_EVALUATE' ]"
+run_test "heartbeat-monitor (iter-1 EVALUATE → silent, cold-start suppressed)" bash -c "[ -z '$out' ]"
 rm -f "$stub"
 
-# 20c. EVALUATE with suffix (prefix match) → HEARTBEAT_EVALUATE
+# 20c. EVALUATE with suffix on iter-1 → silent (prefix match still suppressed)
 stub="$(mktemp /tmp/hb-stub-XXXXX.js)"
 printf 'process.stdout.write("EVALUATE|micro-pending\\n");\n' > "$stub"
 out="$(HEARTBEAT_MONITOR_ONCE=1 HEARTBEAT_PRECHECK="$stub" bash "$MONITOR_SH" 60 /tmp 2>/dev/null)"
-run_test "heartbeat-monitor (EVALUATE|micro-pending → HEARTBEAT_EVALUATE)" bash -c "[ '$out' = 'HEARTBEAT_EVALUATE' ]"
+run_test "heartbeat-monitor (iter-1 EVALUATE|micro-pending → silent)" bash -c "[ -z '$out' ]"
 rm -f "$stub"
 
 # 20d. AUTO_CLOSE → HEARTBEAT_EVALUATE
@@ -532,6 +532,16 @@ out="$(HEARTBEAT_MONITOR_ONCE=1 HEARTBEAT_PRECHECK="$stub" bash "$MONITOR_SH" 60
 run_test "heartbeat-monitor (unknown verdict → HEARTBEAT_ERROR: unknown verdict)" bash -c \
   "echo '$out' | grep -q 'HEARTBEAT_ERROR: unknown verdict'"
 rm -f "$stub"
+
+# 20i. EVALUATE on iter-2 → HEARTBEAT_EVALUATE (suppression is first-iteration-only)
+# Runs without HEARTBEAT_MONITOR_ONCE so the loop can reach iter-2.
+stub="$(mktemp /tmp/hb-stub-XXXXX.js)"
+printf 'process.stdout.write("EVALUATE\\n");\n' > "$stub"
+tmp_out="$(mktemp /tmp/hb-out-XXXXX.txt)"
+HEARTBEAT_PRECHECK="$stub" timeout 3 bash "$MONITOR_SH" 1 /tmp >"$tmp_out" 2>/dev/null || true
+run_test "heartbeat-monitor (iter-2 EVALUATE → HEARTBEAT_EVALUATE, suppression not permanent)" bash -c \
+  "grep -q 'HEARTBEAT_EVALUATE' '$tmp_out'"
+rm -f "$stub" "$tmp_out"
 
 # -------------------------------------------------------
 # reflect-precheck.js
