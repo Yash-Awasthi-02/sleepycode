@@ -89,8 +89,11 @@ run_test "reflect: kill criteria 30% acceptance threshold" \
 run_test "reflect: kill criteria grep targets procedure-capture tag in created events" \
   grep -qF '"type":"created".*"tags":.*"procedure-capture"' "$REFLECT"
 
-run_test "reflect: kill criteria caveat about shared evidence_source" \
-  grep -qF "best-effort" "$REFLECT"
+run_test "reflect: kill criteria caveat — segment triage-survival by tags, not shared evidence_source" \
+  bash -c "grep -qF 'the tag is the only reliable discriminator' \"$REFLECT\" && grep -qF 'archived-session' \"$REFLECT\""
+
+run_test "reflect: routing relies on proposal-create's single internal triage gate (no untagged pre-gate)" \
+  grep -qF "runs \`proposal-triage\` internally" "$REFLECT"
 
 # ── proposal-create: ## Skill Draft variant ──────────────────────────────────
 
@@ -113,6 +116,9 @@ run_test "proposal-create: Skill Draft carries source_artifact" \
 
 run_test "proposal-create: Skill Draft carries install_target" \
   grep -qF "install_target" "$PROPOSAL_CREATE"
+
+run_test "proposal-create: triage-verdict emission carries tags (segments triage-survival)" \
+  bash -c "grep -F '\"type\":\"triage-verdict\"' \"$PROPOSAL_CREATE\" | grep -qF '\"tags\"'"
 
 # ── proposal-act: ## Skill Draft install branch ──────────────────────────────
 
@@ -150,7 +156,7 @@ run_test "proposal-act: NEXT-TASK bullet for ## Skill Draft present" \
 
 # ── PROPOSAL.md.template: unchanged (body-section decision locked in) ────────
 
-run_test "PROPOSAL.md.template: no new frontmatter key added (still 17 keys)" \
+run_test "PROPOSAL.md.template: no new frontmatter key added (still 15 keys)" \
   bash -c "python3 - \"$TEMPLATE\" <<'EOF'
 import sys, re, pathlib
 text = pathlib.Path(sys.argv[1]).read_text()
@@ -162,7 +168,7 @@ keys = [line.split(':')[0].strip() for line in m.group(1).splitlines() if ':' in
 EXPECTED = {'id','title','status','source','session','created','accepted_date',
             'resolved_date','related_sessions','category','tags','responded',
             'self_eval_key','accepted_in_session','success_signal'}
-# Allow the well-known 15 keys (the 17-field count in comments included blank/comment lines)
+# The 15 well-known frontmatter keys
 extra = set(keys) - EXPECTED
 if extra:
     print(f'FAIL: unexpected frontmatter keys: {extra}', file=sys.stderr); sys.exit(1)

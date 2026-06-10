@@ -169,7 +169,7 @@ Component Health above improves existing components. This subsection is the symm
 **Kill criteria (evaluate per candidate surfaced, not per reflect run — recurrence-gating means this fires rarely).**
 
 After ≥8 procedure-capture candidates surfaced, compute two rates over `state/proposal-metrics.jsonl`:
-- **Triage-survival rate** — `grep '"type":"triage-verdict".*"tags":.*"procedure-capture"' state/proposal-metrics.jsonl` to find all `triage-verdict` events from procedure-capture candidates. Rate = `CREATE` count ÷ total. Kill if < 25%. Note: procedure-capture shares `Evidence Source: archived-session` with ordinary reflect candidates, so triage-survival is best-effort (segment on the `created` event's tags); acceptance rate below is the reliable kill signal.
+- **Triage-survival rate** — `grep '"type":"triage-verdict".*"tags":.*"procedure-capture"' state/proposal-metrics.jsonl` to find all `triage-verdict` events from procedure-capture candidates. Rate = `CREATE` count ÷ total. Kill if < 25%. Segmentation is by the `tags` field on the triage-verdict event (emitted by `proposal-create`), not `evidence_source` — procedure-capture shares `Evidence Source: archived-session` with ordinary reflect candidates, so the tag is the only reliable discriminator. `proposal-create` is the sole gate for these candidates (see Routing below), so every CREATE/SUPPRESS/DUPLICATE verdict is captured tagged.
 - **PROP-acceptance rate** — `grep '"type":"created".*"tags":.*"procedure-capture"' state/proposal-metrics.jsonl` to find `created` events tagged `procedure-capture`. Cross-reference their `proposal_id` against `responded` events with `"action":"accept"`. Rate = accepted ÷ created. Kill if < 30%.
 
 If either rate is below threshold, disable procedure capture rather than tune it. Do not read thresholds until the ≥8 sample exists.
@@ -216,7 +216,7 @@ Body (concise — fits the `compiled/` char-budget/lint contract; do NOT write a
 
 **Routing:** classify **Tier 3** (a new skill auto-loads into every future session, its triggers can fire autonomously, and writing under `.claude/` is operator-space — effectively irreversible/cross-cutting). This matches the Tier-3 definition and the convention that all `category: capability` writers go straight to `proposal-create`.
 
-Queue as a Tier-3 candidate: gate with `claude-code-hermit:proposal-triage` first, then call `/claude-code-hermit:proposal-create` with:
+Queue as a Tier-3 candidate by calling `/claude-code-hermit:proposal-create` — it runs `proposal-triage` internally and emits the `tags`-carrying triage-verdict. Do **not** pre-gate with `proposal-triage` separately: a separate pre-gate emits an untagged `caller: reflect` verdict, so its SUPPRESSes escape the triage-survival count above and inflate the rate. Call with:
 - `category: capability`
 - `tags: [procedure-capture]`
 - `source: auto-detected`

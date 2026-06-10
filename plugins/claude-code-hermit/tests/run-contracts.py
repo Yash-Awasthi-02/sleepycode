@@ -1415,6 +1415,21 @@ class TestKillMetricsContract(unittest.TestCase):
             'triage-survival rate cannot be segmented by brainstorm origin',
         )
 
+    def test_proposal_create_triage_verdict_has_tags(self):
+        """proposal-create triage-verdict event must include tags.
+
+        Tagged candidate classes that share an evidence_source (e.g. procedure-capture,
+        which uses archived-session like ordinary reflect candidates) can only segment
+        their triage-survival rate by the tags field on this event. Dropping it silently
+        breaks reflect's procedure-capture kill criteria.
+        """
+        self.assertIn(
+            '"caller":"proposal-create","evidence_source":"<evidence source>","tags":[',
+            self._proposal_create,
+            'proposal-create triage-verdict emitter is missing tags — '
+            'triage-survival cannot be segmented for candidate classes that share an evidence_source',
+        )
+
     def test_proposal_create_created_event_has_tags(self):
         """proposal-create created event must include tags."""
         self.assertIn(

@@ -38,9 +38,9 @@ After receiving the verdict, append one event to `state/proposal-metrics.jsonl`:
 ```bash
 node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js \
   .claude-code-hermit/state/proposal-metrics.jsonl \
-  '{"ts":"<now ISO>","type":"triage-verdict","verdict":"<CREATE|SUPPRESS|DUPLICATE>","caller":"proposal-create","evidence_source":"<evidence source>"}'
+  '{"ts":"<now ISO>","type":"triage-verdict","verdict":"<CREATE|SUPPRESS|DUPLICATE>","caller":"proposal-create","evidence_source":"<evidence source>","tags":[<caller-supplied tags>]}'
 ```
-`evidence_source` is the `Evidence Source:` value the caller passed (default `archived-session`).
+`evidence_source` is the `Evidence Source:` value the caller passed (default `archived-session`). `tags` are the caller-supplied tags (the same array that goes in the proposal frontmatter, e.g. `["procedure-capture"]`); use `[]` if none. Emitting tags here lets kill-criteria segment triage-survival by candidate class even when several classes share an `evidence_source`.
 
 - `CREATE` — proceed with the steps below
 - `DUPLICATE:<PROP-ID> — <reason>`: stop, report to the caller: "Proposal already exists as <PROP-ID>"
