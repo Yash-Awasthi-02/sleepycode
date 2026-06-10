@@ -6,18 +6,26 @@
 # LLM needs to wake up (EVALUATE or AUTO_CLOSE verdict). --peek means the
 # polling itself is read-only; the mutating tick happens once when
 # /heartbeat run re-runs precheck inside the EVALUATE handler.
+# First-iteration EVALUATE is suppressed: at cold boot the monitor fires
+# within seconds of session-start (alerts{} empty, checklist unseen), which
+# would trigger a redundant /heartbeat run. AUTO_CLOSE is never suppressed —
+# a queued drain must fire immediately regardless of boot state.
 set -u
 INTERVAL="${1:?usage: heartbeat-monitor.sh <interval_seconds> <hermit_state_dir>}"
 HB_DIR="${2:?usage: heartbeat-monitor.sh <interval_seconds> <hermit_state_dir>}"
 PRECHECK="${HEARTBEAT_PRECHECK:-$(dirname "$0")/heartbeat-precheck.js}"
+first=1
 while true; do
   verdict="$(node "$PRECHECK" --peek "$HB_DIR" 2>/dev/null || echo "ERROR")"
   case "$verdict" in
-    EVALUATE*|AUTO_CLOSE*) echo "HEARTBEAT_EVALUATE" ;;
-    OK|SKIP\|*)            : ;;  # silent — designed no-op
-    ERROR*)                echo "HEARTBEAT_ERROR: precheck failed" ;;
-    *)                     echo "HEARTBEAT_ERROR: unknown verdict: $verdict" ;;
+    EVALUATE*)
+      [[ -n "$first" ]] || echo "HEARTBEAT_EVALUATE" ;;
+    AUTO_CLOSE*)          echo "HEARTBEAT_EVALUATE" ;;
+    OK|SKIP\|*)           : ;;  # silent — designed no-op
+    ERROR*)               echo "HEARTBEAT_ERROR: precheck failed" ;;
+    *)                    echo "HEARTBEAT_ERROR: unknown verdict: $verdict" ;;
   esac
+  first=""
   [[ -n "${HEARTBEAT_MONITOR_ONCE:-}" ]] && break
   sleep "$INTERVAL"
 done
