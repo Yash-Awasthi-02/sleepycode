@@ -6,7 +6,8 @@
  * Usage as lib:   require('./search').search(hermitDir, query, opts) => results[]
  *
  * results: Array<{ path, relPath, type, title, date, score, snippets }>
- *   snippets: Array<{ line, text }>  — matching line + surrounding context, file:line referenceable
+ *   snippets: Array<{ line, startLine, text }>: matching line plus surrounding context.
+ *     line/startLine are file-relative (frontmatter offset included), so file:line resolves.
  *
  * opts: { type?: string, since?: string (ISO date), limit?: number }
  */
@@ -78,9 +79,11 @@ function countHits(text, terms) {
 /**
  * Extract up to MAX_SNIPPETS_PER_FILE snippets from body for matching lines.
  * Each snippet includes the matching line + one line of context above and below.
- * Returns Array<{ line: number, text: string }> — line is 1-indexed.
+ * lineOffset is the number of lines preceding `body` in the source file (frontmatter
+ * + stripped leading blanks) so the returned line numbers resolve against the real file.
+ * Returns Array<{ line, startLine, text }>; both line numbers are 1-indexed, file-relative.
  */
-function extractSnippets(body, terms) {
+function extractSnippets(body, terms, lineOffset) {
   const lines = (body || '').split('\n');
   const snippets = [];
 
@@ -93,7 +96,11 @@ function extractSnippets(body, terms) {
     const contextText = lines.slice(contextStart, contextEnd + 1).join('\n');
     const text = contextText.slice(0, SNIPPET_MAX_CHARS).trimEnd();
 
-    snippets.push({ line: i + 1, text });
+    snippets.push({
+      line: lineOffset + i + 1,
+      startLine: lineOffset + contextStart + 1,
+      text,
+    });
   }
   return snippets;
 }
@@ -137,7 +144,8 @@ function search(hermitDir, query, opts) {
       // Type filter (applies when the artifact has a type field)
       if (typeFilter && fm.type && fm.type !== typeFilter) continue;
 
-      // Date filter
+      // Date filter — files without a parseable date are kept (undated history
+      // shouldn't silently vanish under --since).
       const dateStr = extractDate(fm);
       if (since && dateStr) {
         const fileMs = Date.parse(dateStr);
@@ -156,7 +164,10 @@ function search(hermitDir, query, opts) {
       if (rawScore === 0) continue;
 
       const score = rawScore * recencyBoost(dateStr);
-      const snippets = extractSnippets(body, terms);
+      // body is a suffix of content (frontmatter stripped, then trimStart); the prefix
+      // length gives the file-relative line offset so snippet line numbers resolve.
+      const lineOffset = r.content ? r.content.slice(0, r.content.length - body.length).split('\n').length - 1 : 0;
+      const snippets = extractSnippets(body, terms, lineOffset);
       const relPath = path.relative(hermitDir, filePath);
 
       // Derive type label: prefer frontmatter type, fall back to parent dir name

@@ -1070,6 +1070,19 @@ run_test "search (no results)" bash -c \
   "node '$REPO_ROOT/scripts/search.js' '$workdir/.claude-code-hermit' 'zzznomatch' | grep -q 'No results found'"
 cleanup
 
+# search: snippet :line matches the real file line (frontmatter offset included)
+# 5-line frontmatter (---/title/type/created/---) then body; "zebra" lands on file line 8.
+workdir="$(setup_workdir)"
+mkdir -p "$workdir/.claude-code-hermit/compiled"
+echo '{}' > "$workdir/.claude-code-hermit/config.json"
+printf -- '---\ntitle: Offset check\ntype: review\ncreated: 2026-05-01T00:00:00+00:00\n---\nalpha\nbeta\nthe keyword zebra lives here\ngamma' \
+  > "$workdir/.claude-code-hermit/compiled/review-offset-2026-05-01.md"
+outfile="$(mktemp)"
+node "$REPO_ROOT/scripts/search.js" "$workdir/.claude-code-hermit" "zebra" > "$outfile" 2>&1
+run_test "search (:line matches real file line, frontmatter offset)" grep -q ':8  the keyword zebra lives here' "$outfile"
+rm -f "$outfile"
+cleanup
+
 # lib/search.js: TF+frontmatter boost verified inline
 run_test "lib/search: title hit outranks body-only hit (unit)" node -e "
 const path = require('path');

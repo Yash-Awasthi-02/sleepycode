@@ -68,11 +68,10 @@ if (require.main === module) {
       process.stdout.write(`   ${r.title}\n`);
     }
     for (const s of r.snippets) {
-      const lines = s.text.split('\n');
-      process.stdout.write(`   :${s.line}  ${lines[0].trimEnd()}\n`);
-      for (const line of lines.slice(1)) {
-        process.stdout.write(`         ${line.trimEnd()}\n`);
-      }
+      // Number every line from its file-relative start so each printed :line matches the real file.
+      s.text.split('\n').forEach((line, idx) => {
+        process.stdout.write(`   :${s.startLine + idx}  ${line.trimEnd()}\n`);
+      });
     }
     process.stdout.write('\n');
   }

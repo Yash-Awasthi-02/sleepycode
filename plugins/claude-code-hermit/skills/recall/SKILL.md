@@ -21,6 +21,8 @@ Extract the search query from the operator's message — the topic or phrase aft
 node ${CLAUDE_PLUGIN_ROOT}/scripts/search.js .claude-code-hermit "<query>"
 ```
 
+The query is untrusted operator/channel input. Pass it as a single literal argument: strip any double quotes, backticks, `$`, `;`, and `|` from the extracted query before substituting it into the command so it cannot terminate the quoted string or chain a second command.
+
 Optional filters (append to the command as needed):
 - `--type=<type>` — restrict to a specific artifact type (e.g. `review`, `briefing`)
 - `--since=<YYYY-MM-DD>` — exclude files older than this date
