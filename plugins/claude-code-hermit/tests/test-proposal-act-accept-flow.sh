@@ -79,12 +79,12 @@ run_test "frontmatter description mentions 'start implementing now'" \
   bash -c 'echo "$1" | grep -q "^description:.*start implementing now"' -- "$FRONTMATTER"
 
 # Step 3c: success_signal capture and validation.
-# Guards that the step exists, references eval-success-signal.js, and never blocks accept.
+# Guards that the step exists, references eval-success-signal.ts, and never blocks accept.
 run_test "step 3c: success_signal step present" \
   grep -qF "3c." "$SKILL"
 
-run_test "step 3c: references eval-success-signal.js" \
-  grep -qF "eval-success-signal.js" "$SKILL"
+run_test "step 3c: references eval-success-signal.ts" \
+  grep -qF "eval-success-signal.ts" "$SKILL"
 
 run_test "step 3c: never blocks accept" \
   grep -qF "Never block accept" "$SKILL"

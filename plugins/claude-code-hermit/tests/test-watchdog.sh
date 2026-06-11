@@ -351,7 +351,7 @@ run_test "heartbeat-restart fired < 26h → no re-arm" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 12. checkWatchdog in doctor-check.js: disabled → ok
+# 12. checkWatchdog in doctor-check.ts: disabled → ok
 # -------------------------------------------------------
 workdir="$(setup_hermit)"
 cat > "$workdir/.claude-code-hermit/config.json" <<'CFEOF'
@@ -369,7 +369,7 @@ cat > "$workdir/.claude-code-hermit/config.json" <<'CFEOF'
 }
 CFEOF
 run_test "doctor checkWatchdog: disabled → ok" bash -c "
-cd '$workdir' && bun '$REPO_ROOT/scripts/doctor-check.js' 2>/dev/null | \
+cd '$workdir' && bun '$REPO_ROOT/scripts/doctor-check.ts' 2>/dev/null | \
   python3 -c \"
 import json,sys
 d=json.load(sys.stdin)
@@ -405,7 +405,7 @@ ts = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 p.write_text(json.dumps({'ts': ts, 'action': 'restart', 'reason': 'dead-process'})+'\n')
 "
 run_test "doctor checkWatchdog: restart in last 7d → warn" bash -c "
-cd '$workdir' && bun '$REPO_ROOT/scripts/doctor-check.js' 2>/dev/null | \
+cd '$workdir' && bun '$REPO_ROOT/scripts/doctor-check.ts' 2>/dev/null | \
   python3 -c \"
 import json,sys
 d=json.load(sys.stdin)

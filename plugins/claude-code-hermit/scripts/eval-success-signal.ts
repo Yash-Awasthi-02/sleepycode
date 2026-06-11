@@ -1,12 +1,12 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 // Evaluate or validate a success_signal predicate for a hermit proposal.
 //
 // Validate mode (grammar check only — no state reads):
-//   node eval-success-signal.js --validate "<predicate>"
+//   bun eval-success-signal.ts --validate "<predicate>"
 //   Exits 0 + prints "OK" if valid. Exits 1 + prints a reason if invalid.
 //
 // Evaluate mode (check predicate against session reports):
-//   node eval-success-signal.js <stateDir> "<accepted_date>" "<accepted_in_session|null>" "<predicate>"
+//   bun eval-success-signal.ts <stateDir> "<accepted_date>" "<accepted_in_session|null>" "<predicate>"
 //   Prints one JSON line:
 //     {"verdict":"MET|UNMET|INSUFFICIENT_DATA","metric":"...","op":"...","threshold":N,"window":N,"observed":N,"sessions_counted":N}
 //   Never throws — any failure emits INSUFFICIENT_DATA.
@@ -15,10 +15,10 @@
 //   avg_session_cost_usd <OP> <NUMBER> over <N> sessions
 //   OP in {<, <=, >, >=}; NUMBER positive float; N positive integer.
 
-'use strict';
+import path from 'node:path';
+import { readFrontmatter, globDir } from './lib/frontmatter';
 
-const path = require('path');
-const { readFrontmatter, globDir } = require('./lib/frontmatter.js');
+type Json = any;
 
 // ─── Grammar ──────────────────────────────────────────────────────────────────
 
@@ -26,7 +26,7 @@ const GRAMMAR = /^(\w+)\s*(<=?|>=?)\s*(\d+(?:\.\d+)?)\s+over\s+(\d+)\s+sessions?
 
 const SUPPORTED_METRICS = new Set(['avg_session_cost_usd']);
 
-function parseSignal(predicate) {
+function parseSignal(predicate: string): { metric: string; op: string; threshold: number; window: number } | null {
   const m = GRAMMAR.exec(predicate.trim());
   if (!m) return null;
   const metric = m[1];
@@ -39,7 +39,7 @@ function parseSignal(predicate) {
   return { metric, op, threshold, window };
 }
 
-function applyOp(observed, op, threshold) {
+function applyOp(observed: number, op: string, threshold: number): boolean {
   switch (op) {
     case '<':  return observed < threshold;
     case '<=': return observed <= threshold;
@@ -51,7 +51,7 @@ function applyOp(observed, op, threshold) {
 
 // ─── Validate mode ────────────────────────────────────────────────────────────
 
-function runValidate(predicate) {
+function runValidate(predicate: string) {
   const parsed = parseSignal(predicate);
   if (!parsed) {
     // Give a specific reason.
@@ -73,11 +73,11 @@ function runValidate(predicate) {
 
 // ─── Evaluate mode ────────────────────────────────────────────────────────────
 
-function emit(obj) {
+function emit(obj: Json) {
   process.stdout.write(JSON.stringify(obj) + '\n');
 }
 
-function emitInsufficient(parsed) {
+function emitInsufficient(parsed: Json) {
   emit({
     verdict: 'INSUFFICIENT_DATA',
     metric: parsed ? parsed.metric : null,
@@ -89,14 +89,14 @@ function emitInsufficient(parsed) {
   });
 }
 
-function runEvaluate(stateDir, acceptedDateStr, acceptedInSession, predicate) {
+function runEvaluate(stateDir: string, acceptedDateStr: string, acceptedInSession: string, predicate: string) {
   const parsed = parseSignal(predicate);
   if (!parsed) {
     emitInsufficient(null);
     return;
   }
 
-  let acceptedDate;
+  let acceptedDate: Date;
   try {
     acceptedDate = new Date(acceptedDateStr);
     if (isNaN(acceptedDate.getTime())) throw new Error('bad date');
@@ -108,7 +108,7 @@ function runEvaluate(stateDir, acceptedDateStr, acceptedInSession, predicate) {
   const sessionsDir = path.join(stateDir, 'sessions');
   const reportFiles = globDir(sessionsDir, /^S-\d+-REPORT\.md$/);
 
-  const candidates = [];
+  const candidates: { id: string; date: Date; cost_usd: number }[] = [];
   for (const file of reportFiles) {
     try {
       const fm = readFrontmatter(file);
@@ -148,7 +148,7 @@ function runEvaluate(stateDir, acceptedDateStr, acceptedInSession, predicate) {
   }
 
   const sample = candidates.slice(0, parsed.window);
-  let observed;
+  let observed: number;
   switch (parsed.metric) {
     case 'avg_session_cost_usd': {
       const total = sample.reduce((sum, s) => sum + s.cost_usd, 0);
@@ -174,22 +174,28 @@ function runEvaluate(stateDir, acceptedDateStr, acceptedInSession, predicate) {
 
 // ─── Entry point ──────────────────────────────────────────────────────────────
 
-const args = process.argv.slice(2);
-if (args[0] === '--validate') {
-  if (args.length < 2) {
-    process.stdout.write('usage: eval-success-signal.js --validate "<predicate>"\n');
-    process.exit(1);
+function main() {
+  const args = process.argv.slice(2);
+  if (args[0] === '--validate') {
+    if (args.length < 2) {
+      process.stdout.write('usage: eval-success-signal.ts --validate "<predicate>"\n');
+      process.exit(1);
+    }
+    runValidate(args.slice(1).join(' '));
+  } else {
+    if (args.length < 4) {
+      process.stdout.write(
+        'usage: eval-success-signal.ts <stateDir> "<accepted_date>" "<accepted_in_session|null>" "<predicate>"\n'
+      );
+      // Fail open — emit INSUFFICIENT_DATA so reflect doesn't crash.
+      emitInsufficient(null);
+      return;
+    }
+    const [stateDir, acceptedDate, acceptedInSession, ...rest] = args;
+    runEvaluate(stateDir, acceptedDate, acceptedInSession, rest.join(' '));
   }
-  runValidate(args.slice(1).join(' '));
-} else {
-  if (args.length < 4) {
-    process.stdout.write(
-      'usage: eval-success-signal.js <stateDir> "<accepted_date>" "<accepted_in_session|null>" "<predicate>"\n'
-    );
-    // Fail open — emit INSUFFICIENT_DATA so reflect doesn't crash.
-    emitInsufficient(null);
-    return;
-  }
-  const [stateDir, acceptedDate, acceptedInSession, ...rest] = args;
-  runEvaluate(stateDir, acceptedDate, acceptedInSession, rest.join(' '));
+}
+
+if (import.meta.main) {
+  main();
 }

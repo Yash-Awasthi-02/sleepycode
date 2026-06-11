@@ -1,5 +1,5 @@
 /**
- * search.js — full-text search lib over hermit state (sessions/, compiled/, proposals/)
+ * search.ts — full-text search lib over hermit state (sessions/, compiled/, proposals/)
  * Zero npm dependencies. Node stdlib only.
  *
  * Usage as lib:   require('./search').search(hermitDir, query, opts) => results[]

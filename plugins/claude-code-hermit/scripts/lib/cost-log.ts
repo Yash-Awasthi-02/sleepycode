@@ -15,7 +15,7 @@
 //   updated_at            — ISO timestamp of last index write
 //
 // Sole writer: cost-tracker.ts (calls updateCostIndex after every log append).
-// Readers: cost-tracker.ts (writeCostSummary, getCumulativeCost fallback), doctor-check.js.
+// Readers: cost-tracker.ts (writeCostSummary, getCumulativeCost fallback), doctor-check.ts.
 
 import fs from 'node:fs';
 import path from 'node:path';

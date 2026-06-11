@@ -15,24 +15,24 @@ If `$ARGUMENTS` contains `--quick` (invoked as `/claude-code-hermit:reflect --qu
 - **Skip the precheck** entirely — the cadence gate does not apply.
 - **Bind `$PHASE = adult`** — skip the compute phase eval.
 - **Skip the cost_spike read, proposal scan, Resolution Check, and Component Health section.** Only the live SHELL.md scan + judge + outcomes path runs.
-- Read SHELL.md `## Findings` and `## Blockers` for actionable patterns. **Only Tier-1 + `Evidence Source: current-session` candidates are eligible** — see § Three-Condition Rule, condition 1. Candidates that would need archived-session evidence or belong to Tier 2/3 are deferred to the next scheduled reflect — append one ledger entry per deferred candidate (`node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js .claude-code-hermit/state/observations.jsonl '{"ts":"<now ISO>","pattern":"<candidate-title-slug>","session_id":"<S-NNN>","source":"quick-deferral"}'`) so the signal survives session archival and can graduate by recurrence (§ Outcomes). **Exception:** a `current-session` candidate with `Evidence Origin: external-content` (see § Proposal Tier Classification) is **not** deferred — send it to the judge and let the Tier-3 escalation route it to `proposal-create`.
+- Read SHELL.md `## Findings` and `## Blockers` for actionable patterns. **Only Tier-1 + `Evidence Source: current-session` candidates are eligible** — see § Three-Condition Rule, condition 1. Candidates that would need archived-session evidence or belong to Tier 2/3 are deferred to the next scheduled reflect — append one ledger entry per deferred candidate (`bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/observations.jsonl '{"ts":"<now ISO>","pattern":"<candidate-title-slug>","session_id":"<S-NNN>","source":"quick-deferral"}'`) so the signal survives session archival and can graduate by recurrence (§ Outcomes). **Exception:** a `current-session` candidate with `Evidence Origin: external-content` (see § Proposal Tier Classification) is **not** deferred — send it to the judge and let the Tier-3 escalation route it to `proposal-create`.
 - For each candidate that passes the evidence integrity rule, run `claude-code-hermit:proposal-triage`. Collect candidates where triage returned CREATE, then make a single `claude-code-hermit:reflection-judge` call for those candidates (see § Evidence Validation for input/output format). Route each ACCEPT/DOWNGRADE verdict through the standard Outcomes path (micro-approval queue for Tier 1/2, `/claude-code-hermit:proposal-create` for Tier 3).
 - Append one Progress Log line: `[HH:MM] reflect (quick, post-routine) — N candidates; verdicts: accept=A downgrade=D suppress=S; outcomes: <list or "none">`. When suppress>0, append the same `; suppressed: [<slug>: <code>, ...]` suffix the scheduled path uses (see § Progress Log Entry) so quick-run suppressions reach the weekly digest.
-- **Do not call `update-reflection-state.js`** — quick runs are event-driven, not cadence ticks. Mutating `last_run_at` would suppress the next scheduled reflect. Consequence: judge verdicts from quick runs do not accumulate into the Component Health counters (`judge_accept` / `judge_suppress`); on daemons with frequent `reflect_after` use, those counters will under-represent total judge activity. This is intentional — cadence preservation wins.
+- **Do not call `update-reflection-state.ts`** — quick runs are event-driven, not cadence ticks. Mutating `last_run_at` would suppress the next scheduled reflect. Consequence: judge verdicts from quick runs do not accumulate into the Component Health counters (`judge_accept` / `judge_suppress`); on daemons with frequent `reflect_after` use, those counters will under-represent total judge activity. This is intentional — cadence preservation wins.
 - Then stop. Do not continue to the scheduled-reflect steps below.
 
 1. Run the precheck to determine whether a full reflect run is warranted:
    ```
-   node ${CLAUDE_PLUGIN_ROOT}/scripts/reflect-precheck.js .claude-code-hermit ${CLAUDE_PLUGIN_ROOT}
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/reflect-precheck.ts .claude-code-hermit ${CLAUDE_PLUGIN_ROOT}
    ```
    Read the verdict (first line of output):
    - `EMPTY` → the precheck found no due phases and no compute activity. It has already updated `reflection-state.json` and appended the mandatory Progress Log line to SHELL.md. Emit `reflect: no candidates` and stop.
    - `RUN|<phases-json>` → continue to step 2. The JSON object lists which phases are due (`cost_spike`, `resolution_check`, `compute`, `digest`, `newborn`). Skip evaluation sections for phases not listed — they are not due this run.
 2. Read SHELL.md for current context. **(fresh read — re-read the file(s) now; do not reuse a value cached in context from before compaction)**
-3. Read last 20 lines of cost-log.jsonl. If `cost_spike` is listed in the phases JSON: compute today's total and the 7-day median. If today's total > 2× the 7-day median (and both are non-zero), record the spike as a sub-threshold observation in the ledger: `node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js .claude-code-hermit/state/observations.jsonl '{"ts":"<now ISO>","pattern":"cost_spike: $X.XX vs 7d median $Y.YY","session_id":"<S-NNN>","source":"cost-spike"}'` — it becomes input to later reflects and may graduate via the step 3b recurrence promotion. If `cost_spike` is not listed, skip this read.
+3. Read last 20 lines of cost-log.jsonl. If `cost_spike` is listed in the phases JSON: compute today's total and the 7-day median. If today's total > 2× the 7-day median (and both are non-zero), record the spike as a sub-threshold observation in the ledger: `bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/observations.jsonl '{"ts":"<now ISO>","pattern":"cost_spike: $X.XX vs 7d median $Y.YY","session_id":"<S-NNN>","source":"cost-spike"}'` — it becomes input to later reflects and may graduate via the step 3b recurrence promotion. If `cost_spike` is not listed, skip this read.
 
 3b. **Observations ledger** — prune, then graduate recurring patterns.
-   - Run `node ${CLAUDE_PLUGIN_ROOT}/scripts/prune-observations.js .claude-code-hermit` (fail-open; prints `pruned N, kept M`).
+   - Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/prune-observations.ts .claude-code-hermit` (fail-open; prints `pruned N, kept M`).
    - Read `state/observations.jsonl` (skip silently if absent or empty). Parse per-line with `try { JSON.parse(line) } catch {}`; group entries by `pattern`.
    - Any pattern with **≥2 distinct `session_id`s, at least one not the current session** (reflect cannot graduate something it appended this run), is mechanically promoted to a proposal candidate:
      - `Evidence Source: archived-session`
@@ -59,7 +59,7 @@ If `$ARGUMENTS` contains `--quick` (invoked as `/claude-code-hermit:reflect --qu
 
       **If `success_signal` is non-null** — skip the 3-session Explore fetch and cadence computation; the predicate is the resolution test:
       ```
-      node ${CLAUDE_PLUGIN_ROOT}/scripts/eval-success-signal.js .claude-code-hermit "<accepted_date>" "<accepted_in_session|null>" "<success_signal>"
+      bun ${CLAUDE_PLUGIN_ROOT}/scripts/eval-success-signal.ts .claude-code-hermit "<accepted_date>" "<accepted_in_session|null>" "<success_signal>"
       ```
       Parse the one JSON line printed to stdout. Branch on `verdict`:
       - `INSUFFICIENT_DATA` → skip; revisit next cycle (the window hasn't filled yet).
@@ -67,7 +67,7 @@ If `$ARGUMENTS` contains `--quick` (invoked as `/claude-code-hermit:reflect --qu
         - Update frontmatter: `status: resolved`, `resolved_date: <now ISO>`.
         - Append a `resolved` event:
           ```
-          node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"resolved","proposal_id":"PROP-NNN"}'
+          bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"resolved","proposal_id":"PROP-NNN"}'
           ```
         - Note in SHELL.md Findings: `PROP-NNN resolved — success signal met: avg session cost $<observed> over <sessions_counted> sessions (target <op> $<threshold>).`
       - `UNMET` → do **not** resolve. Surface once for operator judgment, debounced by the existing 7-day `last_sparse_nudge` guard:
@@ -92,7 +92,7 @@ If `$ARGUMENTS` contains `--quick` (invoked as `/claude-code-hermit:reflect --qu
       - Update frontmatter: `status: resolved`, `resolved_date: <now ISO>`.
       - Append a `resolved` event:
         ```
-        node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"resolved","proposal_id":"PROP-NNN"}'
+        bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"resolved","proposal_id":"PROP-NNN"}'
         ```
       - Note in SHELL.md Findings: "PROP-NNN resolved — pattern absent from last 3 sessions."
 
@@ -200,7 +200,7 @@ Component Health above improves existing components. This subsection is the symm
 After ≥8 procedure-capture candidates surfaced, run:
 
 ```
-node ${CLAUDE_PLUGIN_ROOT}/scripts/proposal-metrics-report.js .claude-code-hermit --source=procedure-capture
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/proposal-metrics-report.ts .claude-code-hermit --source=procedure-capture
 ```
 
 Triage-survival < 25% or acceptance < 30% → disable procedure capture rather than tune it. `INSUFFICIENT` output means the ≥8-verdict sample hasn't been reached yet; do not read thresholds until it does.
@@ -324,7 +324,7 @@ After reflecting and validating with `claude-code-hermit:reflection-judge`, choo
    - Tier 1/2: gate with `claude-code-hermit:proposal-triage` first (see below), then queue micro-approval in `state/micro-proposals.json`
    - Tier 3: gate with `claude-code-hermit:proposal-triage` first (see below), then call `/claude-code-hermit:proposal-create`
 
-Sub-threshold observations (interesting but failing the Three-Condition Rule — typically single-occurrence) do not surface to the operator in steady state. Append them to the observations ledger with a short stable pattern label: `node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js .claude-code-hermit/state/observations.jsonl '{"ts":"<now ISO>","pattern":"<short pattern label>","session_id":"<S-NNN>","source":"reflect"}'` — they graduate via the step 3b recurrence promotion (≥2 distinct sessions). Reuse the exact label when re-observing a known pattern; grouping is by string equality. Do not generate observations for their own sake, and do not surface them before they graduate.
+Sub-threshold observations (interesting but failing the Three-Condition Rule — typically single-occurrence) do not surface to the operator in steady state. Append them to the observations ledger with a short stable pattern label: `bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/observations.jsonl '{"ts":"<now ISO>","pattern":"<short pattern label>","session_id":"<S-NNN>","source":"reflect"}'` — they graduate via the step 3b recurrence promotion (≥2 distinct sessions). Reuse the exact label when re-observing a known pattern; grouping is by string equality. Do not generate observations for their own sake, and do not surface them before they graduate.
 
 Reflect-generated inferences (cost spikes, token-count shapes, timing patterns) **never** use bypass Evidence Sources (`scheduled-check/*` or `operator-request`). They either (a) carry a verifiable `Artifact:` citation to a machine-written state file and take the artifact-cited path now (see § Evidence integrity rule), or (b) land in the observations ledger and graduate by recurrence, at which point step 3b promotes them with `Evidence Source: archived-session` and the ledger `Artifact:` citation.
 
@@ -371,7 +371,7 @@ Parse line 1 as the verdict. Lines 2+ are additive metadata (`closest_prop`, `al
 
 After receiving the verdict, append one event to `state/proposal-metrics.jsonl`:
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js \
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts \
   .claude-code-hermit/state/proposal-metrics.jsonl \
   '{"ts":"<now ISO>","type":"triage-verdict","verdict":"<CREATE|SUPPRESS|DUPLICATE>","caller":"reflect"}'
 ```
@@ -388,15 +388,15 @@ Dedup: do not re-append the same candidate if an entry with the same title/id al
 
 1. Generate ID: `MP-YYYYMMDD-N` where N increments within the same day (0, 1, 2). Check existing `micro-queued` events in `proposal-metrics.jsonl` for today to determine N.
 2. Read `state/micro-proposals.json`. Append a new entry to `pending` with `id: "MP-YYYYMMDD-N"`, `tier: <1|2>`, `status: "pending"`, `follow_up_count: 0`, `ts: "<now ISO>"`, `question: "<full question text>"`. Write the file.
-3. Append `micro-queued` event to `proposal-metrics.jsonl` via `append-metrics.js`: `{"ts":"<now ISO>","type":"micro-queued","micro_id":"MP-YYYYMMDD-N","tier":1,"question":"<full question text>"}`
+3. Append `micro-queued` event to `proposal-metrics.jsonl` via `append-metrics.ts`: `{"ts":"<now ISO>","type":"micro-queued","micro_id":"MP-YYYYMMDD-N","tier":1,"question":"<full question text>"}`
 4. Notify the operator with the question in the form: `MP-YYYYMMDD-N (tier <N>): <question>` — Reply `"MP-YYYYMMDD-N yes"` or `"MP-YYYYMMDD-N no"` (bare `yes`/`no` accepted when only one entry is pending).
 
 ## State Update
 
-After each reflection run, call `update-reflection-state.js` with the run's verdict counts:
+After each reflection run, call `update-reflection-state.ts` with the run's verdict counts:
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/update-reflection-state.js \
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/update-reflection-state.ts \
   .claude-code-hermit/state/reflection-state.json \
   '{"last_resolution_check":"<last-PROP-NNN-or-null>","ran_with_candidates":<true|false>,"judge_accept":<N>,"judge_downgrade":<N>,"judge_suppress":<N>,"judge_suppress_by_code":{"no-evidence":<N>,"no-sessions":<N>,"covered-by-memory":<N>},"proposals_created":<N>,"micro_proposals_queued":<N>}'
 ```

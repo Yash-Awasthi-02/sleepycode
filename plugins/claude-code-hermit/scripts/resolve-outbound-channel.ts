@@ -1,17 +1,17 @@
-#!/usr/bin/env node
-'use strict';
+#!/usr/bin/env bun
+import fs from 'node:fs';
+import path from 'node:path';
 
-const fs = require('fs');
-const path = require('path');
+type Json = any;
 
-function eligible(ch) {
+function eligible(ch: Json): boolean {
   if (!ch || typeof ch !== 'object') return false;
   if (ch.enabled === false) return false;
   if (Array.isArray(ch.allowed_users) && ch.allowed_users.length === 0) return false;
   return !!ch.dm_channel_id;
 }
 
-function resolve(channels) {
+function resolve(channels: Json): { id: string; chat_id: string } | null {
   channels = channels || {};
   const primary = typeof channels.primary === 'string' ? channels.primary : null;
   if (primary && eligible(channels[primary])) {
@@ -20,7 +20,7 @@ function resolve(channels) {
   // Fall back to first eligible channel in operator's config order.
   // No hardcoded slug list: a freshly installed channel plugin becomes
   // eligible the moment its config block lands in config.json.
-  for (const [id, ch] of Object.entries(channels)) {
+  for (const [id, ch] of Object.entries(channels) as [string, Json][]) {
     if (id === 'primary') continue;
     if (eligible(ch)) {
       return { id, chat_id: ch.dm_channel_id };
@@ -29,16 +29,16 @@ function resolve(channels) {
   return null;
 }
 
-module.exports = { eligible, resolve };
+export { eligible, resolve };
 
-if (require.main === module) {
+if (import.meta.main) {
   const hermitDir = process.argv[2] || '.claude-code-hermit';
   const configPath = path.join(hermitDir, 'config.json');
 
-  let config;
+  let config: Json;
   try {
     config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
-  } catch (e) {
+  } catch (e: any) {
     process.stderr.write(`resolve-outbound-channel: cannot read ${configPath}: ${e.message}\n`);
     process.stdout.write(JSON.stringify({ error: 'config_read_failed', detail: e.message, path: configPath }) + '\n');
     process.exit(1);

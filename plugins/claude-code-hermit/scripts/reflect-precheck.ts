@@ -1,21 +1,21 @@
-'use strict';
-
-// reflect-precheck.js — determines which reflect phases are due before invoking LLM.
-// Usage: node reflect-precheck.js <hermit-state-dir> <plugin-root>
+// reflect-precheck.ts — determines which reflect phases are due before invoking LLM.
+// Usage: bun reflect-precheck.ts <hermit-state-dir> <plugin-root>
 // Output (stdout, one line): EMPTY  |  RUN|<phases-json>
 //
-// On EMPTY: this script owns the audit trail — it calls update-reflection-state.js
+// On EMPTY: this script owns the audit trail — it calls update-reflection-state.ts
 // and appends the mandatory Progress Log line to SHELL.md before exiting.
 //
 // Exit 0 always.
 
-const fs = require('fs');
-const path = require('path');
-const { execFileSync } = require('child_process');
-const { currentHHMM } = require('./lib/time');
-const { readFrontmatter, isEmptyAutoArchive } = require('./lib/frontmatter');
+import fs from 'node:fs';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
+import { currentHHMM } from './lib/time';
+import { readFrontmatter, isEmptyAutoArchive } from './lib/frontmatter';
 
-function emit(verdict) {
+type Json = any;
+
+function emit(verdict: string): never {
   process.stdout.write(verdict + '\n');
   process.exit(0);
 }
@@ -25,12 +25,12 @@ const pluginRoot = process.argv[3];
 
 if (!stateDir) emit('RUN|{}');
 
-const readJSON = (p) => {
+const readJSON = (p: string): Json => {
   try { return JSON.parse(fs.readFileSync(p, 'utf-8')); }
   catch { return null; }
 };
 
-function computePhase(since) {
+function computePhase(since: string | null) {
   if (!since) return 'adult';
   const sinceDate = new Date(since);
   if (isNaN(sinceDate.getTime())) return 'adult';
@@ -40,7 +40,7 @@ function computePhase(since) {
   return 'adult';
 }
 
-function daysSince(isoStr) {
+function daysSince(isoStr: string | null) {
   if (!isoStr) return Infinity;
   const d = new Date(isoStr);
   if (isNaN(d.getTime())) return Infinity;
@@ -49,7 +49,7 @@ function daysSince(isoStr) {
 
 // Uses the full 20-entry tail for a stable median, but short-circuits if no entries
 // exist after lastRunAt (no recent spend → no spike to detect).
-function checkCostSpike(costLogPath, lastRunAt) {
+function checkCostSpike(costLogPath: string, lastRunAt: string | null) {
   try {
     const content = fs.readFileSync(costLogPath, 'utf-8').trim();
     if (!content) return false;
@@ -65,7 +65,7 @@ function checkCostSpike(costLogPath, lastRunAt) {
       : entries.length > 0;
     if (!hasRecentEntries) return false;
 
-    const byDate = {};
+    const byDate: Record<string, number> = {};
     for (const e of entries) {
       const date = (e.timestamp || '').slice(0, 10);
       if (!date) continue;
@@ -86,7 +86,7 @@ function checkCostSpike(costLogPath, lastRunAt) {
   }
 }
 
-function hasAcceptedProposals(stateDir) {
+function hasAcceptedProposals(stateDir: string) {
   try {
     const proposalsDir = path.join(stateDir, 'proposals');
     const files = fs.readdirSync(proposalsDir).filter(f => /^PROP-\d+(?:-.+)?\.md$/.test(f));
@@ -102,7 +102,7 @@ function hasAcceptedProposals(stateDir) {
 }
 
 // Short-circuits cheaply: in_progress or missing lastRunAt require no I/O.
-function hasComputeActivity(stateDir, lastRunAt, sessionState) {
+function hasComputeActivity(stateDir: string, lastRunAt: string | null, sessionState: string) {
   if (sessionState === 'in_progress') return true;
   if (!lastRunAt) return true;
 
@@ -113,7 +113,7 @@ function hasComputeActivity(stateDir, lastRunAt, sessionState) {
     const sessionsDir = path.join(stateDir, 'sessions');
     // Exclude empty auto-archives: their auto-close mtime bump would trigger compute
     // on a report with no operator content. Daily-lull closes carry operator_turns > 0
-    // and DO trigger compute. See isEmptyAutoArchive in lib/frontmatter.js.
+    // and DO trigger compute. See isEmptyAutoArchive in lib/frontmatter.ts.
     const reports = fs.readdirSync(sessionsDir)
       .filter(f => /^S-\d+-REPORT\.md$/.test(f))
       .filter(f => !isEmptyAutoArchive(readFrontmatter(path.join(sessionsDir, f))));
@@ -128,7 +128,7 @@ function hasComputeActivity(stateDir, lastRunAt, sessionState) {
 
 // Returns true when SHELL.md is large enough AND ≥24h has elapsed since the
 // last snapshot. Null last_shell_snapshot_at fires on size alone.
-function isShellSnapshotDue(stateDir, runtime) {
+function isShellSnapshotDue(stateDir: string, runtime: Json) {
   const SHELL_LINE_THRESHOLD = 400;
   try {
     const shellPath = path.join(stateDir, 'sessions', 'SHELL.md');
@@ -143,7 +143,7 @@ function isShellSnapshotDue(stateDir, runtime) {
   }
 }
 
-function appendToProgressLog(shellPath, line) {
+function appendToProgressLog(shellPath: string, line: string) {
   try {
     let content = fs.readFileSync(shellPath, 'utf-8');
     const marker = '## Progress Log';
@@ -175,7 +175,7 @@ const sessionState = runtime.session_state ?? 'idle';
 const config = readJSON(path.join(stateDir, 'config.json')) ?? {};
 const timezone = config.timezone ?? 'UTC';
 
-const phases = {};
+const phases: Record<string, boolean> = {};
 
 // Cheaper checks first: compute (short-circuits on in_progress/null lastRunAt),
 // then resolution_check (reads proposal files), then cost spike (reads cost log).
@@ -206,7 +206,7 @@ if (archiveDue) {
   } else {
     try {
       const stdout = execFileSync(process.execPath, [
-        path.join(pluginRoot, 'scripts', 'archive-shell.js'),
+        path.join(pluginRoot, 'scripts', 'archive-shell.ts'),
         '--source=routine',
         `--state-dir=${stateDir}`,
       ], { stdio: ['ignore', 'pipe', 'pipe'] });
@@ -227,7 +227,7 @@ if (Object.keys(phases).length > 0) emit('RUN|' + JSON.stringify(phases));
 
 // EMPTY path: update reflection-state.json and append Progress Log line.
 if (pluginRoot) {
-  const updateScript = path.join(pluginRoot, 'scripts', 'update-reflection-state.js');
+  const updateScript = path.join(pluginRoot, 'scripts', 'update-reflection-state.ts');
   try {
     execFileSync(process.execPath, [
       updateScript,

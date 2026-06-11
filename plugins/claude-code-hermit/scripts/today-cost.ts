@@ -1,10 +1,8 @@
-'use strict';
-
 // Fails open: missing log or parse errors print $0.00 and exit 0.
 
-const fs = require('fs');
-const path = require('path');
-const { formatTokens } = require('./lib/format');
+import fs from 'node:fs';
+import path from 'node:path';
+import { formatTokens } from './lib/format';
 
 const COST_LOG = path.resolve('.claude/cost-log.jsonl');
 
@@ -12,7 +10,7 @@ try {
   const today = new Date().toISOString().slice(0, 10);
   let cost = 0;
   let tokens = 0;
-  const sessions = new Set();
+  const sessions = new Set<string>();
 
   try {
     for (const line of fs.readFileSync(COST_LOG, 'utf8').split('\n')) {
@@ -26,7 +24,7 @@ try {
         }
       } catch {}
     }
-  } catch (err) {
+  } catch (err: any) {
     if (err.code !== 'ENOENT') throw err;
   }
 

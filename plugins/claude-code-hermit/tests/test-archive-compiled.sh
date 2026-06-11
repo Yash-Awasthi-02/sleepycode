@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Tests for archive-compiled.js — rotates old compiled artifacts.
+# Tests for archive-compiled.ts — rotates old compiled artifacts.
 # Usage: bash tests/test-archive-compiled.sh
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/lib.sh"
 
-echo "=== archive-compiled.js ==="
+echo "=== archive-compiled.ts ==="
 echo ""
 
-ARCHIVE="$REPO_ROOT/scripts/archive-compiled.js"
+ARCHIVE="$REPO_ROOT/scripts/archive-compiled.ts"
 
 # Helper: write a minimal compiled artifact with given type, created date, and optional tags.
 write_artifact() {

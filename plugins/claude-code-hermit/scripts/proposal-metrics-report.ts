@@ -1,7 +1,7 @@
-'use strict';
+import fs from 'node:fs';
+import path from 'node:path';
 
-const fs = require('fs');
-const path = require('path');
+type Json = any;
 
 // Kill thresholds (match the values documented in capability-brainstorm and reflect kill criteria)
 const MIN_SAMPLE = 8;
@@ -13,7 +13,7 @@ const KILL_ACCEPT_PCT = 30;
 // accept: filter applied to `created` events (source, tags). null = not separately trackable.
 // This is the single source of truth for segmentation; kill-criteria skills invoke this script
 // and contract tests verify these discriminators match what the emitters write.
-const SEGMENTS = [
+const SEGMENTS: { key: string; triage: (e: Json) => boolean; accept: ((src: string, tags: string[]) => boolean) | null }[] = [
   {
     key: 'reflect',
     triage: e => e.caller === 'reflect',
@@ -47,10 +47,10 @@ function run() {
   const sourceArg = (rawArgs.find(a => a.startsWith('--source=')) || '').slice('--source='.length) || null;
 
   const metricsFile = path.join(stateDir, 'state', 'proposal-metrics.jsonl');
-  let content;
+  let content: string;
   try {
     content = fs.readFileSync(metricsFile, 'utf-8').trim();
-  } catch (err) {
+  } catch (err: any) {
     if (err.code === 'ENOENT') {
       process.stdout.write(sourceArg ? `${sourceArg}: no proposal metrics yet\n` : 'No proposal metrics yet.\n');
       return;
@@ -63,12 +63,12 @@ function run() {
   }
 
   // Accumulators
-  const proposalSource = {};          // proposal_id -> source string
-  const proposalTags = {};            // proposal_id -> tags array
-  const accepted = new Set();         // proposal_ids with action=accept
-  const triageCount = {};             // key -> { create: n, total: n }
-  const createdCount = {};            // key -> n
-  const acceptedCount = {};           // key -> n
+  const proposalSource: Record<string, string> = {};          // proposal_id -> source string
+  const proposalTags: Record<string, string[]> = {};            // proposal_id -> tags array
+  const accepted = new Set<string>();         // proposal_ids with action=accept
+  const triageCount: Record<string, { create: number; total: number }> = {};             // key -> { create: n, total: n }
+  const createdCount: Record<string, number> = {};            // key -> n
+  const acceptedCount: Record<string, number> = {};           // key -> n
   for (const seg of SEGMENTS) {
     triageCount[seg.key] = { create: 0, total: 0 };
     createdCount[seg.key] = 0;
@@ -77,7 +77,7 @@ function run() {
 
   // Single pass over the JSONL
   for (const line of content.split('\n')) {
-    let e;
+    let e: Json;
     try { e = JSON.parse(line); } catch { continue; }
     if (!e || typeof e !== 'object') continue;
 
@@ -114,7 +114,7 @@ function run() {
     }
   }
 
-  function statsFor(seg) {
+  function statsFor(seg: Json) {
     const t = triageCount[seg.key];
     const c = createdCount[seg.key];
     const a = acceptedCount[seg.key];
@@ -123,9 +123,9 @@ function run() {
     return { survivalPct, sN: t.create, sD: t.total, acceptPct, aN: a, aD: c };
   }
 
-  function gateLabel(seg, s) {
+  function gateLabel(seg: Json, s: Json) {
     if (s.sD < MIN_SAMPLE) return `n<${MIN_SAMPLE}`;
-    const kills = [];
+    const kills: string[] = [];
     if (s.survivalPct !== null && s.survivalPct < KILL_SURVIVAL_PCT) kills.push(`survival<${KILL_SURVIVAL_PCT}%`);
     if (seg.accept && s.acceptPct !== null && s.acceptPct < KILL_ACCEPT_PCT) kills.push(`acceptance<${KILL_ACCEPT_PCT}%`);
     return kills.length > 0 ? `! ${kills.join(', ')}` : '-';
@@ -146,7 +146,7 @@ function run() {
     if (s.sD < MIN_SAMPLE) {
       process.stdout.write(`${sourceArg}: ${survStr}, ${accStr}, sample ${s.sD} — INSUFFICIENT (need >=${MIN_SAMPLE} triage-verdicts to evaluate)\n`);
     } else {
-      const kills = [];
+      const kills: string[] = [];
       if (s.survivalPct !== null && s.survivalPct < KILL_SURVIVAL_PCT) kills.push(`triage-survival < ${KILL_SURVIVAL_PCT}%`);
       if (seg.accept && s.acceptPct !== null && s.acceptPct < KILL_ACCEPT_PCT) kills.push(`acceptance < ${KILL_ACCEPT_PCT}%`);
       const verdict = kills.length > 0 ? `KILL (${kills.join(', ')})` : 'OK';
@@ -173,7 +173,7 @@ function run() {
 
 try {
   run();
-} catch (err) {
+} catch (err: any) {
   process.stdout.write(`proposal-metrics-report: error — ${err.message}\n`);
   process.exit(0);
 }

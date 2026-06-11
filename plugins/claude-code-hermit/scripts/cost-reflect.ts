@@ -1,9 +1,9 @@
-'use strict';
+import fs from 'node:fs';
+import path from 'node:path';
 
-const fs = require('fs');
-const path = require('path');
+import { costByType } from './lib/pricing';
 
-const { costByType } = require('./lib/pricing');
+type Json = any;
 
 // Cold-start heuristic: a turn where the context was NOT warm.
 // These turns drive cache_write cost without benefiting from a warm cache.
@@ -15,11 +15,11 @@ const MAX_TOP_SESSIONS = 3;
 const MAX_TOP_SOURCES = 5;
 const MAX_CHARS = 1500;
 
-function parseLogEntries(costLog) {
+function parseLogEntries(costLog: string): Json[] {
   try {
     const content = fs.readFileSync(costLog, 'utf-8').trim();
     if (!content) return [];
-    return content.split('\n').reduce((acc, line) => {
+    return content.split('\n').reduce((acc: Json[], line) => {
       try { acc.push(JSON.parse(line)); } catch {}
       return acc;
     }, []);
@@ -28,12 +28,12 @@ function parseLogEntries(costLog) {
   }
 }
 
-function pct(part, total) {
+function pct(part: number, total: number) {
   if (total === 0) return '0%';
   return Math.round((part / total) * 100) + '%';
 }
 
-function formatCost(n) {
+function formatCost(n: number) {
   return n < 0.01 ? `$${n.toFixed(4)}` : `$${n.toFixed(2)}`;
 }
 
@@ -60,8 +60,8 @@ function run() {
   const totals = { input: 0, cacheWrite: 0, cacheRead: 0, output: 0 };
   let coldStartTurns = 0;
   let coldStartCost = 0;
-  const sessionMap = {}; // session_id -> { cost, turns, byType }
-  const sourceMap = {};
+  const sessionMap: Record<string, Json> = {}; // session_id -> { cost, turns, byType }
+  const sourceMap: Record<string, number> = {};
 
   for (const e of window) {
     const model = e.model || 'sonnet';
@@ -110,7 +110,7 @@ function run() {
     .sort((a, b) => b[1].cost - a[1].cost)
     .slice(0, MAX_TOP_SESSIONS)
     .map(([sid, s]) => {
-      const dominant = Object.entries(s.byType).sort((a, b) => b[1] - a[1])[0][0];
+      const dominant = Object.entries(s.byType).sort((a: Json, b: Json) => b[1] - a[1])[0][0];
       const label = dominant === 'cacheRead' ? 'cache_read' : dominant === 'cacheWrite' ? 'cache_write' : dominant;
       return { id: sid.slice(0, 8), cost: s.cost, turns: s.turns, dominant: label };
     });
@@ -128,7 +128,7 @@ function run() {
     ? `\n### Cold starts\n- ${coldStartTurns} turn${coldStartTurns === 1 ? '' : 's'} · ${formatCost(coldStartCost)} (${pct(coldStartCost, total)}) — cache-write, no cache-read, <${COLD_START_OUTPUT_MAX} output tokens\n`
     : '';
 
-  function buildSourceSection(n) {
+  function buildSourceSection(n: number) {
     if (n <= 0 || allSources.length === 0) return '';
     const rest = allSources.length - n;
     const shown = allSources.slice(0, n);
@@ -144,7 +144,7 @@ function run() {
     return `\n### Cost by source\n${rows.join('\n')}\n${footnote}`;
   }
 
-  function buildTopSection(n) {
+  function buildTopSection(n: number) {
     if (n <= 0 || topSessions.length === 0) return '';
     const lines = topSessions.slice(0, n).map(s =>
       `- ${s.id}: ${formatCost(s.cost)} (${s.turns} turn${s.turns === 1 ? '' : 's'}, mostly ${s.dominant})`
@@ -172,7 +172,7 @@ function run() {
 
 try {
   run();
-} catch (err) {
+} catch (err: any) {
   // Fail-open: never block on a cost-reflect failure
   process.stdout.write(`cost-reflect: error — ${err.message}\n`);
   process.exit(0);

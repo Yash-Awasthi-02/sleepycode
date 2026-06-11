@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Tests for evolve-plan.js (issue #211): the read-only pre-pass analyzer for
+# Tests for evolve-plan.ts (issue #211): the read-only pre-pass analyzer for
 # hermit-evolve. Covers version gap, bounded CHANGELOG slice, deep config-key
 # diff, template/bin byte-compare, separator-aware CLAUDE-APPEND diff, the
 # no_config vs 0.0.0 distinction, and operator-value preservation.
@@ -12,7 +12,7 @@ source "$SCRIPT_DIR/lib.sh"
 echo "=== evolve-plan (#211) ==="
 echo ""
 
-EVOLVE_PLAN="$REPO_ROOT/scripts/evolve-plan.js"
+EVOLVE_PLAN="$REPO_ROOT/scripts/evolve-plan.ts"
 MARKER='<!-- claude-code-hermit: Session Discipline -->'
 
 # Build a fake plugin root at $PR with plugin version 1.1.7.

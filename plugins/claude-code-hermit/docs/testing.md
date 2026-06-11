@@ -32,10 +32,10 @@ Each hook can be tested in isolation. Stop hooks expect JSON on stdin:
 
 ```bash
 # cost-tracker (Stop hook — always runs)
-cat tests/fixtures/stop-hook-input.json | node scripts/cost-tracker.js
+cat tests/fixtures/stop-hook-input.json | bun scripts/cost-tracker.ts
 
 # suggest-compact (Stop hook — always runs)
-cat tests/fixtures/stop-hook-input.json | node scripts/suggest-compact.js
+cat tests/fixtures/stop-hook-input.json | bun scripts/suggest-compact.ts
 
 # session-diff (Stop hook — standard/strict profile)
 cat tests/fixtures/stop-hook-input.json | \
@@ -58,7 +58,7 @@ For hooks that read `.claude-code-hermit/sessions/SHELL.md`, ensure the file exi
 When adding or modifying a hook:
 
 1. **Happy-path test** — add a fixture input and assert exit 0 in `run-hooks.sh`
-2. **Empty-stdin test** — verify `echo '' | node scripts/your-hook.js` exits 0 without crashing
+2. **Empty-stdin test** — verify `echo '' | bun scripts/your-hook.ts` exits 0 without crashing
 3. **Output validation** — if the hook writes files, assert they exist and contain valid data
 
 ### Hook Contract

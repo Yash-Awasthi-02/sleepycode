@@ -65,7 +65,7 @@ First determine `hatch_target` (the pre-pass needs it, and so do Steps 6, 7, 8):
 Then run the deterministic pre-pass — a single read-only analyzer that computes the version gap, the bounded CHANGELOG slice, new config keys, changed templates/bin, and the CLAUDE-APPEND block diff, so the steps below act on its output instead of reading and diffing whole files:
 
 ```
-node ${CLAUDE_PLUGIN_ROOT}/scripts/evolve-plan.js .claude-code-hermit --hatch-target=<hatch_target>
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/evolve-plan.ts .claude-code-hermit --hatch-target=<hatch_target>
 ```
 
 Parse stdout as JSON (the "plan"). The plan's `errors` array is the **sole error channel** — objects of `{code, message}`:
@@ -203,9 +203,9 @@ Same logic as init step 8, but target the file determined by `hatch_target` (res
 - `hatch_target == "local"` → `.claude/settings.local.json`
 - `hatch_target == "committed"` → `.claude/settings.json`
 
-Check the target settings file for the plugin's required permissions (`git diff/status/log`, per-script `node`/`bun` entries, the SessionStart `bash -c` hook, and `Edit`/`Write` on `.claude-code-hermit/**`). The required entries are: `cost-tracker.ts`, `suggest-compact.ts`, `run-with-profile.ts`, `evaluate-session.ts`, `append-metrics.js`, `generate-summary.ts`, `cron-tz-shift.js`, `archive-shell.js`, `evolve-plan.js`. If any are missing, show the operator which ones and ask for confirmation before adding. Only add missing entries — never remove existing ones. If all are already present, skip silently. Also remove stale permissions from previous versions if found in the target file:
+Check the target settings file for the plugin's required permissions (`git diff/status/log`, per-script `bun` entries, the SessionStart `bash -c` hook, and `Edit`/`Write` on `.claude-code-hermit/**`). The required entries are: `cost-tracker.ts`, `suggest-compact.ts`, `run-with-profile.ts`, `evaluate-session.ts`, `append-metrics.ts`, `generate-summary.ts`, `cron-tz-shift.ts`, `archive-shell.ts`, `evolve-plan.ts`. If any are missing, show the operator which ones and ask for confirmation before adding. Only add missing entries — never remove existing ones. If all are already present, skip silently. Also remove stale permissions from previous versions if found in the target file:
 
-- `Bash(python3:*)`, `Bash(node:*)` — replaced by scoped node entries
+- `Bash(python3:*)`, `Bash(node:*)` — replaced by scoped bun entries
 - `Edit(.claude/.claude-code-hermit/**)`, `Write(.claude/.claude-code-hermit/**)` — replaced by `.claude-code-hermit/**` (v0.0.6 path change)
 
 ### 9. Write updated config

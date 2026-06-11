@@ -1,23 +1,21 @@
 // Append-only JSONL helper — appends one line and exits.
 // Zero npm dependencies, Node stdlib only.
-// Usage: node append-metrics.js <jsonl-file-path> '<json-event-object>'
+// Usage: bun append-metrics.ts <jsonl-file-path> '<json-event-object>'
 
-'use strict';
-
-const fs = require('fs');
+import fs from 'node:fs';
 
 const filePath = process.argv[2];
 const eventJson = process.argv[3];
 
 if (!filePath || !eventJson) {
-  console.error('Usage: node append-metrics.js <jsonl-file-path> \'<json-event-object>\'');
+  console.error('Usage: bun append-metrics.ts <jsonl-file-path> \'<json-event-object>\'');
   process.exit(1);
 }
 
 // Validate JSON before appending
 try {
   JSON.parse(eventJson);
-} catch (err) {
+} catch (err: any) {
   console.error(`Invalid JSON: ${err.message}`);
   process.exit(1);
 }

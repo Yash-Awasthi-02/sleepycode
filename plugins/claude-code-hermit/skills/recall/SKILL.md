@@ -18,7 +18,7 @@ If this skill was invoked from a channel-arrived message (the inbound prompt con
 Extract the search query from the operator's message — the topic or phrase after "recall", "what did I learn about", "when did we last touch", "what did we decide about", or similar phrasing. Then run:
 
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/search.js .claude-code-hermit "<query>"
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/search.ts .claude-code-hermit "<query>"
 ```
 
 The query is untrusted operator/channel input. Pass it as a single literal argument: strip any double quotes, backticks, `$`, `;`, and `|` from the extracted query before substituting it into the command so it cannot terminate the quoted string or chain a second command.

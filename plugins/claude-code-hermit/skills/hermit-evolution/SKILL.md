@@ -17,7 +17,7 @@ Read the following (gracefully skip any file that doesn't exist):
 1. `.claude-code-hermit/compiled/review-weekly-*.md` — glob all, sort by `week` frontmatter descending, read the 8 most recent. Extract per-file: `week`, `total_cost_usd`, `self_directed_rate`, `proposals_created`, `proposals_resolved`.
 2. `.claude-code-hermit/cost-summary.md` — frontmatter `total_cost_usd` and `total_tokens` for the current (partial) week's running total if the review file for the current week doesn't exist yet.
 3. `.claude-code-hermit/state/proposal-metrics.jsonl` — if present, scan from the end (most recent entries first); stop once entries are older than 30 days. Use `resolved_at` and `created_at` to compute resolution days for recently resolved proposals.
-4. Run `node ${CLAUDE_PLUGIN_ROOT}/scripts/proposal-metrics-report.js .claude-code-hermit` and capture stdout. Skip gracefully if the script is unavailable.
+4. Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/proposal-metrics-report.ts .claude-code-hermit` and capture stdout. Skip gracefully if the script is unavailable.
 
 ## Analysis
 
@@ -48,7 +48,7 @@ Reply in ≤1500 chars. Use exactly this section structure:
 (or: Proposal resolution — no proposal-metrics data yet.)
 
 ### Proposal acceptance by source
-(table from proposal-metrics-report.js, rows with n>0 only; note any triggered kill gates)
+(table from proposal-metrics-report.ts, rows with n>0 only; note any triggered kill gates)
 (or: Proposal acceptance — no data yet.)
 ```
 

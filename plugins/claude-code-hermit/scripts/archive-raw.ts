@@ -1,16 +1,14 @@
-#!/usr/bin/env node
-// archive-raw.js — moves expired raw artifacts to raw/.archive/
+#!/usr/bin/env bun
+// archive-raw.ts — moves expired raw artifacts to raw/.archive/
 // Zero npm dependencies. Node stdlib only.
-// Usage: node archive-raw.js <hermit-state-dir>
+// Usage: bun archive-raw.ts <hermit-state-dir>
 //   hermit-state-dir: path to .claude-code-hermit/ in the target project (default: .claude-code-hermit)
 //
 // Safety: a raw artifact is retained if any compiled/ body references its filename.
 
-'use strict';
-
-const fs = require('fs');
-const path = require('path');
-const { readFrontmatter, globDir } = require('./lib/frontmatter');
+import fs from 'node:fs';
+import path from 'node:path';
+import { readFrontmatter, globDir } from './lib/frontmatter';
 
 const hermitDir = process.argv[2] || '.claude-code-hermit';
 const rawDir = path.join(hermitDir, 'raw');
@@ -33,7 +31,7 @@ const now = Date.now();
 // review-weekly-*.md are auto-generated weekly review reports; they list expired raw filenames
 // in their Knowledge Health section, which would falsely "pin" those files and prevent
 // archiving. Exclude them — only genuine compiled work products count as protective references.
-const compiledBodies = new Map(); // basename -> body text
+const compiledBodies = new Map<string, string>(); // basename -> body text
 for (const fullPath of globDir(compiledDir, /^[^.].*\.md$/)) {
   if (path.basename(fullPath).startsWith('review-weekly-')) continue;
   try {
@@ -54,7 +52,7 @@ fs.mkdirSync(archiveDir, { recursive: true });
 let archived = 0;
 let retained = 0;
 let pinned = 0;
-const skippedFiles = []; // { file, reason } — surfaced by name so operators can fix the root cause
+const skippedFiles: { file: string; reason: string }[] = []; // surfaced by name so operators can fix the root cause
 
 for (const filePath of rawFullPaths) {
   const filename = path.basename(filePath);
@@ -71,7 +69,7 @@ for (const filePath of rawFullPaths) {
   const m = filename.match(/(\d{4}-\d{2}-\d{2})/);
   const filenameDate = m ? m[1] : null;
 
-  let created;
+  let created: Date | null;
   if (fm && fm.created) {
     created = new Date(fm.created);
     if (isNaN(created.getTime())) {
@@ -114,7 +112,7 @@ for (const filePath of rawFullPaths) {
   try {
     fs.renameSync(filePath, dest);
     archived++;
-  } catch (err) {
+  } catch (err: any) {
     skippedFiles.push({ file: filename, reason: `move failed: ${err.message}` });
   }
 }

@@ -12,8 +12,8 @@ echo "=== auto-close (PROP-040) ==="
 echo ""
 
 HEARTBEAT_PRECHECK="$REPO_ROOT/scripts/heartbeat-precheck.ts"
-REFLECT_PRECHECK="$REPO_ROOT/scripts/reflect-precheck.js"
-WEEKLY_REVIEW="$REPO_ROOT/scripts/weekly-review.js"
+REFLECT_PRECHECK="$REPO_ROOT/scripts/reflect-precheck.ts"
+WEEKLY_REVIEW="$REPO_ROOT/scripts/weekly-review.ts"
 
 # -------------------------------------------------------
 # 1a. heartbeat-precheck: SHELL.md mtime > 12h → AUTO_CLOSE

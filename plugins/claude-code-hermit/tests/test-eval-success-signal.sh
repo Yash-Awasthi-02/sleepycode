@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Unit tests for scripts/eval-success-signal.js
+# Unit tests for scripts/eval-success-signal.ts
 # Validate mode (grammar) and evaluate mode (MET / UNMET / INSUFFICIENT_DATA).
 # Runs from inside plugins/claude-code-hermit/ (REPO_ROOT = that directory).
 set -uo pipefail
@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=lib.sh
 source "$SCRIPT_DIR/lib.sh"
 
-EVAL="$REPO_ROOT/scripts/eval-success-signal.js"
+EVAL="$REPO_ROOT/scripts/eval-success-signal.ts"
 echo "=== eval-success-signal tests ==="
 echo ""
 

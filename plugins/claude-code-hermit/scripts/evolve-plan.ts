@@ -1,5 +1,3 @@
-'use strict';
-
 // Read-only analyzer for the hermit-evolve skill. Computes the deterministic
 // comparisons the skill would otherwise do in-context — version gap, the
 // bounded CHANGELOG slice, new config keys, changed templates/bin, and the
@@ -8,12 +6,14 @@
 //
 // Pure analyzer: never writes or copies. Fail-open: always exits 0; problems
 // are recorded in the `errors` array (objects of {code, message}), never
-// thrown. No stdin (skill-invoked, like doctor-check.js / resolve-outbound-channel.js).
+// thrown. No stdin (skill-invoked, like doctor-check.ts / resolve-outbound-channel.ts).
 //
-// Usage: node evolve-plan.js [hermit-dir] --hatch-target=<local|committed>
+// Usage: bun evolve-plan.ts [hermit-dir] --hatch-target=<local|committed>
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'node:fs';
+import path from 'node:path';
+
+type Json = any;
 
 const MARKER = '<!-- claude-code-hermit: Session Discipline -->';
 const TEMPLATE_FILES = [
@@ -23,8 +23,8 @@ const TEMPLATE_FILES = [
 ];
 
 // 3-way compare of X.Y.Z leading semver. Unparseable forms compare equal
-// (don't second-guess), matching doctor-check.js satisfiesRange's posture.
-function cmpSemver(a, b) {
+// (don't second-guess), matching doctor-check.ts satisfiesRange's posture.
+function cmpSemver(a: string, b: string): number {
   const pa = String(a).match(/^(\d+)\.(\d+)\.(\d+)/);
   const pb = String(b).match(/^(\d+)\.(\d+)\.(\d+)/);
   if (!pa || !pb) return 0;
@@ -35,17 +35,17 @@ function cmpSemver(a, b) {
   return 0;
 }
 
-function isPlainObject(v) {
+function isPlainObject(v: any): boolean {
   return v !== null && typeof v === 'object' && !Array.isArray(v);
 }
 
-function readJSON(p) {
+function readJSON(p: string): Json {
   return JSON.parse(fs.readFileSync(p, 'utf8'));
 }
 
 // Strip trailing whitespace for equality comparison (a trailing newline must
 // not register as a content change).
-function normTrailing(s) {
+function normTrailing(s: string): string {
   return s.replace(/\s+$/, '');
 }
 
@@ -53,11 +53,11 @@ function normTrailing(s) {
 // Headers look like "## [1.1.7] - 2026-05-31". Each entry spans from its header
 // to the line before the next header. This is the read that replaces a full
 // 47K-token CHANGELOG read and dodges the Read tool's 2000-line truncation.
-function changelogSlice(text, from, to) {
+function changelogSlice(text: string, from: string, to: string | null) {
   const lines = text.split('\n');
   const headerRe = /^## \[(\d+\.\d+\.\d+)\]/;
-  const entries = [];
-  let cur = null;
+  const entries: Json[] = [];
+  let cur: Json = null;
   for (let i = 0; i < lines.length; i++) {
     const m = lines[i].match(headerRe);
     if (m) {
@@ -71,14 +71,14 @@ function changelogSlice(text, from, to) {
   if (cur) entries.push(cur);
 
   const inRange = entries.filter(
-    (e) => cmpSemver(from, e.version) < 0 && (to == null || cmpSemver(e.version, to) <= 0)
+    (e: Json) => cmpSemver(from, e.version) < 0 && (to == null || cmpSemver(e.version, to) <= 0)
   );
-  inRange.sort((a, b) => cmpSemver(a.version, b.version));
+  inRange.sort((a: Json, b: Json) => cmpSemver(a.version, b.version));
 
   const slice = inRange
-    .map((e) => normTrailing(lines.slice(e.start, e.end).join('\n')))
+    .map((e: Json) => normTrailing(lines.slice(e.start, e.end).join('\n')))
     .join('\n\n');
-  return { slice, versions: inRange.map((e) => e.version) };
+  return { slice, versions: inRange.map((e: Json) => e.version) };
 }
 
 // Deep diff of the template against the project config; reports ONLY keys
@@ -87,7 +87,7 @@ function changelogSlice(text, from, to) {
 // subtree. Parent present but children missing -> emit the missing leaves as
 // dotted paths. Arrays and scalars are leaves (no element-level merge), so a
 // new default routine in a later version rides on Upgrade Instructions, as today.
-function newConfigKeys(tmpl, config, prefix, out) {
+function newConfigKeys(tmpl: Json, config: Json, prefix?: string, out?: Json[]): Json[] {
   out = out || [];
   prefix = prefix || '';
   if (!isPlainObject(tmpl)) return out;
@@ -108,16 +108,16 @@ function newConfigKeys(tmpl, config, prefix, out) {
 // Basenames whose project copy differs from (or is missing relative to) the
 // template. Source missing -> nothing to sync (skip). Byte comparison only;
 // contents never enter the plan.
-function changedFiles(srcDir, dstDir, names) {
-  const changed = [];
+function changedFiles(srcDir: string, dstDir: string, names: string[]): string[] {
+  const changed: string[] = [];
   for (const name of names) {
-    let srcBuf;
+    let srcBuf: Buffer;
     try {
       srcBuf = fs.readFileSync(path.join(srcDir, name));
     } catch (e) {
       continue;
     }
-    let dstBuf;
+    let dstBuf: Buffer;
     try {
       dstBuf = fs.readFileSync(path.join(dstDir, name));
     } catch (e) {
@@ -133,7 +133,7 @@ function changedFiles(srcDir, dstDir, names) {
 // "---" line. Returns null if the marker is absent. Used on both the template
 // (which skips its own leading "---") and the target CLAUDE file, so the two
 // are compared apples-to-apples.
-function markerOnward(text) {
+function markerOnward(text: string): string | null {
   const idx = text.indexOf(MARKER);
   if (idx === -1) return null;
   const block = text.slice(idx);
@@ -146,11 +146,11 @@ function markerOnward(text) {
   return block;
 }
 
-function computeClaudeAppend(plan, pluginRoot, hermitDir, hatchTarget, errors) {
-  let tmplText;
+function computeClaudeAppend(plan: Json, pluginRoot: string, hermitDir: string, hatchTarget: string, errors: Json[]) {
+  let tmplText: string;
   try {
     tmplText = fs.readFileSync(path.join(pluginRoot, 'state-templates', 'CLAUDE-APPEND.md'), 'utf8');
-  } catch (e) {
+  } catch (e: any) {
     errors.push({ code: 'claude_append_template_unreadable', message: e.message });
     return;
   }
@@ -162,10 +162,10 @@ function computeClaudeAppend(plan, pluginRoot, hermitDir, hatchTarget, errors) {
 
   const projectRoot = path.resolve(hermitDir, '..');
   const targetFile = path.join(projectRoot, hatchTarget === 'local' ? 'CLAUDE.local.md' : 'CLAUDE.md');
-  let targetBlock = null;
+  let targetBlock: string | null = null;
   try {
     targetBlock = markerOnward(fs.readFileSync(targetFile, 'utf8'));
-  } catch (e) {
+  } catch (e: any) {
     if (e && e.code !== 'ENOENT') {
       errors.push({ code: 'claude_target_unreadable', message: `${targetFile} unreadable: ${e.message}` });
       return;
@@ -182,9 +182,9 @@ function computeClaudeAppend(plan, pluginRoot, hermitDir, hatchTarget, errors) {
   if (changed) plan.claude_append_old_block = targetBlock; // exact current text for a targeted Edit
 }
 
-function buildPlan({ hermitDir, pluginRoot, hatchTarget }) {
-  const errors = [];
-  const plan = { errors };
+function buildPlan({ hermitDir, pluginRoot, hatchTarget }: { hermitDir: string; pluginRoot: string; hatchTarget: string | null }): Json {
+  const errors: Json[] = [];
+  const plan: Json = { errors };
 
   if (hatchTarget !== 'local' && hatchTarget !== 'committed') {
     errors.push({ code: 'no_hatch_target', message: '--hatch-target=<local|committed> is required' });
@@ -193,10 +193,10 @@ function buildPlan({ hermitDir, pluginRoot, hatchTarget }) {
   plan.hatch_target = hatchTarget;
 
   const configPath = path.join(hermitDir, 'config.json');
-  let config;
+  let config: Json;
   try {
     config = readJSON(configPath);
-  } catch (e) {
+  } catch (e: any) {
     if (e && e.code === 'ENOENT') {
       errors.push({ code: 'no_config', message: 'config.json not found' });
     } else if (e && e.name === 'SyntaxError') {
@@ -207,10 +207,10 @@ function buildPlan({ hermitDir, pluginRoot, hatchTarget }) {
     return plan;
   }
 
-  let to = null;
+  let to: string | null = null;
   try {
     to = readJSON(path.join(pluginRoot, '.claude-plugin', 'plugin.json')).version || null;
-  } catch (e) {
+  } catch (e: any) {
     errors.push({ code: 'plugin_json_unreadable', message: e.message });
   }
   const from = (isPlainObject(config._hermit_versions) && config._hermit_versions['claude-code-hermit']) || '0.0.0';
@@ -223,14 +223,14 @@ function buildPlan({ hermitDir, pluginRoot, hatchTarget }) {
     const { slice, versions } = changelogSlice(cl, from, to);
     plan.changelog_slice = slice;
     plan.changelog_versions = versions;
-  } catch (e) {
+  } catch (e: any) {
     errors.push({ code: 'changelog_unreadable', message: e.message });
   }
 
   try {
     const tmpl = readJSON(path.join(pluginRoot, 'state-templates', 'config.json.template'));
     plan.new_config_keys = newConfigKeys(tmpl, config);
-  } catch (e) {
+  } catch (e: any) {
     errors.push({ code: 'config_template_unreadable', message: e.message });
   }
 
@@ -238,7 +238,7 @@ function buildPlan({ hermitDir, pluginRoot, hatchTarget }) {
   plan.templates_changed = changedFiles(stDir, path.join(hermitDir, 'templates'), TEMPLATE_FILES);
 
   const binSrc = path.join(stDir, 'bin');
-  let binNames = [];
+  let binNames: string[] = [];
   try {
     binNames = fs.readdirSync(binSrc, { withFileTypes: true })
       .filter((d) => d.isFile())
@@ -253,9 +253,9 @@ function buildPlan({ hermitDir, pluginRoot, hatchTarget }) {
   return plan;
 }
 
-function parseArgs(argv) {
-  let hermitDir = null;
-  let hatchTarget = null;
+function parseArgs(argv: string[]) {
+  let hermitDir: string | null = null;
+  let hatchTarget: string | null = null;
   for (const a of argv) {
     if (a.startsWith('--hatch-target=')) hatchTarget = a.slice('--hatch-target='.length);
     else if (!a.startsWith('--') && hermitDir === null) hermitDir = a;
@@ -263,17 +263,17 @@ function parseArgs(argv) {
   return { hermitDir: hermitDir || '.claude-code-hermit', hatchTarget };
 }
 
-if (require.main === module) {
+export { buildPlan, cmpSemver, changelogSlice, newConfigKeys, markerOnward, changedFiles };
+
+if (import.meta.main) {
   const { hermitDir, hatchTarget } = parseArgs(process.argv.slice(2));
-  const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || path.resolve(__dirname, '..');
-  let plan;
+  const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || path.resolve(import.meta.dir, '..');
+  let plan: Json;
   try {
     plan = buildPlan({ hermitDir: path.resolve(hermitDir), pluginRoot, hatchTarget });
-  } catch (e) {
+  } catch (e: any) {
     plan = { errors: [{ code: 'fatal', message: e.message }] };
   }
   process.stdout.write(JSON.stringify(plan, null, 2) + '\n');
   process.exit(0);
-} else {
-  module.exports = { buildPlan, cmpSemver, changelogSlice, newConfigKeys, markerOnward, changedFiles };
 }

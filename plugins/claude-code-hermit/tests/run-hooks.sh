@@ -542,7 +542,7 @@ cat > "$workdir/.claude-code-hermit/config.json" <<'EOF'
 {"agent_name":"test","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true,"active_hours":{"start":"08:00","end":"23:00"}},"routines":[]}
 EOF
 run_test "doctor-check (minimal install, 13 checks)" bash -c \
-  "bun '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); ids=[c['id'] for c in r['checks']]; assert ids==['runtime','config','hooks','state','cost','proposals','dependencies','permissions','docker-security','archive','reflect','scheduler','watchdog'], ids\""
+  "bun '$REPO_ROOT/scripts/doctor-check.ts' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); ids=[c['id'] for c in r['checks']]; assert ids==['runtime','config','hooks','state','cost','proposals','dependencies','permissions','docker-security','archive','reflect','scheduler','watchdog'], ids\""
 cleanup
 
 # -------------------------------------------------------
@@ -557,7 +557,7 @@ EOF
 TODAY=$(date -u +%Y-%m-%d)
 echo "{\"timestamp\":\"${TODAY}T10:00:00.000Z\",\"model\":\"claude-sonnet-4-6\",\"input_tokens\":100,\"output_tokens\":50,\"cache_read_tokens\":200,\"total_tokens\":350,\"estimated_cost_usd\":0.0012}" > "$workdir/.claude/cost-log.jsonl"
 run_test "doctor-check (cost visibility — ok with data, detail has today spend)" bash -c \
-  "bun '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); c=[x for x in r['checks'] if x['id']=='cost'][0]; assert c['status']=='ok', c; assert 'today' in c['detail'], c\""
+  "bun '$REPO_ROOT/scripts/doctor-check.ts' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); c=[x for x in r['checks'] if x['id']=='cost'][0]; assert c['status']=='ok', c; assert 'today' in c['detail'], c\""
 cleanup
 
 # -------------------------------------------------------
@@ -570,7 +570,7 @@ cat > "$workdir/.claude-code-hermit/config.json" <<'EOF'
 {"agent_name":"test","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true},"routines":[]}
 EOF
 run_test "doctor-check (cost visibility — warn when no cost-log)" bash -c \
-  "bun '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); c=[x for x in r['checks'] if x['id']=='cost'][0]; assert c['status']=='warn', c\""
+  "bun '$REPO_ROOT/scripts/doctor-check.ts' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); c=[x for x in r['checks'] if x['id']=='cost'][0]; assert c['status']=='warn', c\""
 cleanup
 
 # -------------------------------------------------------
@@ -584,7 +584,7 @@ cat > "$workdir/.claude-code-hermit/config.json" <<'EOF'
 EOF
 echo 'not json' > "$workdir/.claude-code-hermit/state/alert-state.json"
 run_test "doctor-check (corrupt state → fail)" bash -c \
-  "bun '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); s=[c for c in r['checks'] if c['id']=='state'][0]; assert s['status']=='fail' and 'alert-state.json' in s['detail'], s\""
+  "bun '$REPO_ROOT/scripts/doctor-check.ts' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); s=[c for c in r['checks'] if c['id']=='state'][0]; assert s['status']=='fail' and 'alert-state.json' in s['detail'], s\""
 cleanup
 
 # -------------------------------------------------------
@@ -594,7 +594,7 @@ workdir="$(setup_workdir)"
 cd "$workdir"
 rm -f "$workdir/.claude-code-hermit/config.json"
 run_test "doctor-check (missing config → fail, exits 0)" bash -c \
-  "bun '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); c=[x for x in r['checks'] if x['id']=='config'][0]; assert c['status']=='fail', c\""
+  "bun '$REPO_ROOT/scripts/doctor-check.ts' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); c=[x for x in r['checks'] if x['id']=='config'][0]; assert c['status']=='fail', c\""
 cleanup
 
 # -------------------------------------------------------
@@ -627,7 +627,7 @@ cat > "$workdir/.claude-code-hermit/config.json" <<'EOF'
 {"agent_name":"t","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true},"routines":[]}
 EOF
 run_test "checkDependencies (sibling outside range → warn)" bash -c \
-  "CLAUDE_PLUGIN_ROOT='$workdir/plugins/claude-code-hermit' bun '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='dependencies'][0]; assert d['status']=='warn' and 'outside' in d['detail'], d\""
+  "CLAUDE_PLUGIN_ROOT='$workdir/plugins/claude-code-hermit' bun '$REPO_ROOT/scripts/doctor-check.ts' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='dependencies'][0]; assert d['status']=='warn' and 'outside' in d['detail'], d\""
 cleanup
 
 # -------------------------------------------------------
@@ -644,7 +644,7 @@ cat > "$workdir/.claude-code-hermit/config.json" <<'EOF'
 {"agent_name":"t","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true},"routines":[]}
 EOF
 run_test "checkDependencies (sibling within range → ok)" bash -c \
-  "CLAUDE_PLUGIN_ROOT='$workdir/plugins/claude-code-hermit' bun '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='dependencies'][0]; assert d['status']=='ok' and 'within' in d['detail'], d\""
+  "CLAUDE_PLUGIN_ROOT='$workdir/plugins/claude-code-hermit' bun '$REPO_ROOT/scripts/doctor-check.ts' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='dependencies'][0]; assert d['status']=='ok' and 'within' in d['detail'], d\""
 cleanup
 
 # -------------------------------------------------------
@@ -660,7 +660,7 @@ cat > "$workdir/.claude-code-hermit/config.json" <<'EOF'
 {"agent_name":"t","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true},"routines":[]}
 EOF
 run_test "checkDependencies (sibling has no required_core_version → ok)" bash -c \
-  "CLAUDE_PLUGIN_ROOT='$workdir/plugins/claude-code-hermit' bun '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='dependencies'][0]; assert d['status']=='ok' and 'no sibling' in d['detail'], d\""
+  "CLAUDE_PLUGIN_ROOT='$workdir/plugins/claude-code-hermit' bun '$REPO_ROOT/scripts/doctor-check.ts' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='dependencies'][0]; assert d['status']=='ok' and 'no sibling' in d['detail'], d\""
 cleanup
 
 # -------------------------------------------------------
@@ -675,7 +675,7 @@ cat > "$workdir/.claude-code-hermit/config.json" <<'EOF'
 {"agent_name":"t","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true},"routines":[]}
 EOF
 run_test "checkDependencies (no siblings → ok)" bash -c \
-  "CLAUDE_PLUGIN_ROOT='$workdir/plugins/claude-code-hermit' bun '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='dependencies'][0]; assert d['status']=='ok', d\""
+  "CLAUDE_PLUGIN_ROOT='$workdir/plugins/claude-code-hermit' bun '$REPO_ROOT/scripts/doctor-check.ts' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='dependencies'][0]; assert d['status']=='ok', d\""
 cleanup
 
 # -------------------------------------------------------
@@ -692,7 +692,7 @@ cat > "$workdir/.claude-code-hermit/config.json" <<'EOF'
 {"agent_name":"t","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true},"routines":[]}
 EOF
 run_test "checkDependencies (unrecognized range → ok pass-through)" bash -c \
-  "CLAUDE_PLUGIN_ROOT='$workdir/plugins/claude-code-hermit' bun '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='dependencies'][0]; assert d['status']=='ok', d\""
+  "CLAUDE_PLUGIN_ROOT='$workdir/plugins/claude-code-hermit' bun '$REPO_ROOT/scripts/doctor-check.ts' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='dependencies'][0]; assert d['status']=='ok', d\""
 cleanup
 
 # -------------------------------------------------------
@@ -709,11 +709,11 @@ cat > "$workdir/.claude-code-hermit/config.json" <<'EOF'
 {"agent_name":"t","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true},"routines":[]}
 EOF
 run_test "checkDependencies (required_core_version in hermit-meta.json sidecar → ok)" bash -c \
-  "CLAUDE_PLUGIN_ROOT='$workdir/plugins/claude-code-hermit' bun '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='dependencies'][0]; assert d['status']=='ok' and 'within' in d['detail'], d\""
+  "CLAUDE_PLUGIN_ROOT='$workdir/plugins/claude-code-hermit' bun '$REPO_ROOT/scripts/doctor-check.ts' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='dependencies'][0]; assert d['status']=='ok' and 'within' in d['detail'], d\""
 cleanup
 
 # -------------------------------------------------------
-# 54. cidrOverlap pure helper (exported from doctor-check.js)
+# 54. cidrOverlap pure helper (exported from doctor-check.ts)
 # -------------------------------------------------------
 run_test "cidrOverlap pure helper" bun -e "
 const { cidrOverlap } = require('$REPO_ROOT/scripts/doctor-check');
@@ -741,7 +741,7 @@ fake_bin="$(mktemp -d)"
 printf '#!/bin/bash\nexit 1\n' > "$fake_bin/docker"
 chmod +x "$fake_bin/docker"
 run_test "docker-security check (docker unavailable → warn, not fail)" bash -c \
-  "PATH='$fake_bin:$PATH' bun '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='docker-security'][0]; assert d['status']=='warn', d\""
+  "PATH='$fake_bin:$PATH' bun '$REPO_ROOT/scripts/doctor-check.ts' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='docker-security'][0]; assert d['status']=='warn', d\""
 rm -rf "$fake_bin"
 cleanup
 
@@ -769,7 +769,7 @@ exit 1
 FAKEEOF
 chmod +x "$fake_bin/docker"
 run_test "docker-security check (ports + network_mode:service → fail)" bash -c \
-  "PATH='$fake_bin:$PATH' bun '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='docker-security'][0]; assert d['status']=='fail' and 'ports' in d['detail'], d\""
+  "PATH='$fake_bin:$PATH' bun '$REPO_ROOT/scripts/doctor-check.ts' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='docker-security'][0]; assert d['status']=='fail' and 'ports' in d['detail'], d\""
 rm -rf "$fake_bin"
 cleanup
 
@@ -801,7 +801,7 @@ exit 0
 FAKEEOF
 chmod +x "$fake_bin/docker"
 run_test "docker-security check (subnet collision with other-net → warn)" bash -c \
-  "PATH='$fake_bin:$PATH' bun '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='docker-security'][0]; assert d['status']=='warn' and 'overlaps' in d['detail'], d\""
+  "PATH='$fake_bin:$PATH' bun '$REPO_ROOT/scripts/doctor-check.ts' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='docker-security'][0]; assert d['status']=='warn' and 'overlaps' in d['detail'], d\""
 rm -rf "$fake_bin"
 cleanup
 
@@ -833,7 +833,7 @@ exit 0
 FAKEEOF
 chmod +x "$fake_bin/docker"
 run_test "docker-security check (own hermit-net excluded → ok)" bash -c \
-  "PATH='$fake_bin:$PATH' bun '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='docker-security'][0]; assert d['status']=='ok', d\""
+  "PATH='$fake_bin:$PATH' bun '$REPO_ROOT/scripts/doctor-check.ts' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='docker-security'][0]; assert d['status']=='ok', d\""
 rm -rf "$fake_bin"
 cleanup
 
@@ -851,7 +851,7 @@ cat > "$workdir/.claude-code-hermit/state/runtime.json" <<EOF
 {"version":1,"session_state":"in_progress","session_id":"S-042","updated_at":"$stale_ts"}
 EOF
 run_test "checkArchival (stale in_progress → warn)" bash -c \
-  "bun '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); a=[c for c in r['checks'] if c['id']=='archive'][0]; assert a['status']=='warn' and 'stale active session' in a['detail'], a\""
+  "bun '$REPO_ROOT/scripts/doctor-check.ts' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); a=[c for c in r['checks'] if c['id']=='archive'][0]; assert a['status']=='warn' and 'stale active session' in a['detail'], a\""
 cleanup
 
 # -------------------------------------------------------
@@ -867,7 +867,7 @@ cat > "$workdir/.claude-code-hermit/state/reflection-state.json" <<'EOF'
 {"counters":{"total_runs":20,"empty_runs":18,"proposals_created":0}}
 EOF
 run_test "checkReflectLoop (unproductive ≥10 runs → warn)" bash -c \
-  "bun '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); rc=[c for c in r['checks'] if c['id']=='reflect'][0]; assert rc['status']=='warn' and 'unproductive' in rc['detail'], rc\""
+  "bun '$REPO_ROOT/scripts/doctor-check.ts' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); rc=[c for c in r['checks'] if c['id']=='reflect'][0]; assert rc['status']=='warn' and 'unproductive' in rc['detail'], rc\""
 cleanup
 
 # -------------------------------------------------------
@@ -884,7 +884,7 @@ cat > "$workdir/.claude-code-hermit/state/runtime.json" <<EOF
 {"version":1,"session_state":"idle","session_id":"S-042","updated_at":"$stale_ts"}
 EOF
 run_test "checkArchival (idle + non-null session_id → warn)" bash -c \
-  "bun '$REPO_ROOT/scripts/doctor-check.js' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); a=[c for c in r['checks'] if c['id']=='archive'][0]; assert a['status']=='warn' and 'orphaned session' in a['detail'], a\""
+  "bun '$REPO_ROOT/scripts/doctor-check.ts' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); a=[c for c in r['checks'] if c['id']=='archive'][0]; assert a['status']=='warn' and 'orphaned session' in a['detail'], a\""
 cleanup
 
 # -------------------------------------------------------

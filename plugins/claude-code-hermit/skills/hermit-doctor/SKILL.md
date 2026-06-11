@@ -13,7 +13,7 @@ summary. Safe to run at any time. Produces no side effects beyond writing
 
 1. Run the check script:
    ```bash
-   node ${CLAUDE_PLUGIN_ROOT}/scripts/doctor-check.js .claude-code-hermit
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/doctor-check.ts .claude-code-hermit
    ```
    The script writes `.claude-code-hermit/state/doctor-report.json` and prints the same
    JSON to stdout. It exits 0 unconditionally — on any internal failure the failing
@@ -27,7 +27,7 @@ summary. Safe to run at any time. Produces no side effects beyond writing
 
 2.5. **Sandbox capability check** (fourteenth check, run after step 2):
 
-   Architectural note: this check is computed by the skill orchestrator, not by `doctor-check.js`. `state/doctor-report.json` therefore contains only the thirteen checks emitted in step 2; the sandbox line is appended to the rendered summary and to SHELL.md but is not present in the JSON report. Tools that consume `doctor-report.json` programmatically should call `scripts/sandbox-probe.py` separately if they need the sandbox status.
+   Architectural note: this check is computed by the skill orchestrator, not by `doctor-check.ts`. `state/doctor-report.json` therefore contains only the thirteen checks emitted in step 2; the sandbox line is appended to the rendered summary and to SHELL.md but is not present in the JSON report. Tools that consume `doctor-report.json` programmatically should call `scripts/sandbox-probe.py` separately if they need the sandbox status.
 
    Determine the sandbox enabled state: read `.claude/settings.json` and `.claude/settings.local.json`; the last file that explicitly declares `sandbox.enabled` wins (Claude Code's merge order). Treat non-bool values as undeclared.
 
@@ -82,7 +82,7 @@ No automatic fixes. Doctor reports; the operator acts.
 
 ## Notes
 
-- The check logic lives in `scripts/doctor-check.js` so it can be unit-tested without
+- The check logic lives in `scripts/doctor-check.ts` so it can be unit-tested without
   invoking the model.
 - Re-runs are cheap. No locking needed.
 - Doctor does not ping external APIs (Discord, Telegram, Anthropic). Everything is

@@ -1,37 +1,38 @@
-#!/usr/bin/env node
-// weekly-review.js — generates a weekly review report
+#!/usr/bin/env bun
+// weekly-review.ts — generates a weekly review report
 // Zero npm dependencies. Node stdlib only.
-// Usage: node weekly-review.js <hermit-state-dir>
+// Usage: bun weekly-review.ts <hermit-state-dir>
 //   hermit-state-dir: path to .claude-code-hermit/ in the target project (default: .claude-code-hermit)
 
-'use strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { readFrontmatter, readFileWithFrontmatter, parseFrontmatter, isEmptyAutoArchive, newestByType, globDir } from './lib/frontmatter';
+import { costLogPath } from './lib/cc-compat';
+import { formatTokens } from './lib/format';
+import { lint as knowledgeLint } from './knowledge-lint';
 
-const fs = require('fs');
-const path = require('path');
-const { readFrontmatter, readFileWithFrontmatter, parseFrontmatter, isEmptyAutoArchive, newestByType, globDir } = require('./lib/frontmatter');
-const { costLogPath } = require('./lib/cc-compat');
-const { lint: knowledgeLint } = require('./knowledge-lint');
+type Json = any;
 
 // --- Args ---
 const hermitDir = process.argv[2] || '.claude-code-hermit';
 
 // --- ISO week calculation ---
 
-function getISOWeek(date) {
+function getISOWeek(date: Date) {
   const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
   const dayNum = d.getUTCDay() || 7;
   d.setUTCDate(d.getUTCDate() + 4 - dayNum);
   const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-  const weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+  const weekNo = Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
   return { year: d.getUTCFullYear(), week: weekNo };
 }
 
-function isoWeekKey(date) {
+function isoWeekKey(date: Date) {
   const { year, week } = getISOWeek(date);
   return `${year}-W${String(week).padStart(2, '0')}`;
 }
 
-function weekDateRange(year, week) {
+function weekDateRange(year: number, week: number) {
   const jan4 = new Date(Date.UTC(year, 0, 4));
   const jan4Day = jan4.getUTCDay() || 7;
   const monday = new Date(jan4);
@@ -40,11 +41,11 @@ function weekDateRange(year, week) {
   sunday.setUTCDate(monday.getUTCDate() + 6);
   const months = ['January', 'February', 'March', 'April', 'May', 'June',
     'July', 'August', 'September', 'October', 'November', 'December'];
-  const fmt = d => `${months[d.getUTCMonth()]} ${d.getUTCDate()}`;
+  const fmt = (d: Date) => `${months[d.getUTCMonth()]} ${d.getUTCDate()}`;
   return `${fmt(monday)}–${fmt(sunday)}, ${year}`;
 }
 
-function isSelfDirected(s) {
+function isSelfDirected(s: Json) {
   if (s.fm.operator_turns !== undefined && s.fm.operator_turns !== null) {
     return parseInt(s.fm.operator_turns, 10) === 0;
   }
@@ -104,8 +105,6 @@ const sessionsCount = weekSessions.length;
 const totalCost = weekSessions.reduce((sum, s) => sum + parseFloat(s.fm.cost_usd || 0), 0);
 const avgCost = sessionsCount > 0 ? totalCost / sessionsCount : 0;
 
-const { formatTokens } = require('./lib/format');
-
 // Token aggregation: prefer session frontmatter; fall back to cost-log.jsonl date-range scan
 const allHaveTokens = sessionsCount > 0 &&
   weekSessions.every(s => Number.isFinite(s.fm.tokens) && s.fm.tokens >= 0);
@@ -133,14 +132,14 @@ const avgTokens = sessionsCount > 0 ? Math.round(totalTokens / sessionsCount) : 
 // Exclude empty auto-archives from the autonomy calc: they have no content to
 // attribute either way and would inflate the self-directed numerator via the
 // operator_turns === 0 branch of isSelfDirected. See isEmptyAutoArchive in
-// lib/frontmatter.js for the shared predicate (also used by reflect-precheck).
+// lib/frontmatter.ts for the shared predicate (also used by reflect-precheck).
 const contentfulSessions = weekSessions.filter(s => !isEmptyAutoArchive(s.fm));
 const selfDirectedCount = contentfulSessions.filter(isSelfDirected).length;
 const assistedSessions = contentfulSessions.filter(s => !isSelfDirected(s));
 const autonomousRate = contentfulSessions.length > 0 ? selfDirectedCount / contentfulSessions.length : 0;
 
 // --- Operator dependence ---
-const assistedTags = {};
+const assistedTags: Record<string, number> = {};
 for (const s of assistedSessions) {
   for (const tag of (s.fm.tags || [])) {
     assistedTags[tag] = (assistedTags[tag] || 0) + 1;
@@ -154,20 +153,20 @@ const topAssistedTags = Object.entries(assistedTags)
 // --- Honesty rule: pre-build tag counts for O(1) lookup ---
 const totalSessionCount = allSessions.length;
 const IMPACT_THRESHOLD = 0.3;
-const tagCounts = new Map();
+const tagCounts = new Map<string, number>();
 for (const s of allSessions) {
   for (const tag of (s.fm.tags || [])) {
     tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
   }
 }
 
-function canShowTagImpact(tag) {
+function canShowTagImpact(tag: string) {
   if (totalSessionCount === 0) return false;
   return (tagCounts.get(tag) || 0) / totalSessionCount < IMPACT_THRESHOLD;
 }
 
 // --- Recently resolved: show numeric impact only when honesty rule passes ---
-function countIncompleteSessions(propTags, datePredicate) {
+function countIncompleteSessions(propTags: string[], datePredicate: (d: Date) => boolean) {
   return allSessions.filter(s =>
     datePredicate(s.parsedDate) &&
     (s.fm.status === 'blocked' || s.fm.status === 'partial') &&
@@ -180,7 +179,7 @@ const resolvedWithImpact = weekResolved.map(p => {
   const resolvedDate = new Date(p.fm.resolved_date);
   const preCount = countIncompleteSessions(propTags, d => d < resolvedDate);
   const postCount = countIncompleteSessions(propTags, d => d >= resolvedDate);
-  const showImpact = propTags.some(t => canShowTagImpact(t));
+  const showImpact = propTags.some((t: string) => canShowTagImpact(t));
   return { p, preCount, postCount, showImpact };
 });
 
@@ -203,7 +202,7 @@ const openLoops = allProposals
 const REFLECT_LINE_RE = /reflect \((?:newborn|juvenile|adult|quick[^)]*)\) — (\d+) candidates?; verdicts: accept=\d+ downgrade=\d+ suppress=\d+/;
 let reflectRuns = 0;
 let reflectCandidates = 0;
-const reflectSuppressed = new Set();
+const reflectSuppressed = new Set<string>();
 for (const s of weekSessions) {
   for (const line of (s.content || '').split('\n')) {
     const m = line.match(REFLECT_LINE_RE);

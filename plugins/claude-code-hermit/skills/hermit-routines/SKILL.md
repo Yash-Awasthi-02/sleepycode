@@ -28,7 +28,7 @@ Called automatically by `hermit-start.py` on always-on launches. Can also be cal
 2. Read `config.routines`, filter `enabled: true`. If none, log "No enabled routines in config." and stop.
 3. Call `CronList`. For each entry whose prompt contains `[hermit-routine:`: call `CronDelete` with its ID. Unconditional reset — ensures stale entries from prior sessions are cleared and the 7-day auto-expiry clock is reset.
 4. For each enabled routine, build the prompt string (see templates below), then call `CronCreate`:
-   - **Compute the timezone-shifted schedule**: run `node <pluginRoot>/scripts/cron-tz-shift.js "<routine.schedule>" "<configTz>"` via Bash. Use the script's stdout (trimmed) as the `cron` value. If the script writes a `WARN:` line to stderr, record it for the Step 5 summary but proceed — the script outputs the original schedule unchanged on unsupported patterns.
+   - **Compute the timezone-shifted schedule**: run `bun <pluginRoot>/scripts/cron-tz-shift.ts "<routine.schedule>" "<configTz>"` via Bash. Use the script's stdout (trimmed) as the `cron` value. If the script writes a `WARN:` line to stderr, record it for the Step 5 summary but proceed — the script outputs the original schedule unchanged on unsupported patterns.
    - `cron`: the shifted schedule (script stdout)
    - `recurring`: true
    - `durable`: false

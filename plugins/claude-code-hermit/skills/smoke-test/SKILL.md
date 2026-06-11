@@ -45,7 +45,7 @@ Track `passed`, `warnings`, `failures` counts. Collect output lines for the fina
 
 ### 4b. Verify cron-tz-shift helper
 
-Run: `node ${CLAUDE_PLUGIN_ROOT}/scripts/cron-tz-shift.js "0 4 * * *" "UTC"`
+Run: `bun ${CLAUDE_PLUGIN_ROOT}/scripts/cron-tz-shift.ts "0 4 * * *" "UTC"`
 
 - Exit 0 and stdout is `0 4 * * *`: **PASS** `cron-tz-shift helper available`
 - Exit non-zero or wrong stdout: **FAIL** `cron-tz-shift helper missing or broken — run /hermit-evolve`

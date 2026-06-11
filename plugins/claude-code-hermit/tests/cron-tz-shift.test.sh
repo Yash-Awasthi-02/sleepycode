@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Tests for scripts/cron-tz-shift.js — timezone-aware cron shifting.
+# Tests for scripts/cron-tz-shift.ts — timezone-aware cron shifting.
 # Uses HERMIT_CRON_TZ_SHIFT_NOW to pin the reference instant (deterministic).
 # Uses TZ= to control the "machine timezone" seen by the Node process.
 # Usage: bash tests/cron-tz-shift.test.sh
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-HELPER="$SCRIPT_DIR/../scripts/cron-tz-shift.js"
+HELPER="$SCRIPT_DIR/../scripts/cron-tz-shift.ts"
 
 PASSED=0
 FAILED=0

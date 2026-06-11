@@ -189,7 +189,7 @@ run_test "knowledge-lint (bold schema entries parsed)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# archive-raw.js
+# archive-raw.ts
 # -------------------------------------------------------
 
 # review-weekly must not pin expired raw files, but a real compiled work product must
@@ -216,7 +216,7 @@ run_test "knowledge-lint (expired raw flagged stale)" grep -q 'raw/expired-snap.
 rm -f "$lint_outfile"
 
 outfile="$(mktemp)"
-bun "$REPO_ROOT/scripts/archive-raw.js" "$workdir/.claude-code-hermit" > "$outfile" 2>&1
+bun "$REPO_ROOT/scripts/archive-raw.ts" "$workdir/.claude-code-hermit" > "$outfile" 2>&1
 run_test "archive-raw (review-weekly does not pin, real ref does)" grep -q '1 archived, 1 retained' "$outfile"
 run_test "archive-raw (review-named file archived)" test -f "$workdir/.claude-code-hermit/raw/.archive/expired-snap.md"
 run_test "archive-raw (work-product-cited file retained)" test -f "$workdir/.claude-code-hermit/raw/cited-snap.md"
@@ -224,13 +224,13 @@ rm -f "$outfile"
 cleanup
 
 # -------------------------------------------------------
-# update-reflection-state.js
+# update-reflection-state.ts
 # -------------------------------------------------------
 
 # 7. Fresh state file — initializes counters from scratch
 workdir="$(setup_workdir)"
 echo '{"last_reflection":null}' > "$workdir/.claude-code-hermit/state/reflection-state.json"
-bun "$REPO_ROOT/scripts/update-reflection-state.js" \
+bun "$REPO_ROOT/scripts/update-reflection-state.ts" \
   "$workdir/.claude-code-hermit/state/reflection-state.json" \
   '{"ran_with_candidates":true,"judge_accept":2,"proposals_created":1}' >/dev/null
 run_test "update-reflection-state (initializes counters)" bash -c \
@@ -241,7 +241,7 @@ cleanup
 workdir="$(setup_workdir)"
 echo '{"scheduled_checks":{"md-audit":{"last_run":"2026-04-01"}},"counters":{"total_runs":5,"empty_runs":2,"runs_with_candidates":3,"last_output_at":null}}' \
   > "$workdir/.claude-code-hermit/state/reflection-state.json"
-bun "$REPO_ROOT/scripts/update-reflection-state.js" \
+bun "$REPO_ROOT/scripts/update-reflection-state.ts" \
   "$workdir/.claude-code-hermit/state/reflection-state.json" \
   '{"ran_with_candidates":false}' >/dev/null
 run_test "update-reflection-state (empty run, preserves other keys)" bash -c \
@@ -251,7 +251,7 @@ cleanup
 # 9. Missing counters object — treated as all-zero, seeds counters with since key
 workdir="$(setup_workdir)"
 echo '{"last_reflection":"2026-04-01T00:00:00Z"}' > "$workdir/.claude-code-hermit/state/reflection-state.json"
-bun "$REPO_ROOT/scripts/update-reflection-state.js" \
+bun "$REPO_ROOT/scripts/update-reflection-state.ts" \
   "$workdir/.claude-code-hermit/state/reflection-state.json" \
   '{"ran_with_candidates":true,"micro_proposals_queued":1}' >/dev/null
 run_test "update-reflection-state (missing counters object)" bash -c \
@@ -260,7 +260,7 @@ cleanup
 
 # 10. Missing state file — fail-open: exits 0 and writes valid JSON
 workdir="$(setup_workdir)"
-bun "$REPO_ROOT/scripts/update-reflection-state.js" \
+bun "$REPO_ROOT/scripts/update-reflection-state.ts" \
   "$workdir/.claude-code-hermit/state/reflection-state.json" \
   '{"ran_with_candidates":false}' >/dev/null
 run_test "update-reflection-state (missing state file, fail-open)" bash -c \
@@ -271,7 +271,7 @@ cleanup
 workdir="$(setup_workdir)"
 echo '{"last_sparse_nudge":{"PROP-001":"2026-04-01T00:00:00Z"},"counters":{"total_runs":1}}' \
   > "$workdir/.claude-code-hermit/state/reflection-state.json"
-bun "$REPO_ROOT/scripts/update-reflection-state.js" \
+bun "$REPO_ROOT/scripts/update-reflection-state.ts" \
   "$workdir/.claude-code-hermit/state/reflection-state.json" \
   '{"ran_with_candidates":false,"last_sparse_nudge":{"PROP-002":"2026-04-22T00:00:00Z"}}' >/dev/null
 run_test "update-reflection-state (last_sparse_nudge merge)" bash -c \
@@ -281,7 +281,7 @@ cleanup
 # 11a. judge_suppress_by_code — first run initializes map and accumulates codes
 workdir="$(setup_workdir)"
 echo '{"counters":{"total_runs":1}}' > "$workdir/.claude-code-hermit/state/reflection-state.json"
-bun "$REPO_ROOT/scripts/update-reflection-state.js" \
+bun "$REPO_ROOT/scripts/update-reflection-state.ts" \
   "$workdir/.claude-code-hermit/state/reflection-state.json" \
   '{"ran_with_candidates":true,"judge_suppress":2,"judge_suppress_by_code":{"no-evidence":1,"covered-by-memory":1}}' >/dev/null
 run_test "update-reflection-state (judge_suppress_by_code: initial accumulation)" bash -c \
@@ -292,7 +292,7 @@ cleanup
 workdir="$(setup_workdir)"
 echo '{"counters":{"total_runs":2,"judge_suppress":2,"judge_suppress_by_code":{"no-evidence":1,"covered-by-memory":1}}}' \
   > "$workdir/.claude-code-hermit/state/reflection-state.json"
-bun "$REPO_ROOT/scripts/update-reflection-state.js" \
+bun "$REPO_ROOT/scripts/update-reflection-state.ts" \
   "$workdir/.claude-code-hermit/state/reflection-state.json" \
   '{"ran_with_candidates":true,"judge_suppress":2,"judge_suppress_by_code":{"no-evidence":1,"no-sessions":1}}' >/dev/null
 run_test "update-reflection-state (judge_suppress_by_code: cumulative accumulation)" bash -c \
@@ -303,7 +303,7 @@ cleanup
 workdir="$(setup_workdir)"
 echo '{"counters":{"total_runs":3,"judge_suppress_by_code":{"no-evidence":5}}}' \
   > "$workdir/.claude-code-hermit/state/reflection-state.json"
-bun "$REPO_ROOT/scripts/update-reflection-state.js" \
+bun "$REPO_ROOT/scripts/update-reflection-state.ts" \
   "$workdir/.claude-code-hermit/state/reflection-state.json" \
   '{"ran_with_candidates":false}' >/dev/null
 run_test "update-reflection-state (judge_suppress_by_code: absent payload preserves map)" bash -c \
@@ -544,7 +544,7 @@ run_test "heartbeat-monitor (iter-2 EVALUATE → HEARTBEAT_EVALUATE, suppression
 rm -f "$stub" "$tmp_out"
 
 # -------------------------------------------------------
-# reflect-precheck.js
+# reflect-precheck.ts
 # -------------------------------------------------------
 
 # 21. EMPTY — all timestamps recent, session idle, no accepted proposals
@@ -557,7 +557,7 @@ echo "{\"last_reflection\":\"$today\",\"last_resolution_check\":null,\"last_dige
   > "$workdir/.claude-code-hermit/state/reflection-state.json"
 mkdir -p "$workdir/.claude"
 # No cost log, no session reports newer than last_run_at
-out="$(bun "$REPO_ROOT/scripts/reflect-precheck.js" "$workdir/.claude-code-hermit" "$REPO_ROOT")"
+out="$(bun "$REPO_ROOT/scripts/reflect-precheck.ts" "$workdir/.claude-code-hermit" "$REPO_ROOT")"
 run_test "reflect-precheck (EMPTY: no due phases)" bash -c "[ '$out' = 'EMPTY' ]"
 cleanup
 
@@ -570,7 +570,7 @@ today="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo "{\"last_reflection\":\"$today\",\"counters\":{\"total_runs\":1,\"empty_runs\":0,\"last_run_at\":\"$today\",\"since\":\"$(python3 -c "import datetime; print((datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(days=30)).strftime('%Y-%m-%dT%H:%M:%SZ'))")\"}}" \
   > "$workdir/.claude-code-hermit/state/reflection-state.json"
 mkdir -p "$workdir/.claude"
-bun "$REPO_ROOT/scripts/reflect-precheck.js" "$workdir/.claude-code-hermit" "$REPO_ROOT" >/dev/null
+bun "$REPO_ROOT/scripts/reflect-precheck.ts" "$workdir/.claude-code-hermit" "$REPO_ROOT" >/dev/null
 run_test "reflect-precheck (EMPTY: progress log line written to SHELL.md)" bash -c \
   "grep -q 'reflect' '$workdir/.claude-code-hermit/sessions/SHELL.md'"
 cleanup
@@ -584,7 +584,7 @@ today="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 echo "{\"counters\":{\"total_runs\":3,\"empty_runs\":1,\"runs_with_candidates\":2,\"last_run_at\":\"$today\",\"since\":\"$(python3 -c "import datetime; print((datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(days=30)).strftime('%Y-%m-%dT%H:%M:%SZ'))")\"}}" \
   > "$workdir/.claude-code-hermit/state/reflection-state.json"
 mkdir -p "$workdir/.claude"
-bun "$REPO_ROOT/scripts/reflect-precheck.js" "$workdir/.claude-code-hermit" "$REPO_ROOT" >/dev/null
+bun "$REPO_ROOT/scripts/reflect-precheck.ts" "$workdir/.claude-code-hermit" "$REPO_ROOT" >/dev/null
 run_test "reflect-precheck (EMPTY: empty_runs incremented)" bash -c \
   "python3 -c \"import json; d=json.load(open('$workdir/.claude-code-hermit/state/reflection-state.json')); assert d['counters']['empty_runs']==2 and d['counters']['total_runs']==4\""
 cleanup
@@ -601,7 +601,7 @@ old_date="2026-04-01T00:00:00Z"
 echo "{\"counters\":{\"total_runs\":5,\"empty_runs\":2,\"last_run_at\":\"$today\",\"since\":\"$(python3 -c "import datetime; print((datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(days=30)).strftime('%Y-%m-%dT%H:%M:%SZ'))")\"},\"last_resolution_check\":\"$old_date\"}" \
   > "$workdir/.claude-code-hermit/state/reflection-state.json"
 mkdir -p "$workdir/.claude"
-out="$(bun "$REPO_ROOT/scripts/reflect-precheck.js" "$workdir/.claude-code-hermit" "$REPO_ROOT")"
+out="$(bun "$REPO_ROOT/scripts/reflect-precheck.ts" "$workdir/.claude-code-hermit" "$REPO_ROOT")"
 run_test "reflect-precheck (RUN: resolution_check due)" bash -c "echo '$out' | grep -q 'resolution_check'"
 cleanup
 
@@ -617,7 +617,7 @@ old_date="2026-04-01T00:00:00Z"
 echo "{\"counters\":{\"total_runs\":5,\"empty_runs\":2,\"last_run_at\":\"$today\",\"since\":\"$(python3 -c "import datetime; print((datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(days=30)).strftime('%Y-%m-%dT%H:%M:%SZ'))")\"},\"last_resolution_check\":\"$old_date\"}" \
   > "$workdir/.claude-code-hermit/state/reflection-state.json"
 mkdir -p "$workdir/.claude"
-out="$(bun "$REPO_ROOT/scripts/reflect-precheck.js" "$workdir/.claude-code-hermit" "$REPO_ROOT")"
+out="$(bun "$REPO_ROOT/scripts/reflect-precheck.ts" "$workdir/.claude-code-hermit" "$REPO_ROOT")"
 run_test "reflect-precheck (RUN: resolution_check due — new-format proposal filename)" bash -c "echo '$out' | grep -q 'resolution_check'"
 cleanup
 
@@ -633,7 +633,7 @@ echo "{\"counters\":{\"total_runs\":2,\"empty_runs\":1,\"last_run_at\":\"$old_da
 printf -- '---\ntitle: Test\ncreated: 2026-04-29\n---\nBody\n' \
   > "$workdir/.claude-code-hermit/sessions/S-001-REPORT.md"
 mkdir -p "$workdir/.claude"
-out="$(bun "$REPO_ROOT/scripts/reflect-precheck.js" "$workdir/.claude-code-hermit" "$REPO_ROOT")"
+out="$(bun "$REPO_ROOT/scripts/reflect-precheck.ts" "$workdir/.claude-code-hermit" "$REPO_ROOT")"
 run_test "reflect-precheck (RUN: compute activity detected)" bash -c "echo '$out' | grep -q 'compute'"
 cleanup
 
@@ -663,10 +663,10 @@ setup_archive_precheck_workdir() {
 }
 
 # 26. ARCHIVE-only path: SHELL.md > 400 lines, last_shell_snapshot_at null,
-#     no other phases due → precheck runs archive-shell.js synchronously and
+#     no other phases due → precheck runs archive-shell.ts synchronously and
 #     emits EMPTY (no LLM reflect path).
 setup_archive_precheck_workdir idle yes
-out="$(bun "$REPO_ROOT/scripts/reflect-precheck.js" "$workdir/.claude-code-hermit" "$REPO_ROOT")"
+out="$(bun "$REPO_ROOT/scripts/reflect-precheck.ts" "$workdir/.claude-code-hermit" "$REPO_ROOT")"
 run_test "reflect-precheck (ARCHIVE-only: emits EMPTY)" bash -c "[ '$out' = 'EMPTY' ]"
 run_test "reflect-precheck (ARCHIVE-only: snapshot file created)" bash -c \
   "[ \$(ls '$workdir/.claude-code-hermit/sessions/snapshots/' 2>/dev/null | wc -l) -ge 1 ]"
@@ -678,7 +678,7 @@ cleanup
 
 # 27. ARCHIVE skipped when SHELL.md is small (no archive_due fires)
 setup_archive_precheck_workdir idle no
-bun "$REPO_ROOT/scripts/reflect-precheck.js" "$workdir/.claude-code-hermit" "$REPO_ROOT" >/dev/null
+bun "$REPO_ROOT/scripts/reflect-precheck.ts" "$workdir/.claude-code-hermit" "$REPO_ROOT" >/dev/null
 run_test "reflect-precheck (small SHELL.md: no snapshot taken)" bash -c \
   "[ ! -d '$workdir/.claude-code-hermit/sessions/snapshots' ] || [ \$(ls '$workdir/.claude-code-hermit/sessions/snapshots/' 2>/dev/null | wc -l) -eq 0 ]"
 cleanup
@@ -686,7 +686,7 @@ cleanup
 # 28. ARCHIVE + other phases due → RUN with archive_due in phases JSON
 #     (in_progress session forces compute=true; large SHELL forces archive_due)
 setup_archive_precheck_workdir in_progress yes
-out="$(bun "$REPO_ROOT/scripts/reflect-precheck.js" "$workdir/.claude-code-hermit" "$REPO_ROOT")"
+out="$(bun "$REPO_ROOT/scripts/reflect-precheck.ts" "$workdir/.claude-code-hermit" "$REPO_ROOT")"
 run_test "reflect-precheck (ARCHIVE+other: emits RUN)" bash -c "echo '$out' | grep -q '^RUN|'"
 run_test "reflect-precheck (ARCHIVE+other: phases include compute)" bash -c \
   "echo '$out' | grep -q '\"compute\":true'"
@@ -702,7 +702,7 @@ setup_archive_precheck_workdir in_progress yes
 mkdir -p "$workdir/.claude-code-hermit/sessions/snapshots"
 # Pre-create the file linkSync would target (HERMIT_NOW pinned) → EEXIST.
 touch "$workdir/.claude-code-hermit/sessions/snapshots/SHELL-20260506-2200.md"
-out="$(cd "$workdir" && HERMIT_NOW='2026-05-06T22:00:00Z' bun "$REPO_ROOT/scripts/reflect-precheck.js" "$workdir/.claude-code-hermit" "$REPO_ROOT")"
+out="$(cd "$workdir" && HERMIT_NOW='2026-05-06T22:00:00Z' bun "$REPO_ROOT/scripts/reflect-precheck.ts" "$workdir/.claude-code-hermit" "$REPO_ROOT")"
 run_test "reflect-precheck (ARCHIVE failed: emits RUN)" bash -c "echo '$out' | grep -q '^RUN|'"
 run_test "reflect-precheck (ARCHIVE failed: compute still in phases)" bash -c \
   "echo '$out' | grep -q '\"compute\":true'"
@@ -955,7 +955,7 @@ run_test "pricing.js: unknown model falls back to sonnet" bash -c \
   "bun -e \"const {calculateCost}=require('$REPO_ROOT/scripts/lib/pricing.ts'); const a=calculateCost('unknown-model',0,0,1000000,0); const b=calculateCost('sonnet',0,0,1000000,0); if(Math.abs(a-b)>1e-12) throw new Error('got '+a);\""
 
 # -------------------------------------------------------
-# cost-reflect.js
+# cost-reflect.ts
 # -------------------------------------------------------
 
 # Build a fixture log with known entries.
@@ -979,7 +979,7 @@ LOGEOF
 # Insert a malformed line to test resilience
 echo 'NOT_VALID_JSON' >> "$REFLECT_WORKDIR/.claude/cost-log.jsonl"
 
-REFLECT_OUT="$(cd "$REFLECT_WORKDIR" && bun "$REPO_ROOT/scripts/cost-reflect.js" .claude-code-hermit 2>&1)"
+REFLECT_OUT="$(cd "$REFLECT_WORKDIR" && bun "$REPO_ROOT/scripts/cost-reflect.ts" .claude-code-hermit 2>&1)"
 
 # Basic: exits cleanly and produces output
 run_test "cost-reflect: produces output" bash -c "[ -n '$REFLECT_OUT' ]"
@@ -1023,14 +1023,14 @@ cleanup
 # Empty log: no entries at all
 REFLECT_EMPTY="$(setup_workdir)"
 echo '' > "$REFLECT_EMPTY/.claude/cost-log.jsonl"
-REFLECT_EMPTY_OUT="$(cd "$REFLECT_EMPTY" && bun "$REPO_ROOT/scripts/cost-reflect.js" .claude-code-hermit 2>&1)"
+REFLECT_EMPTY_OUT="$(cd "$REFLECT_EMPTY" && bun "$REPO_ROOT/scripts/cost-reflect.ts" .claude-code-hermit 2>&1)"
 run_test "cost-reflect: empty log → 'No cost data'" bash -c \
   "echo '$REFLECT_EMPTY_OUT' | grep -qi 'no cost data'"
 cleanup
 
 # Missing log: .claude/cost-log.jsonl does not exist
 REFLECT_MISSING="$(setup_workdir)"
-REFLECT_MISSING_OUT="$(cd "$REFLECT_MISSING" && bun "$REPO_ROOT/scripts/cost-reflect.js" .claude-code-hermit 2>&1)"
+REFLECT_MISSING_OUT="$(cd "$REFLECT_MISSING" && bun "$REPO_ROOT/scripts/cost-reflect.ts" .claude-code-hermit 2>&1)"
 run_test "cost-reflect: missing log → 'No cost data' (exit 0)" bash -c \
   "echo '$REFLECT_MISSING_OUT' | grep -qi 'no cost data'"
 cleanup
@@ -1138,7 +1138,7 @@ if(classifySource(text)!=='routine:reflect') throw new Error('got '+classifySour
 \""
 
 # -------------------------------------------------------
-# cost-reflect.js: source attribution tests
+# cost-reflect.ts: source attribution tests
 # -------------------------------------------------------
 
 # Fixture log with known source values + legacy untagged entries
@@ -1152,7 +1152,7 @@ cat > "$REFLECT_SRC_WORKDIR/.claude/cost-log.jsonl" <<SRCEOF
 {"timestamp":"${REFLECT_SRC_DATE}T10:03:00.000Z","session_id":"s4","model":"sonnet","input_tokens":0,"cache_write_tokens":0,"cache_read_tokens":50000,"output_tokens":1000,"total_tokens":51000,"estimated_cost_usd":0.021}
 SRCEOF
 
-REFLECT_SRC_OUT="$(cd "$REFLECT_SRC_WORKDIR" && bun "$REPO_ROOT/scripts/cost-reflect.js" .claude-code-hermit 2>&1)"
+REFLECT_SRC_OUT="$(cd "$REFLECT_SRC_WORKDIR" && bun "$REPO_ROOT/scripts/cost-reflect.ts" .claude-code-hermit 2>&1)"
 
 run_test "cost-reflect: Cost by source section present" bash -c \
   "echo '$REFLECT_SRC_OUT' | grep -q 'Cost by source'"
@@ -1186,7 +1186,7 @@ cat > "$REFLECT_NOROUTINE_WORKDIR/.claude/cost-log.jsonl" <<NOROUTEOF
 {"timestamp":"${REFLECT_NOROUTINE_DATE}T10:02:00.000Z","session_id":"s3","source":"other","model":"sonnet","input_tokens":0,"cache_write_tokens":0,"cache_read_tokens":50000,"output_tokens":5000,"total_tokens":55000,"estimated_cost_usd":0.09}
 NOROUTEOF
 
-REFLECT_NOROUTINE_OUT="$(cd "$REFLECT_NOROUTINE_WORKDIR" && bun "$REPO_ROOT/scripts/cost-reflect.js" .claude-code-hermit 2>&1)"
+REFLECT_NOROUTINE_OUT="$(cd "$REFLECT_NOROUTINE_WORKDIR" && bun "$REPO_ROOT/scripts/cost-reflect.ts" .claude-code-hermit 2>&1)"
 
 run_test "cost-reflect: no routine row → source section still present" bash -c \
   "echo '$REFLECT_NOROUTINE_OUT' | grep -q 'Cost by source'"
@@ -1205,7 +1205,7 @@ REFLECT_MANY_DATE="$(date -u -d '1 day ago' +%Y-%m-%d 2>/dev/null || date -u -v-
   done
 } > "$REFLECT_MANY_WORKDIR/.claude/cost-log.jsonl"
 
-REFLECT_MANY_OUT="$(cd "$REFLECT_MANY_WORKDIR" && bun "$REPO_ROOT/scripts/cost-reflect.js" .claude-code-hermit 2>&1)"
+REFLECT_MANY_OUT="$(cd "$REFLECT_MANY_WORKDIR" && bun "$REPO_ROOT/scripts/cost-reflect.ts" .claude-code-hermit 2>&1)"
 
 run_test "cost-reflect: 20-source fixture produces output" bash -c "[ -n '$REFLECT_MANY_OUT' ]"
 run_test "cost-reflect: 20-source fixture ≤1500 chars" bash -c \
@@ -1216,7 +1216,7 @@ run_test "cost-reflect: 20-source fixture shows +N more sources line" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# search.js / lib/search.js
+# search.ts / lib/search.ts
 # -------------------------------------------------------
 
 # search: basic match — finds a compiled artifact by keyword, returns file:line snippet
@@ -1228,7 +1228,7 @@ printf -- '---\ntitle: Heartbeat design\ntype: review\ncreated: 2026-05-01T00:00
 printf -- '---\ntitle: Weekly summary\ntype: briefing\ncreated: 2026-05-10T00:00:00+00:00\n---\nNo relevant content here about the search term.' \
   > "$workdir/.claude-code-hermit/compiled/briefing-2026-05-10.md"
 outfile="$(mktemp)"
-bun "$REPO_ROOT/scripts/search.js" "$workdir/.claude-code-hermit" "heartbeat" > "$outfile" 2>&1
+bun "$REPO_ROOT/scripts/search.ts" "$workdir/.claude-code-hermit" "heartbeat" > "$outfile" 2>&1
 run_test "search (finds compiled artifact by keyword)" grep -q 'review-heartbeat-2026-05-01' "$outfile"
 run_test "search (irrelevant file excluded)" bash -c "! grep -q 'briefing-2026-05-10' \"$outfile\""
 run_test "search (returns file:line snippet)" grep -q ':' "$outfile"
@@ -1244,7 +1244,7 @@ printf -- '---\nid: S-001\ndate: 2026-05-01T00:00:00+00:00\ntask: Set up deploym
 printf -- '---\nid: PROP-001\ntitle: Add deployment health check\nstatus: proposed\ndate: 2026-05-02T00:00:00+00:00\n---\nProposal: add a deployment health check.\n' \
   > "$workdir/.claude-code-hermit/proposals/PROP-001-deploy-check-120000.md"
 outfile="$(mktemp)"
-bun "$REPO_ROOT/scripts/search.js" "$workdir/.claude-code-hermit" "deployment" > "$outfile" 2>&1
+bun "$REPO_ROOT/scripts/search.ts" "$workdir/.claude-code-hermit" "deployment" > "$outfile" 2>&1
 run_test "search (finds session report)" grep -q 'S-001-REPORT' "$outfile"
 run_test "search (finds proposal)" grep -q 'PROP-001' "$outfile"
 rm -f "$outfile"
@@ -1259,7 +1259,7 @@ printf -- '---\ntitle: Memory architecture review\ntype: review\ncreated: 2026-0
 printf -- '---\ntitle: Unrelated briefing\ntype: briefing\ncreated: 2026-05-11T00:00:00+00:00\n---\nThis file mentions memory in the body once.' \
   > "$workdir/.claude-code-hermit/compiled/briefing-2026-05-11.md"
 outfile="$(mktemp)"
-bun "$REPO_ROOT/scripts/search.js" "$workdir/.claude-code-hermit" "memory" > "$outfile" 2>&1
+bun "$REPO_ROOT/scripts/search.ts" "$workdir/.claude-code-hermit" "memory" > "$outfile" 2>&1
 run_test "search (title hit ranks first)" bash -c \
   "grep -n 'review-memory' \"$outfile\" | head -1 | grep -q '^[123]:'"
 rm -f "$outfile"
@@ -1272,7 +1272,7 @@ echo '{}' > "$workdir/.claude-code-hermit/config.json"
 printf -- '---\ntitle: Some artifact\ntype: review\ncreated: 2026-05-01T00:00:00+00:00\n---\nSome content.' \
   > "$workdir/.claude-code-hermit/compiled/review-some-2026-05-01.md"
 run_test "search (no results)" bash -c \
-  "bun '$REPO_ROOT/scripts/search.js' '$workdir/.claude-code-hermit' 'zzznomatch' | grep -q 'No results found'"
+  "bun '$REPO_ROOT/scripts/search.ts' '$workdir/.claude-code-hermit' 'zzznomatch' | grep -q 'No results found'"
 cleanup
 
 # search: snippet :line matches the real file line (frontmatter offset included)
@@ -1283,12 +1283,12 @@ echo '{}' > "$workdir/.claude-code-hermit/config.json"
 printf -- '---\ntitle: Offset check\ntype: review\ncreated: 2026-05-01T00:00:00+00:00\n---\nalpha\nbeta\nthe keyword zebra lives here\ngamma' \
   > "$workdir/.claude-code-hermit/compiled/review-offset-2026-05-01.md"
 outfile="$(mktemp)"
-bun "$REPO_ROOT/scripts/search.js" "$workdir/.claude-code-hermit" "zebra" > "$outfile" 2>&1
+bun "$REPO_ROOT/scripts/search.ts" "$workdir/.claude-code-hermit" "zebra" > "$outfile" 2>&1
 run_test "search (:line matches real file line, frontmatter offset)" grep -q ':8  the keyword zebra lives here' "$outfile"
 rm -f "$outfile"
 cleanup
 
-# lib/search.js: TF+frontmatter boost verified inline
+# lib/search.ts: TF+frontmatter boost verified inline
 run_test "lib/search: title hit outranks body-only hit (unit)" bun -e "
 const path = require('path');
 const { search } = require('$REPO_ROOT/scripts/lib/search');
@@ -1309,19 +1309,19 @@ fs.rmSync(tmp, { recursive: true });
 "
 
 # -------------------------------------------------------
-# proposal-metrics-report.js
+# proposal-metrics-report.ts
 # -------------------------------------------------------
 
 # Missing / empty file — fails open
 workdir="$(setup_workdir)"
 run_test "proposal-metrics-report (missing file exits 0)" bash -c \
-  "bun '$REPO_ROOT/scripts/proposal-metrics-report.js' '$workdir/.claude-code-hermit' 2>&1 | grep -q 'No proposal metrics'"
+  "bun '$REPO_ROOT/scripts/proposal-metrics-report.ts' '$workdir/.claude-code-hermit' 2>&1 | grep -q 'No proposal metrics'"
 cleanup
 
 workdir="$(setup_workdir)"
 touch "$workdir/.claude-code-hermit/state/proposal-metrics.jsonl"
 run_test "proposal-metrics-report (empty file exits 0)" bash -c \
-  "bun '$REPO_ROOT/scripts/proposal-metrics-report.js' '$workdir/.claude-code-hermit' 2>&1 | grep -q 'No proposal metrics'"
+  "bun '$REPO_ROOT/scripts/proposal-metrics-report.ts' '$workdir/.claude-code-hermit' 2>&1 | grep -q 'No proposal metrics'"
 cleanup
 
 # Insufficient sample (<8) — INSUFFICIENT output
@@ -1336,7 +1336,7 @@ printf '%s\n' \
   '{"ts":"2026-01-01T03:00:00Z","type":"responded","proposal_id":"PROP-001","action":"accept"}' \
   > "$workdir/.claude-code-hermit/state/proposal-metrics.jsonl"
 run_test "proposal-metrics-report --source (INSUFFICIENT, n<8)" bash -c \
-  "bun '$REPO_ROOT/scripts/proposal-metrics-report.js' '$workdir/.claude-code-hermit' --source=capability-brainstorm | grep -q 'INSUFFICIENT'"
+  "bun '$REPO_ROOT/scripts/proposal-metrics-report.ts' '$workdir/.claude-code-hermit' --source=capability-brainstorm | grep -q 'INSUFFICIENT'"
 cleanup
 
 # Full sample (>=8) — correct rates and kill verdict
@@ -1356,7 +1356,7 @@ printf '%s\n' \
   '{"ts":"2026-01-01T02:00:00Z","type":"responded","proposal_id":"PROP-001","action":"accept"}' \
   >> "$workdir/.claude-code-hermit/state/proposal-metrics.jsonl"
 outfile="$(mktemp)"
-bun "$REPO_ROOT/scripts/proposal-metrics-report.js" "$workdir/.claude-code-hermit" --source=capability-brainstorm > "$outfile" 2>&1
+bun "$REPO_ROOT/scripts/proposal-metrics-report.ts" "$workdir/.claude-code-hermit" --source=capability-brainstorm > "$outfile" 2>&1
 run_test "proposal-metrics-report --source (survival 40%)" grep -q 'triage-survival 40%' "$outfile"
 run_test "proposal-metrics-report --source (acceptance 25%)" grep -q 'acceptance 25%' "$outfile"
 run_test "proposal-metrics-report --source (KILL verdict)" grep -q 'KILL' "$outfile"
@@ -1372,7 +1372,7 @@ printf '%s\n' \
   '{"ts":"2026-01-01T02:00:00Z","type":"responded","proposal_id":"PROP-R1","action":"accept"}' \
   > "$workdir/.claude-code-hermit/state/proposal-metrics.jsonl"
 outfile="$(mktemp)"
-bun "$REPO_ROOT/scripts/proposal-metrics-report.js" "$workdir/.claude-code-hermit" > "$outfile" 2>&1
+bun "$REPO_ROOT/scripts/proposal-metrics-report.ts" "$workdir/.claude-code-hermit" > "$outfile" 2>&1
 run_test "proposal-metrics-report table (header present)" grep -q 'Proposal acceptance by source' "$outfile"
 run_test "proposal-metrics-report table (reflect row present)" grep -q '| reflect |' "$outfile"
 run_test "proposal-metrics-report table (capability-brainstorm row present)" grep -q '| capability-brainstorm |' "$outfile"
@@ -1386,7 +1386,7 @@ printf '%s\n' \
   '{"ts":"2026-01-01T00:01:00Z","type":"triage-verdict","verdict":"CREATE","caller":"reflect"}' \
   > "$workdir/.claude-code-hermit/state/proposal-metrics.jsonl"
 run_test "proposal-metrics-report (malformed line skipped)" bash -c \
-  "bun '$REPO_ROOT/scripts/proposal-metrics-report.js' '$workdir/.claude-code-hermit' 2>&1 | grep -q 'Proposal acceptance'"
+  "bun '$REPO_ROOT/scripts/proposal-metrics-report.ts' '$workdir/.claude-code-hermit' 2>&1 | grep -q 'Proposal acceptance'"
 cleanup
 
 # --source with unknown key reports error gracefully
@@ -1394,7 +1394,7 @@ workdir="$(setup_workdir)"
 printf '{"ts":"2026-01-01T00:01:00Z","type":"triage-verdict","verdict":"CREATE","caller":"reflect"}\n' \
   > "$workdir/.claude-code-hermit/state/proposal-metrics.jsonl"
 run_test "proposal-metrics-report (unknown --source key)" bash -c \
-  "bun '$REPO_ROOT/scripts/proposal-metrics-report.js' '$workdir/.claude-code-hermit' --source=nonexistent | grep -q 'Unknown source key'"
+  "bun '$REPO_ROOT/scripts/proposal-metrics-report.ts' '$workdir/.claude-code-hermit' --source=nonexistent | grep -q 'Unknown source key'"
 cleanup
 
 # -------------------------------------------------------

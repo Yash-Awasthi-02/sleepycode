@@ -1,29 +1,29 @@
 // Updates reflection-state.json after a reflect run — increments diagnostic counters,
 // sets last_reflection/last_run_at, preserves all other keys.
 // Zero npm dependencies, Node stdlib only. Always exits 0 on I/O failure (fail-open).
-// Usage: node update-reflection-state.js <state-file-path> '<json-payload>'
+// Usage: bun update-reflection-state.ts <state-file-path> '<json-payload>'
 
-'use strict';
+import fs from 'node:fs';
 
-const fs = require('fs');
+type Json = any;
 
 const stateFile = process.argv[2];
 const payloadJson = process.argv[3];
 
 if (!stateFile || !payloadJson) {
-  console.error('Usage: node update-reflection-state.js <state-file-path> \'<json-payload>\'');
+  console.error('Usage: bun update-reflection-state.ts <state-file-path> \'<json-payload>\'');
   process.exit(1);
 }
 
-let payload;
+let payload: Json;
 try {
   payload = JSON.parse(payloadJson);
-} catch (err) {
+} catch (err: any) {
   console.error(`update-reflection-state: invalid payload JSON: ${err.message}`);
   process.exit(1);
 }
 
-let state = {};
+let state: Json = {};
 try {
   state = JSON.parse(fs.readFileSync(stateFile, 'utf-8'));
 } catch {
@@ -32,8 +32,8 @@ try {
 
 const now = new Date().toISOString();
 
-const c = (state.counters && typeof state.counters === 'object') ? { ...state.counters } : {};
-const intOf = (v) => Math.max(0, typeof v === 'number' && Number.isFinite(v) ? Math.floor(v) : 0);
+const c: Json = (state.counters && typeof state.counters === 'object') ? { ...state.counters } : {};
+const intOf = (v: any) => Math.max(0, typeof v === 'number' && Number.isFinite(v) ? Math.floor(v) : 0);
 
 // Normalize existing counter fields once so the increment lines below use plain +
 c.total_runs = intOf(c.total_runs);
@@ -68,7 +68,7 @@ c.last_output_at = (proposalsCreated + microQueued > 0) ? now : (c.last_output_a
 
 if (!('since' in c)) c.since = null;
 
-const preserve = (key) => (key in payload) ? payload[key] : (state[key] ?? null);
+const preserve = (key: string) => (key in payload) ? payload[key] : (state[key] ?? null);
 
 // Merge last_sparse_nudge map: payload may carry new PROP-NNN → ISO entries.
 const existingNudge = (state.last_sparse_nudge && typeof state.last_sparse_nudge === 'object') ? state.last_sparse_nudge : {};
@@ -86,7 +86,7 @@ const updated = {
 
 try {
   fs.writeFileSync(stateFile, JSON.stringify(updated, null, 2) + '\n', 'utf-8');
-} catch (err) {
+} catch (err: any) {
   console.error(`update-reflection-state: write failed: ${err.message}`);
 }
 

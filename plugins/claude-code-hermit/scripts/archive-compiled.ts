@@ -1,17 +1,17 @@
-#!/usr/bin/env node
-// archive-compiled.js — rotates old compiled artifacts into compiled/.archive/
+#!/usr/bin/env bun
+// archive-compiled.ts — rotates old compiled artifacts into compiled/.archive/
 // Zero npm dependencies. Node stdlib only.
-// Usage: node archive-compiled.js <hermit-state-dir>
+// Usage: bun archive-compiled.ts <hermit-state-dir>
 //   hermit-state-dir: path to .claude-code-hermit/ in the target project (default: .claude-code-hermit)
 //
 // Retention: keeps the newest KEEP_PER_TYPE artifacts per type; foundational-tagged
 // artifacts are always retained and excluded from the per-type count.
 
-'use strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { readFrontmatter, globDir } from './lib/frontmatter';
 
-const fs = require('fs');
-const path = require('path');
-const { readFrontmatter, globDir } = require('./lib/frontmatter');
+type Json = any;
 
 const KEEP_PER_TYPE = 2;
 
@@ -31,7 +31,7 @@ let archived = 0;
 let retained = 0;
 let skipped = 0;
 
-const artifacts = [];
+const artifacts: Json[] = [];
 for (const filePath of fullPaths) {
   const filename = path.basename(filePath);
   const fm = readFrontmatter(filePath);
@@ -50,7 +50,7 @@ for (const filePath of fullPaths) {
   artifacts.push({ filePath, filename, fm, created });
 }
 
-const rotatable = [];
+const rotatable: Json[] = [];
 for (const a of artifacts) {
   if ((a.fm.tags || []).includes('foundational')) {
     retained++;
@@ -59,14 +59,14 @@ for (const a of artifacts) {
   }
 }
 
-const byType = new Map();
+const byType = new Map<string, Json>();
 for (const a of rotatable) {
   if (!byType.has(a.fm.type)) byType.set(a.fm.type, []);
   byType.get(a.fm.type).push(a);
 }
 
 for (const [, group] of byType) {
-  group.sort((a, b) => b.created - a.created);
+  group.sort((a: Json, b: Json) => b.created - a.created);
 
   for (let i = 0; i < group.length; i++) {
     if (i < KEEP_PER_TYPE) {

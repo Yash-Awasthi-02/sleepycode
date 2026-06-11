@@ -1,32 +1,32 @@
-#!/usr/bin/env node
-// search.js — full-text search over sessions/, compiled/, and proposals/ in a hermit state dir
+#!/usr/bin/env bun
+// search.ts — full-text search over sessions/, compiled/, and proposals/ in a hermit state dir
 // Zero npm dependencies. Node stdlib only.
 //
-// Usage as CLI:   node search.js <hermit-state-dir> [options] <query...>
+// Usage as CLI:   bun search.ts <hermit-state-dir> [options] <query...>
 //   Options:
 //     --type=<type>          filter by artifact type
 //     --since=<YYYY-MM-DD>   exclude files older than this date
 //     --limit=<n>            max results (default 10)
 //
-// Usage as lib:   require('./lib/search').search(hermitDir, query, opts) => results[]
+// Usage as lib:   import { search } from './lib/search' — search(hermitDir, query, opts) => results[]
 
-'use strict';
+import path from 'node:path';
+import { search } from './lib/search';
 
-const path = require('path');
-const { search } = require('./lib/search');
+type Json = any;
 
-if (require.main === module) {
+if (import.meta.main) {
   const args = process.argv.slice(2);
   if (args.length === 0) {
     process.stderr.write(
-      'Usage: node search.js <hermit-state-dir> [--type=<t>] [--since=<date>] [--limit=<n>] <query...>\n'
+      'Usage: bun search.ts <hermit-state-dir> [--type=<t>] [--since=<date>] [--limit=<n>] <query...>\n'
     );
     process.exit(1);
   }
 
   const hermitDir = path.resolve(args[0]);
-  const opts = {};
-  const queryParts = [];
+  const opts: Json = {};
+  const queryParts: string[] = [];
 
   for (const arg of args.slice(1)) {
     if (arg.startsWith('--type=')) {
@@ -47,10 +47,10 @@ if (require.main === module) {
     process.exit(1);
   }
 
-  let results;
+  let results: Json[];
   try {
     results = search(hermitDir, query, opts);
-  } catch (e) {
+  } catch (e: any) {
     process.stderr.write(`Search error: ${e.message}\n`);
     process.exit(1);
   }
@@ -69,7 +69,7 @@ if (require.main === module) {
     }
     for (const s of r.snippets) {
       // Number every line from its file-relative start so each printed :line matches the real file.
-      s.text.split('\n').forEach((line, idx) => {
+      s.text.split('\n').forEach((line: string, idx: number) => {
         process.stdout.write(`   :${s.startLine + idx}  ${line.trimEnd()}\n`);
       });
     }

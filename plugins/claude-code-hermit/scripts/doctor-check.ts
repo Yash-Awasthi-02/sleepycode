@@ -1,15 +1,16 @@
-'use strict';
-
 // Fail-open: a failing check records "fail" in its own entry; the orchestrator
 // never crashes and the process always exits 0.
 
-const fs = require('fs');
-const path = require('path');
-const { execFileSync } = require('child_process');
+import fs from 'node:fs';
+import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 
-const { globDir, readFrontmatter } = require('./lib/frontmatter');
-const { validate } = require('./validate-config');
-const { kStr } = require('./lib/format');
+import { globDir, readFrontmatter } from './lib/frontmatter';
+import { validate } from './validate-config';
+import { kStr } from './lib/format';
+import { costIndexPath, readCostIndex } from './lib/cost-log';
+
+type Json = any;
 
 const hermitDir = path.resolve(process.argv[2] || '.claude-code-hermit');
 const configPath = path.join(hermitDir, 'config.json');
@@ -17,7 +18,7 @@ const stateDir = path.join(hermitDir, 'state');
 const proposalsDir = path.join(hermitDir, 'proposals');
 const reportPath = path.join(stateDir, 'doctor-report.json');
 
-const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || path.resolve(__dirname, '..');
+const pluginRoot = process.env.CLAUDE_PLUGIN_ROOT || path.resolve(import.meta.dir, '..');
 const hooksPath = path.join(pluginRoot, 'hooks', 'hooks.json');
 const costLog = path.resolve('.claude', 'cost-log.jsonl');
 
@@ -33,12 +34,12 @@ const EXPECTED_STATE_FILES = [
 
 function checkRuntime() {
   try {
-    let required = null;
+    let required: string | null = null;
     try {
       const meta = JSON.parse(fs.readFileSync(path.join(pluginRoot, '.claude-plugin', 'hermit-meta.json'), 'utf8'));
       required = meta.required_bun_version || null;
     } catch {}
-    let version;
+    let version: string;
     try {
       version = execFileSync('bun', ['--version'], { encoding: 'utf8', timeout: 5000 }).trim();
     } catch {
@@ -51,7 +52,7 @@ function checkRuntime() {
       return { id: 'runtime', status: 'fail', detail: `bun ${version} below required ${required} — run: bun upgrade` };
     }
     return { id: 'runtime', status: 'ok', detail: `bun ${version}${required ? ` (required ${required})` : ''}` };
-  } catch (e) {
+  } catch (e: any) {
     return { id: 'runtime', status: 'fail', detail: `check failed: ${e.message}` };
   }
 }
@@ -70,7 +71,7 @@ function checkConfig() {
       return { id: 'config', status: 'warn', detail: `${warnings.length} warning(s): ${warnings[0]}` };
     }
     return { id: 'config', status: 'ok', detail: 'all required keys present' };
-  } catch (e) {
+  } catch (e: any) {
     return { id: 'config', status: 'fail', detail: `check failed: ${e.message}` };
   }
 }
@@ -81,9 +82,9 @@ function checkHooks() {
       return { id: 'hooks', status: 'fail', detail: `hooks.json not found at ${hooksPath}` };
     }
     const hooks = JSON.parse(fs.readFileSync(hooksPath, 'utf8'));
-    const missing = [];
+    const missing: string[] = [];
     const groups = hooks.hooks || {};
-    for (const entries of Object.values(groups)) {
+    for (const entries of Object.values(groups) as Json[]) {
       if (!Array.isArray(entries)) continue;
       for (const entry of entries) {
         for (const h of entry.hooks || []) {
@@ -99,7 +100,7 @@ function checkHooks() {
       return { id: 'hooks', status: 'fail', detail: `missing script(s): ${missing.join(', ')}` };
     }
     return { id: 'hooks', status: 'ok', detail: 'all referenced hook scripts exist' };
-  } catch (e) {
+  } catch (e: any) {
     return { id: 'hooks', status: 'fail', detail: `check failed: ${e.message}` };
   }
 }
@@ -110,7 +111,7 @@ function checkStateFiles() {
       return { id: 'state', status: 'warn', detail: 'state/ directory does not exist' };
     }
     const jsonFiles = globDir(stateDir, /\.json$/);
-    const broken = [];
+    const broken: string[] = [];
     for (const f of jsonFiles) {
       try { JSON.parse(fs.readFileSync(f, 'utf8')); }
       catch (e) { broken.push(path.basename(f)); }
@@ -129,7 +130,7 @@ function checkStateFiles() {
       };
     }
     return { id: 'state', status: 'ok', detail: `${jsonFiles.length} state file(s) parse cleanly` };
-  } catch (e) {
+  } catch (e: any) {
     return { id: 'state', status: 'fail', detail: `check failed: ${e.message}` };
   }
 }
@@ -159,7 +160,6 @@ function checkCost() {
     const detail = `today $${todayTotal.toFixed(4)} · ${kStr(todayTokens)}K tokens, ${kStr(todayCacheRead)}K cached`;
 
     try {
-      const { costIndexPath, readCostIndex } = require('./lib/cost-log');
       const idx = readCostIndex(costIndexPath(hermitDir));
       if (idx && idx.skipped_corrupt_lines > 0) {
         return {
@@ -173,7 +173,7 @@ function checkCost() {
     }
 
     return { id: 'cost', status: 'ok', detail };
-  } catch (e) {
+  } catch (e: any) {
     return { id: 'cost', status: 'fail', detail: `check failed: ${e.message}` };
   }
 }
@@ -204,14 +204,14 @@ function checkProposals() {
       return { id: 'proposals', status: 'warn', detail: `${open} open proposals (consider triage)` };
     }
     return { id: 'proposals', status: 'ok', detail: `${open} open proposal(s)` };
-  } catch (e) {
+  } catch (e: any) {
     return { id: 'proposals', status: 'fail', detail: `check failed: ${e.message}` };
   }
 }
 
 // Lightweight semver-range check. Supports `>=X.Y.Z` and `X.Y.Z` (treated as `>=X.Y.Z`).
 // Pre-release tags and complex ranges (`^`, `~`, `||`, `<`) are not supported — fall back to ok.
-function satisfiesRange(version, range) {
+function satisfiesRange(version: any, range: any): boolean {
   if (typeof version !== 'string' || typeof range !== 'string') return true;
   const m = range.match(/^\s*(>=|=)?\s*(\d+)\.(\d+)\.(\d+)\s*$/);
   if (!m) return true; // unrecognized range form — don't second-guess
@@ -240,7 +240,7 @@ function checkDependencies() {
     if (!fs.existsSync(corePj)) {
       return { id: 'dependencies', status: 'ok', detail: 'core manifest absent — skipping range check' };
     }
-    let coreVersion;
+    let coreVersion: string;
     try {
       coreVersion = JSON.parse(fs.readFileSync(corePj, 'utf8')).version;
     } catch {
@@ -251,20 +251,20 @@ function checkDependencies() {
     }
 
     const siblingsRoot = path.resolve(pluginRoot, '..');
-    let siblingDirs = [];
+    let siblingDirs: fs.Dirent[] = [];
     try { siblingDirs = fs.readdirSync(siblingsRoot, { withFileTypes: true }); } catch {}
 
-    const mismatches = [];
+    const mismatches: string[] = [];
     let checked = 0;
     for (const ent of siblingDirs) {
       if (!ent.isDirectory()) continue;
       if (path.join(siblingsRoot, ent.name) === pluginRoot) continue; // skip self
       const pj = path.join(siblingsRoot, ent.name, '.claude-plugin', 'plugin.json');
       if (!fs.existsSync(pj)) continue;
-      let manifest;
+      let manifest: Json;
       try { manifest = JSON.parse(fs.readFileSync(pj, 'utf8')); } catch { continue; }
       const metaPath = path.join(siblingsRoot, ent.name, '.claude-plugin', 'hermit-meta.json');
-      let meta = {};
+      let meta: Json = {};
       try { if (fs.existsSync(metaPath)) meta = JSON.parse(fs.readFileSync(metaPath, 'utf8')); } catch {}
       const range = meta.required_core_version;
       if (!range) continue;
@@ -285,7 +285,7 @@ function checkDependencies() {
       return { id: 'dependencies', status: 'ok', detail: 'no sibling plugins declare required_core_version' };
     }
     return { id: 'dependencies', status: 'ok', detail: `${checked} sibling plugin(s) within required_core_version range` };
-  } catch (e) {
+  } catch (e: any) {
     return { id: 'dependencies', status: 'warn', detail: `check failed: ${e.message}` };
   }
 }
@@ -293,9 +293,9 @@ function checkDependencies() {
 // Pure helpers — no subprocess, fully testable in isolation.
 
 /** Returns true if two IPv4 CIDR strings overlap. Fails open (returns false) on any parse error. */
-function cidrOverlap(a, b) {
+function cidrOverlap(a: string, b: string): boolean {
   try {
-    const parse = s => {
+    const parse = (s: string) => {
       const [ip, prefix] = s.split('/');
       const bits = parseInt(prefix, 10);
       const parts = ip.split('.').map(Number);
@@ -321,10 +321,10 @@ function checkDockerSecurity() {
     const overlayPath = path.join(projectRoot, 'docker-compose.security.yml');
     const overlayPresent = fs.existsSync(overlayPath);
 
-    let config = {};
+    let config: Json = {};
     try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')); } catch {}
     const sec = (config.docker && config.docker.security) || null;
-    const declared = sec && Object.values(sec).some(v =>
+    const declared = sec && Object.values(sec).some((v: Json) =>
       v && typeof v === 'object' ? v.enabled === true : v === true
     );
 
@@ -352,13 +352,13 @@ function checkDockerSecurity() {
       return { id: 'docker-security', status: 'ok', detail: 'posture declared and overlay present' };
     }
 
-    let composeCfg;
+    let composeCfg: Json;
     try {
       composeCfg = JSON.parse(execFileSync('docker', [
         'compose', '-f', baseCompose, '-f', overlayPath,
         'config', '--format', 'json',
       ], { cwd: projectRoot, timeout: 10_000 }).toString());
-    } catch (e) {
+    } catch (e: any) {
       return {
         id: 'docker-security',
         status: 'warn',
@@ -402,7 +402,7 @@ function checkDockerSecurity() {
             if (!subnet || !subnet.includes('/')) continue;
 
             // Exclude this project's own hermit-net via labels.
-            let labels = {};
+            let labels: Json = {};
             try { labels = JSON.parse(labelsPart || '{}'); } catch {}
             const isOwnHermitNet =
               (labels['com.docker.compose.project'] || '').toLowerCase() === projectName &&
@@ -417,7 +417,7 @@ function checkDockerSecurity() {
               };
             }
           }
-        } catch (e) {
+        } catch (e: any) {
           return {
             id: 'docker-security',
             status: 'warn',
@@ -428,15 +428,15 @@ function checkDockerSecurity() {
     }
 
     return { id: 'docker-security', status: 'ok', detail: 'posture declared and overlay present' };
-  } catch (e) {
+  } catch (e: any) {
     return { id: 'docker-security', status: 'fail', detail: `check failed: ${e.message}` };
   }
 }
 
 function checkPermissions() {
   try {
-    const looseFiles = [];
-    const targets = [configPath];
+    const looseFiles: string[] = [];
+    const targets: string[] = [configPath];
     if (fs.existsSync(stateDir)) {
       for (const f of globDir(stateDir, /\.json$/)) targets.push(f);
     }
@@ -457,14 +457,14 @@ function checkPermissions() {
       };
     }
     return { id: 'permissions', status: 'ok', detail: `${targets.length} sensitive path(s) not world-readable` };
-  } catch (e) {
+  } catch (e: any) {
     return { id: 'permissions', status: 'fail', detail: `check failed: ${e.message}` };
   }
 }
 
 const MS_PER_DAY = 86400000;
 
-function daysSince(iso) {
+function daysSince(iso: any): any {
   const t = Date.parse(iso);
   if (!Number.isFinite(t)) return null;
   return (Date.now() - t) / MS_PER_DAY;
@@ -498,7 +498,7 @@ function checkArchival() {
       };
     }
     return { id: 'archive', status: 'ok', detail: `session_state=${state || 'unset'}, ${ageDetail}` };
-  } catch (e) {
+  } catch (e: any) {
     return { id: 'archive', status: 'fail', detail: `check failed: ${e.message}` };
   }
 }
@@ -527,7 +527,7 @@ function checkReflectLoop() {
       };
     }
     return { id: 'reflect', status: 'ok', detail: `${empty}/${total} empty (${pct}%), ${props} proposal(s) created` };
-  } catch (e) {
+  } catch (e: any) {
     return { id: 'reflect', status: 'fail', detail: `check failed: ${e.message}` };
   }
 }
@@ -559,10 +559,10 @@ function checkScheduler() {
     const crons = snap.session_crons || {};
     const tasks = snap.background_tasks || {};
 
-    const isUnsupported = f => !f.state || f.state === 'unsupported_or_unreachable';
+    const isUnsupported = (f: Json) => !f.state || f.state === 'unsupported_or_unreachable';
 
     // Build per-field descriptions that never collapse absent → zero
-    function describeField(field, label) {
+    function describeField(field: Json, label: string) {
       if (isUnsupported(field)) {
         return `${label}: unsupported or unreachable`;
       }
@@ -581,7 +581,7 @@ function checkScheduler() {
       return { id: 'scheduler', status: 'warn', detail };
     }
     return { id: 'scheduler', status: 'ok', detail };
-  } catch (e) {
+  } catch (e: any) {
     return { id: 'scheduler', status: 'fail', detail: `check failed: ${e.message}` };
   }
 }
@@ -631,7 +631,7 @@ function checkWatchdog() {
       return { id: 'watchdog', status: 'warn', detail };
     }
     return { id: 'watchdog', status: 'ok', detail };
-  } catch (e) {
+  } catch (e: any) {
     return { id: 'watchdog', status: 'fail', detail: `check failed: ${e.message}` };
   }
 }
@@ -656,7 +656,7 @@ function runAllChecks() {
   ];
 }
 
-function writeReport(checks) {
+function writeReport(checks: Json[]) {
   try {
     if (!fs.existsSync(stateDir)) fs.mkdirSync(stateDir, { recursive: true });
     const report = { ts: new Date().toISOString(), checks };
@@ -664,29 +664,29 @@ function writeReport(checks) {
     fs.writeFileSync(tmp, JSON.stringify(report, null, 2) + '\n', { encoding: 'utf-8', mode: 0o600 });
     fs.renameSync(tmp, reportPath);
     return report;
-  } catch (e) {
+  } catch (e: any) {
     process.stderr.write(`[doctor-check] write failed: ${e.message}\n`);
     return { ts: new Date().toISOString(), checks };
   }
 }
 
-if (require.main === module) {
+export {
+  checkRuntime, checkConfig, checkHooks, checkStateFiles,
+  checkCost, checkProposals, checkDependencies, checkPermissions,
+  checkDockerSecurity, checkArchival, checkReflectLoop, checkScheduler,
+  checkWatchdog,
+  satisfiesRange, cidrOverlap,
+  runAllChecks, writeReport,
+};
+
+if (import.meta.main) {
   try {
     const checks = runAllChecks();
     const report = writeReport(checks);
     // Print the report JSON so skills/tests can capture it without re-reading.
     process.stdout.write(JSON.stringify(report, null, 2) + '\n');
-  } catch (e) {
+  } catch (e: any) {
     process.stderr.write(`[doctor-check] fatal: ${e.message}\n`);
   }
   process.exit(0);
-} else {
-  module.exports = {
-    checkRuntime, checkConfig, checkHooks, checkStateFiles,
-    checkCost, checkProposals, checkDependencies, checkPermissions,
-    checkDockerSecurity, checkArchival, checkReflectLoop, checkScheduler,
-    checkWatchdog,
-    satisfiesRange, cidrOverlap,
-    runAllChecks, writeReport,
-  };
 }

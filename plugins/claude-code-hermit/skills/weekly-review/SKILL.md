@@ -10,7 +10,7 @@ Generates the weekly review for the current ISO week.
 
 1. Run:
    ```
-   node ${CLAUDE_PLUGIN_ROOT}/scripts/weekly-review.js .claude-code-hermit
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/weekly-review.ts .claude-code-hermit
    ```
 
 2. Report the result. On success, output the review filename. If a **Knowledge Health** section appears in the review output, summarize the issues to the operator.
@@ -34,7 +34,7 @@ Generates the weekly review for the current ISO week.
    - Compose the message: one-line review headline (session count, cost, self-directed rate from frontmatter) followed by the evolution block from step 3.
    - Resolve the outbound channel:
      ```
-     node ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.js .claude-code-hermit
+     bun ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.ts .claude-code-hermit
      ```
      Parse stdout as JSON. On success (`"id"` and `"chat_id"` present), send via `mcp__plugin_<id>_<id>__reply` with `{ chat_id, text: <message> }` where `<id>` is the resolved channel name.
    - If the script exits non-zero or returns `{"error":"no_reachable_channel"}`: if `push_notifications === true` in `config.json`, fire `PushNotification(message="<one-line weekly review headline>", status="proactive")` so the summary still reaches the operator. Then append a single Findings line to `.claude-code-hermit/sessions/SHELL.md`: `"weekly-review: no reachable channel configured, channel-send skipped"`. Only log this once per session to avoid noise. Do **not** emit a `channel-send-unavailable` alert issue (weekly-review is a recurring routine, not an alert).
@@ -42,13 +42,13 @@ Generates the weekly review for the current ISO week.
 
 5. Archive expired raw artifacts:
    ```
-   node ${CLAUDE_PLUGIN_ROOT}/scripts/archive-raw.js .claude-code-hermit
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/archive-raw.ts .claude-code-hermit
    ```
    Report how many were archived, retained, and skipped.
 
 6. Archive superseded compiled artifacts:
    ```
-   node ${CLAUDE_PLUGIN_ROOT}/scripts/archive-compiled.js .claude-code-hermit
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/archive-compiled.ts .claude-code-hermit
    ```
    Report how many were archived, retained, and skipped.
 
@@ -56,5 +56,5 @@ Generates the weekly review for the current ISO week.
 
 - Safe to run manually at any time — re-runs overwrite the current week's review.
 - The routine is enabled by default for new installs. Existing operators who haven't opted in can enable it via `/claude-code-hermit:hermit-settings`.
-- `archive-raw.js` only moves files — it never deletes. Archived files land in `raw/.archive/` and can be restored manually.
-- `archive-compiled.js` only moves files — it never deletes. Keeps the newest 2 artifacts per type; `foundational`-tagged artifacts are always retained. Archived files land in `compiled/.archive/` and can be restored manually.
+- `archive-raw.ts` only moves files — it never deletes. Archived files land in `raw/.archive/` and can be restored manually.
+- `archive-compiled.ts` only moves files — it never deletes. Keeps the newest 2 artifacts per type; `foundational`-tagged artifacts are always retained. Archived files land in `compiled/.archive/` and can be restored manually.

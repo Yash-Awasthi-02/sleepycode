@@ -1,18 +1,18 @@
-'use strict';
-
 // link() is atomic and fails with EEXIST if the target exists, so it doubles
 // as the per-minute concurrency lock. A crash before link leaves only the tmp
 // behind, never a partial final snapshot.
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'node:fs';
+import path from 'node:path';
 
-function emit(obj) {
+type Json = any;
+
+function emit(obj: Json) {
   process.stdout.write(JSON.stringify(obj) + '\n');
   process.exit(0);
 }
 
-function pad2(n) { return String(n).padStart(2, '0'); }
+function pad2(n: number) { return String(n).padStart(2, '0'); }
 
 function getNow() {
   const env = process.env.HERMIT_NOW;
@@ -23,7 +23,7 @@ function getNow() {
   return new Date();
 }
 
-function snapshotStamp(date) {
+function snapshotStamp(date: Date) {
   // UTC matches the marker's toISOString() so filename and marker refer to
   // the same moment regardless of DST shifts or machine clock skew.
   return [
@@ -36,8 +36,8 @@ function snapshotStamp(date) {
   ].join('');
 }
 
-function parseArgs(argv) {
-  const out = {};
+function parseArgs(argv: string[]) {
+  const out: Record<string, any> = {};
   for (const arg of argv.slice(2)) {
     const m = /^--([\w-]+)(?:=(.*))?$/.exec(arg);
     if (m) out[m[1]] = m[2] === undefined ? true : m[2];
@@ -59,7 +59,7 @@ function main() {
   const shellPath = path.join(sessionsDir, 'SHELL.md');
   const runtimePath = path.join(stateDir, 'state', 'runtime.json');
 
-  let shell;
+  let shell: string;
   try {
     shell = fs.readFileSync(shellPath, 'utf-8');
   } catch {
@@ -85,12 +85,12 @@ function main() {
   const snapshotTmp = snapshotPath + '.tmp.' + process.pid;
   try {
     fs.writeFileSync(snapshotTmp, snapshotContent, 'utf-8');
-  } catch (e) {
+  } catch (e: any) {
     return emit({ archived: false, reason: 'write-error: ' + e.message });
   }
   try {
     fs.linkSync(snapshotTmp, snapshotPath);
-  } catch (e) {
+  } catch (e: any) {
     try { fs.unlinkSync(snapshotTmp); } catch { /* ignore */ }
     if (e.code === 'EEXIST') {
       return emit({ archived: false, reason: 'concurrent' });
@@ -164,7 +164,7 @@ function main() {
 
 try {
   main();
-} catch (e) {
+} catch (e: any) {
   console.error(`[archive-shell] error: ${e.message}`);
   emit({ archived: false, reason: 'error: ' + e.message });
 }

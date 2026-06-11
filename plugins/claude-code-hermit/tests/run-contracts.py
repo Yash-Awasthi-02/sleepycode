@@ -1147,9 +1147,9 @@ class TestProposalIdScheme(unittest.TestCase):
     SESSION_MGR_REGEX = r'/PROP-[a-z0-9][a-z0-9-]*/gi'
 
     SCRIPTS_WITH_PROPOSAL_GLOB = [
-        'reflect-precheck.js',
-        'weekly-review.js',
-        'doctor-check.js',
+        'reflect-precheck.ts',
+        'weekly-review.ts',
+        'doctor-check.ts',
     ]
 
     def test_scripts_use_widened_proposal_regex(self):
@@ -1217,13 +1217,13 @@ class TestAnalyticsSkillsContract(unittest.TestCase):
 
 
 class TestChannelResolverContract(unittest.TestCase):
-    """Contract tests for scripts/resolve-outbound-channel.js.
+    """Contract tests for scripts/resolve-outbound-channel.ts.
 
     Verifies resolution order, primary override, eligibility gates, and the
     validate-config.ts special-case for channels.primary.
     """
 
-    RESOLVER = SCRIPTS / 'resolve-outbound-channel.js'
+    RESOLVER = SCRIPTS / 'resolve-outbound-channel.ts'
     VALIDATOR = SCRIPTS / 'validate-config.ts'
 
     def _run_resolver(self, config_obj):
@@ -1387,7 +1387,7 @@ class TestKillMetricsContract(unittest.TestCase):
     PROPOSAL_TEMPLATE = REPO / 'state-templates' / 'PROPOSAL.md.template'
     PROPOSAL_CREATE = REPO / 'skills' / 'proposal-create' / 'SKILL.md'
     CAPABILITY_BRAINSTORM = REPO / 'skills' / 'capability-brainstorm' / 'SKILL.md'
-    REPORT_SCRIPT = REPO / 'scripts' / 'proposal-metrics-report.js'
+    REPORT_SCRIPT = REPO / 'scripts' / 'proposal-metrics-report.ts'
 
     @classmethod
     def setUpClass(cls):
@@ -1442,33 +1442,33 @@ class TestKillMetricsContract(unittest.TestCase):
         )
 
     def test_capability_brainstorm_kill_criteria_uses_report_script(self):
-        """capability-brainstorm kill criteria must invoke proposal-metrics-report.js."""
+        """capability-brainstorm kill criteria must invoke proposal-metrics-report.ts."""
         parts = self._capability_brainstorm.split('## Kill criteria')
         self.assertGreater(len(parts), 1,
                            'capability-brainstorm SKILL.md is missing the Kill criteria section')
         kill_section = parts[1].split('## ')[0]
         self.assertIn(
-            'proposal-metrics-report.js',
+            'proposal-metrics-report.ts',
             kill_section,
-            'capability-brainstorm kill criteria no longer invokes proposal-metrics-report.js — '
+            'capability-brainstorm kill criteria no longer invokes proposal-metrics-report.ts — '
             'triage-survival and acceptance rates will not be computed',
         )
 
     def test_report_script_segments_capability_brainstorm(self):
-        """proposal-metrics-report.js segment registry must discriminate capability-brainstorm
+        """proposal-metrics-report.ts segment registry must discriminate capability-brainstorm
         via evidence_source (triage) and tags (acceptance), so the contract between
         the emitter (proposal-create) and the consumer (brainstorm kill criteria) holds."""
         self.assertTrue(self.REPORT_SCRIPT.exists(),
-                        'scripts/proposal-metrics-report.js does not exist — '
+                        'scripts/proposal-metrics-report.ts does not exist — '
                         'kill criteria have no data-driven aggregator')
         self.assertIn('evidence_source', self._report_script,
-                      'proposal-metrics-report.js segment registry is missing evidence_source — '
+                      'proposal-metrics-report.ts segment registry is missing evidence_source — '
                       'triage-survival cannot be segmented for capability-brainstorm')
         self.assertIn("'capability-brainstorm'", self._report_script,
-                      "proposal-metrics-report.js segment registry is missing 'capability-brainstorm' — "
+                      "proposal-metrics-report.ts segment registry is missing 'capability-brainstorm' — "
                       'brainstorm origin token has drifted from the emitter')
         self.assertIn("'procedure-capture'", self._report_script,
-                      "proposal-metrics-report.js segment registry is missing 'procedure-capture' — "
+                      "proposal-metrics-report.ts segment registry is missing 'procedure-capture' — "
                       'procedure-capture origin token has drifted from the emitter')
 
 
@@ -1504,12 +1504,12 @@ class TestProcedureCaptureContract(unittest.TestCase):
         return kill_parts[1].split('**Detection')[0]
 
     def test_procedure_capture_kill_criteria_uses_report_script(self):
-        """Reflect procedure-capture kill criteria must invoke proposal-metrics-report.js."""
+        """Reflect procedure-capture kill criteria must invoke proposal-metrics-report.ts."""
         kill_section = self._procedure_capture_kill_section()
         self.assertIn(
-            'proposal-metrics-report.js',
+            'proposal-metrics-report.ts',
             kill_section,
-            'Reflect procedure-capture kill criteria no longer invokes proposal-metrics-report.js — '
+            'Reflect procedure-capture kill criteria no longer invokes proposal-metrics-report.ts — '
             'triage-survival and acceptance rates will not be computed for procedure-capture',
         )
 
@@ -1658,7 +1658,7 @@ class TestStopPayloadSnapshot(_TempDirTest):
     """stop-pipeline.ts writes state/cc-stop-snapshot.json from the Stop payload.
 
     Guards against: snapshot not written, wrong tri-state, absent fields, or
-    missing captured_at. Also exercises checkScheduler() via doctor-check.js.
+    missing captured_at. Also exercises checkScheduler() via doctor-check.ts.
     """
 
     def _run_stop_pipeline(self, payload_dict, env_extra=None):
@@ -1676,7 +1676,7 @@ class TestStopPayloadSnapshot(_TempDirTest):
         env = os.environ.copy()
         env['CLAUDE_PLUGIN_ROOT'] = str(REPO)
         result = subprocess.run(
-            ['bun', str(REPO / 'scripts' / 'doctor-check.js'),
+            ['bun', str(REPO / 'scripts' / 'doctor-check.ts'),
              '.claude-code-hermit'],
             capture_output=True, text=True,
             cwd=self._tmpdir, env=env, timeout=15,

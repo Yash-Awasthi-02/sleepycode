@@ -86,8 +86,8 @@ run_test "reflect: kill criteria 25% triage-survival threshold" \
 run_test "reflect: kill criteria 30% acceptance threshold" \
   grep -qF "30%" "$REFLECT"
 
-run_test "reflect: kill criteria invokes proposal-metrics-report.js for procedure-capture" \
-  grep -qF "proposal-metrics-report.js" "$REFLECT"
+run_test "reflect: kill criteria invokes proposal-metrics-report.ts for procedure-capture" \
+  grep -qF "proposal-metrics-report.ts" "$REFLECT"
 
 run_test "reflect: kill criteria passes --source=procedure-capture to report script" \
   grep -qF -- "--source=procedure-capture" "$REFLECT"

@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
-# Tests for archive-shell.js — mechanical SHELL.md snapshot helper.
+# Tests for archive-shell.ts — mechanical SHELL.md snapshot helper.
 # Usage: bash tests/test-archive-shell.sh
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/lib.sh"
 
-echo "=== archive-shell.js ==="
+echo "=== archive-shell.ts ==="
 echo ""
 
-ARCHIVE="$REPO_ROOT/scripts/archive-shell.js"
+ARCHIVE="$REPO_ROOT/scripts/archive-shell.ts"
 
 # -------------------------------------------------------
 # 1. Missing SHELL.md → shell-empty, no snapshot, no runtime write

@@ -32,7 +32,7 @@ run_test "session-close: debrief feeds procedure-capture Lessons" \
 
 # ── item 2: weekly-review reflect vital-signs ───────────────────────────────
 
-WEEKLY_REVIEW="$REPO_ROOT/scripts/weekly-review.js"
+WEEKLY_REVIEW="$REPO_ROOT/scripts/weekly-review.ts"
 
 workdir="$(mktemp -d)"
 mkdir -p "$workdir/.claude-code-hermit/sessions"
@@ -123,7 +123,7 @@ rm -r "$workdir"
 REFLECT="$REPO_ROOT/skills/reflect/SKILL.md"
 JUDGE="$REPO_ROOT/agents/reflection-judge.md"
 HATCH="$REPO_ROOT/skills/hatch/SKILL.md"
-PRUNE="$REPO_ROOT/scripts/prune-observations.js"
+PRUNE="$REPO_ROOT/scripts/prune-observations.ts"
 
 run_test "reflect: ledger graduation step present" \
   grep -qF "Observations ledger" "$REFLECT"
@@ -144,7 +144,7 @@ run_test "judge: covered-by-memory exemption for ledger graduates" \
 run_test "hatch: seeds observations.jsonl" \
   grep -qF "state/observations.jsonl" "$HATCH"
 
-# prune-observations.js behavior
+# prune-observations.ts behavior
 workdir="$(mktemp -d)"
 mkdir -p "$workdir/.claude-code-hermit/state"
 LEDGER="$workdir/.claude-code-hermit/state/observations.jsonl"

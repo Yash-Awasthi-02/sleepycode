@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Tests for archive-raw.js — retention, skip diagnostics, -latest pinning, .json support, filename-date fallback.
+# Tests for archive-raw.ts — retention, skip diagnostics, -latest pinning, .json support, filename-date fallback.
 # Usage: bash tests/test-archive-raw.sh
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/lib.sh"
 
-echo "=== archive-raw.js ==="
+echo "=== archive-raw.ts ==="
 echo ""
 
-ARCHIVE="$REPO_ROOT/scripts/archive-raw.js"
-# archive-raw.js uses Date.now() directly; to control "now" we manipulate file dates via filenames/frontmatter.
+ARCHIVE="$REPO_ROOT/scripts/archive-raw.ts"
+# archive-raw.ts uses Date.now() directly; to control "now" we manipulate file dates via filenames/frontmatter.
 # We use dates well in the past (2020) to guarantee they're expired under any retention window.
 PAST="2020-01-01"
 RECENT="2099-12-31"

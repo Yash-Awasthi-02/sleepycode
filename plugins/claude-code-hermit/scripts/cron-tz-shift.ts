@@ -1,15 +1,13 @@
-'use strict';
-
 // Rewrite a 5-field cron expression from one IANA timezone to the machine's local timezone.
-// Usage: node cron-tz-shift.js "<cron-expr>" "<from-tz>"
+// Usage: bun cron-tz-shift.ts "<cron-expr>" "<from-tz>"
 // Stdout: shifted cron (or original on unsupported/fail-open paths)
 // Stderr: WARN: <reason>  (when passing through unchanged due to unsupported pattern)
 // Exit 0 always except: malformed cron that fails validateCronSchedule, or unparseable HERMIT_CRON_TZ_SHIFT_NOW
 
-const { parseCronField, validateCronSchedule } = require('./validate-config');
-const { currentHHMM } = require('./lib/time.js');
+import { parseCronField, validateCronSchedule } from './validate-config';
+import { currentHHMM } from './lib/time';
 
-function wallMinutes(tz, ref) {
+function wallMinutes(tz: string, ref: Date): number | null {
   const hhmm = currentHHMM(tz, ref);
   if (!hhmm) return null;
   const [h, m] = hhmm.split(':').map(Number);
@@ -22,7 +20,7 @@ function resolveMachineTz() {
 }
 
 // Collapse a sorted array of integers back to a compact cron field token.
-function collapseField(vals, lo, hi) {
+function collapseField(vals: number[], lo: number, hi: number): string | null {
   if (!vals || vals.length === 0) return null;
   if (vals.length === 1) return String(vals[0]);
   if (vals.length === hi - lo + 1) return '*';
@@ -43,7 +41,7 @@ function collapseField(vals, lo, hi) {
 // Core shift logic. Returns { result, shifted, warn }.
 // shifted=true means the cron was actually changed.
 // warn is set when passing through unchanged due to an unsupported pattern.
-function shiftCron(cronExpr, fromTz, machineTz, ref) {
+function shiftCron(cronExpr: string, fromTz: string, machineTz: string, ref: Date): { result: string; shifted?: boolean; warn?: string } {
   const cleanFrom = (fromTz || '').trim();
   if (!cleanFrom || cleanFrom === machineTz) return { result: cronExpr, shifted: false };
 
@@ -67,16 +65,16 @@ function shiftCron(cronExpr, fromTz, machineTz, ref) {
   if (offsetMin <= -720) offsetMin += 1440;
   if (offsetMin === 0) return { result: cronExpr, shifted: false };
 
-  let minVals, hourVals;
+  let minVals: number[], hourVals: number[];
   try {
     minVals = [...parseCronField(minF, 0, 59)].sort((a, b) => a - b);
     hourVals = [...parseCronField(hourF, 0, 23)].sort((a, b) => a - b);
-  } catch (e) {
+  } catch (e: any) {
     return { result: cronExpr, warn: `cannot expand fields: ${e.message}` };
   }
 
   // Compute shifted (newM, newH, dayDelta) for every (m, h) pair
-  const shiftedPairs = [];
+  const shiftedPairs: { newM: number; newH: number; dayDelta: number }[] = [];
   for (const h of hourVals) {
     for (const m of minVals) {
       const total = h * 60 + m + offsetMin;
@@ -87,10 +85,10 @@ function shiftCron(cronExpr, fromTz, machineTz, ref) {
   }
 
   // Group by shifted hour; collect sorted min arrays once for both outer-product check and newMinVals
-  const byHour = new Map();
+  const byHour = new Map<number, Set<number>>();
   for (const { newM, newH } of shiftedPairs) {
     if (!byHour.has(newH)) byHour.set(newH, new Set());
-    byHour.get(newH).add(newM);
+    byHour.get(newH)!.add(newM);
   }
   if (byHour.size === 0) return { result: cronExpr, shifted: false };
 
@@ -113,7 +111,7 @@ function shiftCron(cronExpr, fromTz, machineTz, ref) {
   const hourIsStep = /^(\*|\d+(-\d+)?)\/\d+$/.test(hourF);
   if (hourIsStep && newHourVals.length > 1) {
     const collapsed = collapseField(newHourVals, 0, 23);
-    if (!collapsed.includes('/')) {
+    if (!collapsed!.includes('/')) {
       return { result: cronExpr, warn: 'hour step pattern loses its structure after timezone shift; split into fixed-time routines instead' };
     }
   }
@@ -128,8 +126,8 @@ function shiftCron(cronExpr, fromTz, machineTz, ref) {
       try {
         const dowVals = [...parseCronField(dowF, 0, 7)].map(v => v === 7 ? 0 : v);
         const shiftedDow = [...new Set(dowVals.map(v => ((v + delta) % 7 + 7) % 7))].sort((a, b) => a - b);
-        newDowF = collapseField(shiftedDow, 0, 6);
-      } catch (e) {
+        newDowF = collapseField(shiftedDow, 0, 6)!;
+      } catch (e: any) {
         return { result: cronExpr, warn: `cannot shift DOW field: ${e.message}` };
       }
     }
@@ -142,11 +140,11 @@ function main() {
   const [,, cronExpr, fromTz] = process.argv;
 
   if (!cronExpr) {
-    process.stderr.write('Usage: node cron-tz-shift.js "<cron-expr>" "<from-tz>"\n');
+    process.stderr.write('Usage: bun cron-tz-shift.ts "<cron-expr>" "<from-tz>"\n');
     process.exit(1);
   }
 
-  let ref;
+  let ref: Date;
   if (process.env.HERMIT_CRON_TZ_SHIFT_NOW) {
     ref = new Date(process.env.HERMIT_CRON_TZ_SHIFT_NOW);
     if (isNaN(ref.getTime())) {
@@ -175,8 +173,8 @@ function main() {
   if (warn) process.stderr.write(`WARN: ${warn}\n`);
 }
 
-if (require.main === module) {
+export { shiftCron };
+
+if (import.meta.main) {
   main();
-} else {
-  module.exports = { shiftCron };
 }
