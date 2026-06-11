@@ -18,6 +18,7 @@ import { spawnSync } from 'node:child_process';
 import { acquireLock, releaseLock } from './lib/lockfile';
 import { writeRuntimeJson, readRuntimeJson, STATE_DIR, RUNTIME_JSON, RUNTIME_TMP, LIFECYCLE_LOCK } from './lib/runtime';
 import { localISOStamp } from './lib/time';
+import { tmuxSessionAlive, getSessionName } from './lib/tmux';
 
 type Json = any;
 
@@ -334,10 +335,6 @@ function checkSandboxCapability(): void {
   if (pyTruthy(hint)) console.log(`[hermit] Fix: ${hint}`);
 }
 
-function tmuxSessionAlive(sessionName: string): boolean {
-  return spawnSync('tmux', ['has-session', '-t', sessionName], { stdio: 'ignore' }).status === 0;
-}
-
 /** Check for stale runtime state from a previous run and warn. */
 function checkStaleRuntime(config: Json, sessionName: string): void {
   const runtime = readRuntimeJson();
@@ -610,13 +607,6 @@ function buildClaudeCommand(config: Json, tools: Json): string[] {
   }
 
   return cmd;
-}
-
-/** Resolve tmux session name from config. */
-function getSessionName(config: Json): string {
-  const name = 'tmux_session_name' in config ? config.tmux_session_name : 'hermit-{project_name}';
-  const projectName = path.basename(process.cwd());
-  return name.replaceAll('{project_name}', projectName);
 }
 
 /**
@@ -975,7 +965,6 @@ export {
   checkSandboxCapability,
   writeRuntimeJson,
   readRuntimeJson,
-  tmuxSessionAlive,
   checkStaleRuntime,
   acquireLifecycleLock,
   fetchRegisteredMarketplaces,
@@ -983,7 +972,6 @@ export {
   getEnabledChannels,
   resolveStateDir,
   buildClaudeCommand,
-  getSessionName,
   writeSettingsEnv,
   shlexQuote,
   shlexJoin,

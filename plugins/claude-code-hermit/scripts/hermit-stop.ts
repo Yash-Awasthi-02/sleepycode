@@ -16,6 +16,7 @@ import { spawnSync } from 'node:child_process';
 import { acquireLock, releaseLock } from './lib/lockfile';
 import { localISOStamp } from './lib/time';
 import { readRuntimeJson, updateRuntimeField, STATE_DIR, LIFECYCLE_LOCK } from './lib/runtime';
+import { tmuxSessionAlive, getSessionName } from './lib/tmux';
 
 type Json = any;
 
@@ -32,15 +33,6 @@ function loadConfig(): Json {
     process.exit(1);
   }
   return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
-}
-
-function getSessionName(config: Json): string {
-  const name = config.tmux_session_name ?? 'hermit-{project_name}';
-  return name.replaceAll('{project_name}', path.basename(process.cwd()));
-}
-
-function tmuxSessionAlive(name: string): boolean {
-  return spawnSync('tmux', ['has-session', '-t', name], { stdio: 'ignore' }).status === 0;
 }
 
 function findLatestReport(): string | null {
