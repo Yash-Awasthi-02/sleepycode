@@ -83,8 +83,15 @@ bash tests/run-all.sh
 
 **Development constraints (non-negotiable):**
 
-- No dependencies — no `package.json`, no `node_modules`. Hook scripts use Node.js stdlib only.
-- No build step — skills are plain markdown, hooks are standalone `.js`/`.sh` scripts.
+- **Runtime is Bun (TypeScript-native).** Hooks and scripts are `.ts` run directly by `bun` —
+  no transpile, no build. The minimum version lives in `.claude-plugin/hermit-meta.json`
+  (`required_bun_version`) — `doctor-check` and the `hermit-start` preflight both read it
+  dynamically. The Docker template pins its own `BUN_VERSION`; bump it together with the meta.
+- No runtime dependencies — shipped code imports only the standard library and Bun built-ins
+  (`Bun.*`, `bun:*`, `node:*` modules). The repo-root `package.json` is dev-only toolchain
+  (typecheck via `bunx tsc`, test-only fuzzing); nothing under `plugins/` may import from
+  `node_modules` outside `*.test.ts` files.
+- No build step — skills are plain markdown, hooks are standalone `.ts`/`.sh` scripts.
 - Avoid overengineering.
 - Hooks fail open — a hook must never block Claude Code. Catch all errors, `process.exit(0)`. Never exit non-zero on transient failures.
 - Consume stdin — every hook must read stdin to completion even if unused (avoids broken pipe errors).

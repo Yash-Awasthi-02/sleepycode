@@ -149,8 +149,25 @@ def check_prerequisites():
     # tmux (optional but recommended)
     has_tmux = shutil.which('tmux') is not None
 
-    # bun (optional, for channel plugins)
+    # bun (required runtime for hooks/scripts since the bun migration)
     has_bun = shutil.which('bun') is not None
+    if not has_bun:
+        errors.append('bun: required runtime not found. Install: curl -fsSL https://bun.sh/install | bash')
+    else:
+        try:
+            bun_version = subprocess.check_output(['bun', '--version'], text=True).strip()
+            required = '1.3.0'
+            try:
+                meta_path = Path(__file__).resolve().parent.parent / '.claude-plugin' / 'hermit-meta.json'
+                declared = json.loads(meta_path.read_text()).get('required_bun_version')
+                if declared:
+                    required = declared.lstrip('>=').strip()
+            except (OSError, ValueError):
+                pass  # unreadable meta — fall back to the baseline floor
+            if tuple(int(x) for x in bun_version.split('.')[:3]) < tuple(int(x) for x in required.split('.')[:3]):
+                errors.append(f'bun: version {bun_version} below required {required}. Upgrade: bun upgrade')
+        except (subprocess.SubprocessError, ValueError):
+            pass  # unparseable version — don't block boot on the probe itself
 
     if errors:
         for err in errors:

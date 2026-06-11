@@ -31,6 +31,31 @@ const EXPECTED_STATE_FILES = [
 
 // ----------------- Checks -----------------
 
+function checkRuntime() {
+  try {
+    let required = null;
+    try {
+      const meta = JSON.parse(fs.readFileSync(path.join(pluginRoot, '.claude-plugin', 'hermit-meta.json'), 'utf8'));
+      required = meta.required_bun_version || null;
+    } catch {}
+    let version;
+    try {
+      version = execFileSync('bun', ['--version'], { encoding: 'utf8', timeout: 5000 }).trim();
+    } catch {
+      return {
+        id: 'runtime', status: 'fail',
+        detail: `bun not found — required${required ? ` (${required})` : ''}. Install: curl -fsSL https://bun.sh/install | bash`,
+      };
+    }
+    if (required && !satisfiesRange(version, required)) {
+      return { id: 'runtime', status: 'fail', detail: `bun ${version} below required ${required} — run: bun upgrade` };
+    }
+    return { id: 'runtime', status: 'ok', detail: `bun ${version}${required ? ` (required ${required})` : ''}` };
+  } catch (e) {
+    return { id: 'runtime', status: 'fail', detail: `check failed: ${e.message}` };
+  }
+}
+
 function checkConfig() {
   try {
     if (!fs.existsSync(configPath)) {
@@ -615,6 +640,7 @@ function checkWatchdog() {
 
 function runAllChecks() {
   return [
+    checkRuntime(),
     checkConfig(),
     checkHooks(),
     checkStateFiles(),
@@ -656,7 +682,7 @@ if (require.main === module) {
   process.exit(0);
 } else {
   module.exports = {
-    checkConfig, checkHooks, checkStateFiles,
+    checkRuntime, checkConfig, checkHooks, checkStateFiles,
     checkCost, checkProposals, checkDependencies, checkPermissions,
     checkDockerSecurity, checkArchival, checkReflectLoop, checkScheduler,
     checkWatchdog,

@@ -31,6 +31,27 @@ Upgrade the project's hermit configuration after a plugin update.
   Substitute `<min>` with the value from `min_claude_code_version` and
   `<detected>` with the parsed CLI version. Then stop. Do not prompt to bypass.
 
+### 0b. Verify the bun runtime (hard gate)
+
+- Read `required_bun_version` from the same `hermit-meta.json`. If not set, skip
+  this step.
+- Run `bun --version`. If the command fails (bun not installed) or the version is
+  below the requirement, report:
+
+  ```
+  This hermit version requires bun <required> — hooks and scripts run on it.
+  You have: <detected or "not installed">.
+
+  Install:  curl -fsSL https://bun.sh/install | bash
+  Upgrade:  bun upgrade
+
+  Then re-run /claude-code-hermit:hermit-evolve.
+  ```
+
+  Then **stop. Do not prompt to bypass and do not continue the upgrade** — completing
+  it without bun would leave every hook fire erroring at spawn. (Docker operators are
+  unaffected: the image bakes bun in.)
+
 ### 1. Resolve hatch target, then run the pre-pass
 
 First determine `hatch_target` (the pre-pass needs it, and so do Steps 6, 7, 8):
