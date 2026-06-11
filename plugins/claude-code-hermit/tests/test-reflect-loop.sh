@@ -96,7 +96,7 @@ cat > "$workdir/.claude/cost-log.jsonl" << EOF
 {"timestamp":"2020-01-01T12:00:00Z","source":"routine:reflect-cadence","estimated_cost_usd":9.99,"total_tokens":1000}
 EOF
 
-cd "$workdir" && node "$WEEKLY_REVIEW" .claude-code-hermit >/dev/null 2>&1
+cd "$workdir" && bun "$WEEKLY_REVIEW" .claude-code-hermit >/dev/null 2>&1
 review_file="$(find "$workdir/.claude-code-hermit/compiled" -name 'review-weekly-*.md' | head -1)"
 cd "$ORIG_DIR"
 
@@ -158,7 +158,7 @@ not json at all
 EOF
 
 run_test "prune-observations: exits 0 and reports counts" bash -c \
-  "node '$PRUNE' '$workdir/.claude-code-hermit' | grep -q 'pruned 1, kept 3'"
+  "bun '$PRUNE' '$workdir/.claude-code-hermit' | grep -q 'pruned 1, kept 3'"
 run_test "prune-observations: fresh entry kept" bash -c \
   "grep -q 'S-010' '$LEDGER'"
 run_test "prune-observations: stale entry of fresh pattern kept (recurrence history)" bash -c \
@@ -168,9 +168,9 @@ run_test "prune-observations: fully stale pattern dropped" bash -c \
 run_test "prune-observations: unparseable line preserved verbatim" bash -c \
   "grep -qx 'not json at all' '$LEDGER'"
 run_test "prune-observations: missing file exits 0" bash -c \
-  "node '$PRUNE' '$workdir/nonexistent-dir' | grep -q 'pruned 0, kept 0'"
+  "bun '$PRUNE' '$workdir/nonexistent-dir' | grep -q 'pruned 0, kept 0'"
 run_test "prune-observations: no args exits 1" bash -c \
-  "! node '$PRUNE' >/dev/null 2>&1"
+  "! bun '$PRUNE' >/dev/null 2>&1"
 rm -r "$workdir"
 
 # timestamp-format robustness: ledger ts is agent-written and not format-enforced,
@@ -184,7 +184,7 @@ cat > "$LEDGER" << EOF
 {"ts":"2020-01-01T00:00:00+00:00","pattern":"offset-dead","session_id":"S-031","source":"reflect"}
 EOF
 run_test "prune-observations: +00:00-offset fresh entry parsed as fresh (kept)" bash -c \
-  "node '$PRUNE' '$workdir/.claude-code-hermit' | grep -q 'pruned 1, kept 1' && grep -q 'offset-fresh' '$LEDGER'"
+  "bun '$PRUNE' '$workdir/.claude-code-hermit' | grep -q 'pruned 1, kept 1' && grep -q 'offset-fresh' '$LEDGER'"
 rm -r "$workdir"
 
 # ── item 4: success_signal push + same-area absence guard ───────────────────

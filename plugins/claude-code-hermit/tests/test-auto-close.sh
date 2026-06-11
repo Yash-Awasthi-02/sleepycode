@@ -27,7 +27,7 @@ echo '{"session_state":"in_progress","session_id":"S-001"}' \
   > "$workdir/.claude-code-hermit/state/runtime.json"
 echo '{"alerts":{},"last_digest_date":null,"self_eval":{},"total_ticks":0}' \
   > "$workdir/.claude-code-hermit/state/alert-state.json"
-out="$(cd "$workdir" && node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+out="$(cd "$workdir" && bun "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
 run_test "heartbeat-precheck: stale SHELL.md (13h) → AUTO_CLOSE" bash -c "[ '$out' = 'AUTO_CLOSE' ]"
 cleanup
 
@@ -43,7 +43,7 @@ echo '{"session_state":"in_progress","session_id":"S-001"}' \
   > "$workdir/.claude-code-hermit/state/runtime.json"
 echo '{"alerts":{},"last_digest_date":null,"self_eval":{},"total_ticks":0}' \
   > "$workdir/.claude-code-hermit/state/alert-state.json"
-out="$(cd "$workdir" && node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+out="$(cd "$workdir" && bun "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
 run_test "heartbeat-precheck: fresh SHELL.md → EVALUATE (not AUTO_CLOSE)" bash -c "[ '$out' = 'EVALUATE' ]"
 cleanup
 
@@ -82,7 +82,7 @@ cat > "$workdir/.claude-code-hermit/state/reflection-state.json" << 'EOF'
 EOF
 # session_state: idle so the in_progress short-circuit in reflect-precheck doesn't apply
 echo '{"session_state":"idle"}' > "$workdir/.claude-code-hermit/state/runtime.json"
-out="$(cd "$workdir" && node "$REFLECT_PRECHECK" .claude-code-hermit "$REPO_ROOT" 2>/dev/null)"
+out="$(cd "$workdir" && bun "$REFLECT_PRECHECK" .claude-code-hermit "$REPO_ROOT" 2>/dev/null)"
 run_test "reflect-precheck: auto-archived report newer than last_reflection → triggers compute phase (skip removed)" \
   bash -c "[ '$out' != 'EMPTY' ]"
 cleanup
@@ -135,7 +135,7 @@ closed_via: auto
 Auto-closed after 12h quiet.
 EOF
 
-cd "$workdir" && node "$WEEKLY_REVIEW" .claude-code-hermit /nonexistent 2>/dev/null
+cd "$workdir" && bun "$WEEKLY_REVIEW" .claude-code-hermit /nonexistent 2>/dev/null
 review_file="$(find "$workdir/.claude-code-hermit/compiled" -name 'review-weekly-*.md' | head -1)"
 cd "$ORIG_DIR"
 
@@ -170,7 +170,7 @@ touch "$workdir/.claude-code-hermit/sessions/SHELL.md"   # fresh mtime
 echo '{"at":"2026-05-20T09:00:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
 echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-code-hermit/state/runtime.json"
 echo '{"alerts":{},"last_digest_date":null,"self_eval":{},"total_ticks":0}' > "$workdir/.claude-code-hermit/state/alert-state.json"
-out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:00:00+00:00" node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:00:00+00:00" bun "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
 run_test "precheck: stale last-operator-action (13h) + fresh SHELL.md → AUTO_CLOSE" bash -c "[ '$out' = 'AUTO_CLOSE' ]"
 cleanup
 
@@ -185,7 +185,7 @@ touch -d "13 hours ago" "$workdir/.claude-code-hermit/sessions/SHELL.md"
 echo '{"at":"2026-05-20T21:00:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
 echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-code-hermit/state/runtime.json"
 echo '{"alerts":{},"last_digest_date":null,"self_eval":{},"total_ticks":0}' > "$workdir/.claude-code-hermit/state/alert-state.json"
-out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:00:00+00:00" node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:00:00+00:00" bun "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
 run_test "precheck: fresh last-operator-action (1h) + stale SHELL.md (13h) → EVALUATE" bash -c "[ '$out' = 'EVALUATE' ]"
 cleanup
 
@@ -199,7 +199,7 @@ printf '# Heartbeat\n\n- [ ] Check system\n' > "$workdir/.claude-code-hermit/HEA
 touch -d "13 hours ago" "$workdir/.claude-code-hermit/sessions/SHELL.md"
 echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-code-hermit/state/runtime.json"
 echo '{"alerts":{},"last_digest_date":null,"self_eval":{},"total_ticks":0}' > "$workdir/.claude-code-hermit/state/alert-state.json"
-out="$(cd "$workdir" && node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+out="$(cd "$workdir" && bun "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
 run_test "precheck: absent last-operator-action + stale SHELL.md → AUTO_CLOSE (mtime fallback)" bash -c "[ '$out' = 'AUTO_CLOSE' ]"
 cleanup
 
@@ -215,7 +215,7 @@ for bad_at in 'null' '123' '"not-a-date"'; do
   echo "{\"at\":${bad_at}}" > "$workdir/.claude-code-hermit/state/last-operator-action.json"
   echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-code-hermit/state/runtime.json"
   echo '{"alerts":{},"last_digest_date":null,"self_eval":{},"total_ticks":0}' > "$workdir/.claude-code-hermit/state/alert-state.json"
-  out="$(cd "$workdir" && node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+  out="$(cd "$workdir" && bun "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
   run_test "precheck: malformed at=${bad_at} → AUTO_CLOSE via mtime fallback, no crash" bash -c "[ '$out' = 'AUTO_CLOSE' ]"
   cleanup
 done
@@ -225,7 +225,7 @@ done
 # -------------------------------------------------------
 workdir="$(mktemp -d)"
 mkdir -p "$workdir/.claude-code-hermit/state"
-out="$(cd "$workdir" && echo '{"prompt":"[hermit-routine:reflect] Invoke /claude-code-hermit:reflect."}' | node "$RECORD_HOOK")"
+out="$(cd "$workdir" && echo '{"prompt":"[hermit-routine:reflect] Invoke /claude-code-hermit:reflect."}' | bun "$RECORD_HOOK")"
 run_test "hook smoke: [hermit-routine: prefix → file NOT written" bash -c "[ ! -f '$workdir/.claude-code-hermit/state/last-operator-action.json' ]"
 cleanup
 
@@ -234,7 +234,7 @@ cleanup
 # -------------------------------------------------------
 workdir="$(mktemp -d)"
 mkdir -p "$workdir/.claude-code-hermit/state"
-cd "$workdir" && echo '{"prompt":"hello"}' | node "$RECORD_HOOK"
+cd "$workdir" && echo '{"prompt":"hello"}' | bun "$RECORD_HOOK"
 run_test "hook smoke: plain operator prompt → file IS written" bash -c "[ -f '$workdir/.claude-code-hermit/state/last-operator-action.json' ]"
 cd "$ORIG_DIR"
 cleanup
@@ -244,7 +244,7 @@ cleanup
 # -------------------------------------------------------
 workdir="$(mktemp -d)"
 mkdir -p "$workdir/.claude-code-hermit/state"
-out="$(cd "$workdir" && echo '{"prompt":"/claude-code-hermit:heartbeat run"}' | node "$RECORD_HOOK")"
+out="$(cd "$workdir" && echo '{"prompt":"/claude-code-hermit:heartbeat run"}' | bun "$RECORD_HOOK")"
 run_test "hook smoke: bare /claude-code-hermit:heartbeat run → file NOT written" bash -c "[ ! -f '$workdir/.claude-code-hermit/state/last-operator-action.json' ]"
 cleanup
 
@@ -254,7 +254,7 @@ cleanup
 workdir="$(mktemp -d)"
 mkdir -p "$workdir/.claude-code-hermit/state"
 cd "$workdir"
-printf '{"prompt":"<command-message>heartbeat run</command-message>\\n<command-name>/claude-code-hermit:heartbeat run</command-name>"}' | node "$RECORD_HOOK"
+printf '{"prompt":"<command-message>heartbeat run</command-message>\\n<command-name>/claude-code-hermit:heartbeat run</command-name>"}' | bun "$RECORD_HOOK"
 run_test "hook smoke: operator-typed /heartbeat run (command-message wrapper) → file IS written" bash -c "[ -f '$workdir/.claude-code-hermit/state/last-operator-action.json' ]"
 cd "$ORIG_DIR"
 cleanup
@@ -264,7 +264,7 @@ cleanup
 # -------------------------------------------------------
 workdir="$(mktemp -d)"
 mkdir -p "$workdir/.claude-code-hermit/state"
-out="$(cd "$workdir" && echo '{"prompt":"<channel source=discord chat_id=x>hi</channel>"}' | node "$RECORD_HOOK")"
+out="$(cd "$workdir" && echo '{"prompt":"<channel source=discord chat_id=x>hi</channel>"}' | bun "$RECORD_HOOK")"
 run_test "hook smoke: <channel inbound → file NOT written by hook" bash -c "[ ! -f '$workdir/.claude-code-hermit/state/last-operator-action.json' ]"
 cleanup
 
@@ -273,7 +273,7 @@ cleanup
 # -------------------------------------------------------
 workdir="$(mktemp -d)"
 mkdir -p "$workdir/.claude-code-hermit/state"
-out="$(cd "$workdir" && echo '{"prompt":"/claude-code-hermit:pulse"}' | node "$RECORD_HOOK")"
+out="$(cd "$workdir" && echo '{"prompt":"/claude-code-hermit:pulse"}' | bun "$RECORD_HOOK")"
 run_test "hook smoke: bare /claude-code-hermit:pulse (loop re-fire) → file NOT written" bash -c "[ ! -f '$workdir/.claude-code-hermit/state/last-operator-action.json' ]"
 cleanup
 
@@ -283,7 +283,7 @@ cleanup
 workdir="$(mktemp -d)"
 mkdir -p "$workdir/.claude-code-hermit/state"
 cd "$workdir"
-printf '{"prompt":"<command-message>claude-code-hermit:pulse</command-message>\\n<command-name>/claude-code-hermit:pulse</command-name>"}' | node "$RECORD_HOOK"
+printf '{"prompt":"<command-message>claude-code-hermit:pulse</command-message>\\n<command-name>/claude-code-hermit:pulse</command-name>"}' | bun "$RECORD_HOOK"
 run_test "hook smoke: operator-typed /pulse (command-message wrapper) → file IS written" bash -c "[ -f '$workdir/.claude-code-hermit/state/last-operator-action.json' ]"
 cd "$ORIG_DIR"
 cleanup
@@ -293,7 +293,7 @@ cleanup
 # -------------------------------------------------------
 workdir="$(mktemp -d)"
 mkdir -p "$workdir/.claude-code-hermit/state"
-out="$(cd "$workdir" && echo '{"prompt":"/some-future-plugin:some-cmd --flag"}' | node "$RECORD_HOOK")"
+out="$(cd "$workdir" && echo '{"prompt":"/some-future-plugin:some-cmd --flag"}' | bun "$RECORD_HOOK")"
 run_test "hook smoke: bare /some-future-plugin:some-cmd → file NOT written" bash -c "[ ! -f '$workdir/.claude-code-hermit/state/last-operator-action.json' ]"
 cleanup
 
@@ -302,7 +302,7 @@ cleanup
 # -------------------------------------------------------
 workdir="$(mktemp -d)"
 mkdir -p "$workdir/.claude-code-hermit/state"
-cd "$workdir" && : | node "$RECORD_HOOK"
+cd "$workdir" && : | bun "$RECORD_HOOK"
 run_test "SessionStart with absent state file → file IS written (cold-start seed)" bash -c "[ -f '$workdir/.claude-code-hermit/state/last-operator-action.json' ]"
 cd "$ORIG_DIR"
 cleanup
@@ -313,7 +313,7 @@ cleanup
 workdir="$(mktemp -d)"
 mkdir -p "$workdir/.claude-code-hermit/state"
 echo '{"at":"2026-05-20T09:00:00.000Z"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
-cd "$workdir" && : | node "$RECORD_HOOK"
+cd "$workdir" && : | bun "$RECORD_HOOK"
 run_test "SessionStart with existing state file → timestamp preserved (restart doesn't reset clock)" bash -c "grep -q '2026-05-20T09:00:00' '$workdir/.claude-code-hermit/state/last-operator-action.json'"
 cd "$ORIG_DIR"
 cleanup
@@ -323,7 +323,7 @@ cleanup
 # -------------------------------------------------------
 workdir="$(mktemp -d)"
 mkdir -p "$workdir/.claude-code-hermit/state"
-cd "$workdir" && node "$RECORD_HOOK" --force
+cd "$workdir" && bun "$RECORD_HOOK" --force
 run_test "--force → file IS written (channel-responder post-auth)" bash -c "[ -f '$workdir/.claude-code-hermit/state/last-operator-action.json' ]"
 cd "$ORIG_DIR"
 cleanup
@@ -334,7 +334,7 @@ cleanup
 workdir="$(mktemp -d)"
 mkdir -p "$workdir/.claude-code-hermit/state"
 echo '{"at":"2026-05-20T09:00:00.000Z"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
-cd "$workdir" && node "$RECORD_HOOK" --force
+cd "$workdir" && bun "$RECORD_HOOK" --force
 run_test "--force overwrites existing file (channel inbound bumps clock)" bash -c "! grep -q '2026-05-20T09:00:00' '$workdir/.claude-code-hermit/state/last-operator-action.json'"
 cd "$ORIG_DIR"
 cleanup
@@ -363,7 +363,7 @@ echo '{"queued_at":"2026-05-20T22:00:00+00:00","queued_by":"daily-auto-close"}' 
   > "$workdir/.claude-code-hermit/state/pending-close.json"
 echo '{"at":"2026-05-20T22:30:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
 echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-code-hermit/state/runtime.json"
-out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:45:00+00:00" node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:45:00+00:00" bun "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
 run_test "drain: pending-close + last_op > 10min + in_progress → AUTO_CLOSE" bash -c "[ '$out' = 'AUTO_CLOSE' ]"
 cleanup
 
@@ -376,7 +376,7 @@ echo '{"queued_at":"2026-05-20T22:00:00+00:00","queued_by":"daily-auto-close"}' 
   > "$workdir/.claude-code-hermit/state/pending-close.json"
 echo '{"at":"2026-05-20T22:40:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
 echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-code-hermit/state/runtime.json"
-out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:45:00+00:00" node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:45:00+00:00" bun "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
 run_test "drain: pending-close + last_op < 10min + in_progress → does NOT emit AUTO_CLOSE" bash -c "[ '$out' != 'AUTO_CLOSE' ]"
 cleanup
 
@@ -391,7 +391,7 @@ echo '{"queued_at":"2026-05-20T22:00:00+00:00","queued_by":"daily-auto-close"}' 
   > "$workdir/.claude-code-hermit/state/pending-close.json"
 echo '{"at":"2026-05-20T22:30:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
 echo '{"session_state":"idle"}' > "$workdir/.claude-code-hermit/state/runtime.json"
-out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:45:00+00:00" node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:45:00+00:00" bun "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
 run_test "drain: pending-close + idle + lull > 10min → AUTO_CLOSE" bash -c "[ '$out' = 'AUTO_CLOSE' ]"
 cleanup
 
@@ -405,7 +405,7 @@ echo '{"queued_at":"2026-05-20T22:00:00+00:00","queued_by":"daily-auto-close"}' 
   > "$workdir/.claude-code-hermit/state/pending-close.json"
 echo '{"at":"2026-05-20T22:40:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
 echo '{"session_state":"idle"}' > "$workdir/.claude-code-hermit/state/runtime.json"
-out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:45:00+00:00" node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:45:00+00:00" bun "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
 run_test "drain: pending-close + idle + last_op < 10min → does NOT emit AUTO_CLOSE" bash -c "[ '$out' != 'AUTO_CLOSE' ]"
 cleanup
 
@@ -420,7 +420,7 @@ echo '{"queued_at":"2026-05-20T22:00:00+00:00","queued_by":"daily-auto-close","h
 echo '{"timezone":"UTC","heartbeat":{"active_hours":{"start":"08:00","end":"23:00"}}}' > "$workdir/.claude-code-hermit/config.json"
 echo '{"at":"2026-05-21T02:30:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
 echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-code-hermit/state/runtime.json"
-out="$(cd "$workdir" && HERMIT_NOW="2026-05-21T03:00:00+00:00" node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-21T03:00:00+00:00" bun "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
 run_test "drain: outside active hours + pending-close + lull → AUTO_CLOSE (bypasses active-hours skip)" bash -c "[ '$out' = 'AUTO_CLOSE' ]"
 cleanup
 
@@ -431,7 +431,7 @@ workdir="$(mktemp -d)"
 hb_setup "$workdir"
 echo '{"at":"2026-05-20T09:00:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
 echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-code-hermit/state/runtime.json"
-out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:00:00+00:00" node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:00:00+00:00" bun "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
 run_test "drain: no pending flag + last_op 13h ago → AUTO_CLOSE via existing 12h fallback (regression guard)" bash -c "[ '$out' = 'AUTO_CLOSE' ]"
 cleanup
 
@@ -443,7 +443,7 @@ hb_setup "$workdir"
 printf '{not valid' > "$workdir/.claude-code-hermit/state/pending-close.json"
 echo '{"at":"2026-05-20T22:30:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
 echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-code-hermit/state/runtime.json"
-out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:45:00+00:00" node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:45:00+00:00" bun "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
 run_test "drain: malformed pending-close.json → no drain, no crash, falls through" bash -c "[ '$out' != 'AUTO_CLOSE' ]"
 cleanup
 
@@ -453,7 +453,7 @@ cleanup
 # -------------------------------------------------------
 workdir="$(mktemp -d)"
 mkdir -p "$workdir/.claude-code-hermit/state"
-out="$(cd "$workdir" && echo '{"prompt":"[hermit-routine:daily-auto-close] Invoke /claude-code-hermit:daily-auto-close."}' | node "$RECORD_HOOK")"
+out="$(cd "$workdir" && echo '{"prompt":"[hermit-routine:daily-auto-close] Invoke /claude-code-hermit:daily-auto-close."}' | bun "$RECORD_HOOK")"
 run_test "hook smoke: [hermit-routine:daily-auto-close prefix → file NOT written" bash -c "[ ! -f '$workdir/.claude-code-hermit/state/last-operator-action.json' ]"
 cleanup
 
@@ -467,7 +467,7 @@ echo '{"queued_at":"2026-05-20T22:00:00+00:00","queued_by":"daily-auto-close"}' 
   > "$workdir/.claude-code-hermit/state/pending-close.json"
 # NO last-operator-action.json written — fresh install scenario.
 echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-code-hermit/state/runtime.json"
-out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:45:00+00:00" node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:45:00+00:00" bun "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
 run_test "drain: pending-close + in_progress + absent last-op → AUTO_CLOSE (fail-open)" bash -c "[ '$out' = 'AUTO_CLOSE' ]"
 cleanup
 
@@ -481,7 +481,7 @@ echo '{"queued_at":"2026-05-20T22:00:00+00:00","queued_by":"daily-auto-close"}' 
   > "$workdir/.claude-code-hermit/state/pending-close.json"
 echo '{"at":"not-a-date"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
 echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-code-hermit/state/runtime.json"
-out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:45:00+00:00" node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:45:00+00:00" bun "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
 run_test "drain: pending-close + in_progress + malformed last-op → AUTO_CLOSE (fail-open)" bash -c "[ '$out' = 'AUTO_CLOSE' ]"
 cleanup
 
@@ -501,7 +501,7 @@ echo '{"queued_at":"2026-05-20T22:00:00+00:00","queued_by":"daily-auto-close"}' 
   > "$workdir/.claude-code-hermit/state/pending-close.json"
 echo '{"at":"2026-05-20T22:30:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
 echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-code-hermit/state/runtime.json"
-out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:45:00+00:00" node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:45:00+00:00" bun "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
 run_test "drain: HEARTBEAT.md missing + pending-close + lull → AUTO_CLOSE (drain bypasses SKIP gate)" bash -c "[ '$out' = 'AUTO_CLOSE' ]"
 cleanup
 
@@ -517,7 +517,7 @@ echo '{"queued_at":"2026-05-20T22:00:00+00:00","queued_by":"daily-auto-close"}' 
   > "$workdir/.claude-code-hermit/state/pending-close.json"
 echo '{"at":"2026-05-20T22:30:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
 echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-code-hermit/state/runtime.json"
-out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:45:00+00:00" node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:45:00+00:00" bun "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
 run_test "drain: HEARTBEAT.md no-checklist + pending-close + lull → AUTO_CLOSE (drain bypasses SKIP gate)" bash -c "[ '$out' = 'AUTO_CLOSE' ]"
 cleanup
 
@@ -533,7 +533,7 @@ echo '{"queued_at":"2026-05-19T00:00:00+00:00","queued_by":"daily-auto-close"}' 
 # NO last-operator-action.json — fresh-session scenario after prior crash
 echo '{"session_state":"in_progress","session_id":"S-002"}' > "$workdir/.claude-code-hermit/state/runtime.json"
 # HERMIT_NOW is 2026-05-21 → queued_at is 48h+ old → stale flag
-out="$(cd "$workdir" && HERMIT_NOW="2026-05-21T01:00:00+00:00" node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-21T01:00:00+00:00" bun "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
 run_test "drain: stale queued_at (>24h) + absent last-op → NO AUTO_CLOSE (stale-flag guard)" bash -c "[ '$out' != 'AUTO_CLOSE' ]"
 cleanup
 
@@ -548,7 +548,7 @@ echo '{"queued_by":"daily-auto-close"}' \
   > "$workdir/.claude-code-hermit/state/pending-close.json"
 # NO last-operator-action.json
 echo '{"session_state":"in_progress","session_id":"S-003"}' > "$workdir/.claude-code-hermit/state/runtime.json"
-out="$(cd "$workdir" && HERMIT_NOW="2026-05-21T01:00:00+00:00" node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-21T01:00:00+00:00" bun "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
 run_test "drain: pending-close missing queued_at + absent last-op → NO AUTO_CLOSE (defensive)" bash -c "[ '$out' != 'AUTO_CLOSE' ]"
 cleanup
 
@@ -563,7 +563,7 @@ echo '{"queued_at":"2026-05-19T00:00:00+00:00","queued_by":"daily-auto-close"}' 
   > "$workdir/.claude-code-hermit/state/pending-close.json"
 echo '{"at":"2026-05-21T00:30:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
 echo '{"session_state":"in_progress","session_id":"S-004"}' > "$workdir/.claude-code-hermit/state/runtime.json"
-out="$(cd "$workdir" && HERMIT_NOW="2026-05-21T01:00:00+00:00" node "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-21T01:00:00+00:00" bun "$HEARTBEAT_PRECHECK" .claude-code-hermit)"
 run_test "drain: stale queued_at + valid >10min last-op → AUTO_CLOSE (lull-check path unaffected by guard)" bash -c "[ '$out' = 'AUTO_CLOSE' ]"
 cleanup
 
@@ -615,7 +615,7 @@ closed_via: auto
 ## Overview
 Auto-closed by heartbeat.
 EOF
-cd "$workdir" && node "$WEEKLY_REVIEW" .claude-code-hermit /nonexistent 2>/dev/null
+cd "$workdir" && bun "$WEEKLY_REVIEW" .claude-code-hermit /nonexistent 2>/dev/null
 review_file="$(find "$workdir/.claude-code-hermit/compiled" -name 'review-weekly-*.md' | head -1)"
 cd "$ORIG_DIR"
 # Both sessions count in sessions_count and total_cost (raw aggregates).
@@ -661,7 +661,7 @@ cat > "$workdir/.claude-code-hermit/state/reflection-state.json" << 'EOF'
 {"counters":{"last_run_at":"2020-01-01T00:00:00Z","since":"2020-01-01T00:00:00Z"}}
 EOF
 echo '{"session_state":"idle"}' > "$workdir/.claude-code-hermit/state/runtime.json"
-out="$(cd "$workdir" && node "$REFLECT_PRECHECK" .claude-code-hermit "$REPO_ROOT" 2>/dev/null)"
+out="$(cd "$workdir" && bun "$REFLECT_PRECHECK" .claude-code-hermit "$REPO_ROOT" 2>/dev/null)"
 run_test "reflect-precheck: only empty 12h archive (operator_turns:0, closed_via:auto) → EMPTY (skipped)" \
   bash -c "[ '$out' = 'EMPTY' ]"
 cleanup
@@ -686,7 +686,7 @@ touch "$workdir/.claude-code-hermit/sessions/SHELL.md"
 echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-code-hermit/state/runtime.json"
 echo '{"at":"2026-05-20T21:30:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
 echo "$SUPPRESSED_ALERT_STATE" > "$workdir/.claude-code-hermit/state/alert-state.json"
-out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:00:00+00:00" node "$HEARTBEAT_PRECHECK" --peek .claude-code-hermit)"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:00:00+00:00" bun "$HEARTBEAT_PRECHECK" --peek .claude-code-hermit)"
 run_test "stale-gate: in_progress + operator 30min ago + suppressed checklist + digest done → OK" bash -c "[ '$out' = 'OK' ]"
 cleanup
 
@@ -701,7 +701,7 @@ touch "$workdir/.claude-code-hermit/sessions/SHELL.md"
 echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-code-hermit/state/runtime.json"
 echo '{"at":"2026-05-20T19:00:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
 echo "$SUPPRESSED_ALERT_STATE" > "$workdir/.claude-code-hermit/state/alert-state.json"
-out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:00:00+00:00" node "$HEARTBEAT_PRECHECK" --peek .claude-code-hermit)"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:00:00+00:00" bun "$HEARTBEAT_PRECHECK" --peek .claude-code-hermit)"
 run_test "stale-gate: in_progress + operator 3h ago (> 2h threshold) → EVALUATE" bash -c "[ '$out' = 'EVALUATE' ]"
 cleanup
 
@@ -717,7 +717,7 @@ echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-
 echo '{"at":"2026-05-20T21:30:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
 STALE_ACTIVE="{\"alerts\":{\"checklist:checksys\":{\"count\":6,\"consecutive_clean\":0,\"suppressed\":true,\"first_seen\":\"${TODAY_DATE}\",\"last_seen\":\"${TODAY_DATE}\",\"text\":\"Check system\"},\"stale-session\":{\"count\":1,\"consecutive_clean\":0,\"suppressed\":false,\"first_seen\":\"${TODAY_DATE}\",\"last_seen\":\"${TODAY_DATE}\",\"text\":\"Stale session\"}},\"last_digest_date\":\"${TODAY_DATE}\",\"self_eval\":{},\"total_ticks\":1}"
 echo "$STALE_ACTIVE" > "$workdir/.claude-code-hermit/state/alert-state.json"
-out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:00:00+00:00" node "$HEARTBEAT_PRECHECK" --peek .claude-code-hermit)"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:00:00+00:00" bun "$HEARTBEAT_PRECHECK" --peek .claude-code-hermit)"
 run_test "stale-gate: operator recent + stale-session alert active → EVALUATE (resolution tracking)" bash -c "[ '$out' = 'EVALUATE' ]"
 cleanup
 
@@ -732,7 +732,7 @@ touch "$workdir/.claude-code-hermit/sessions/SHELL.md"
 echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-code-hermit/state/runtime.json"
 echo '{"at":"2026-05-20T23:00:00+00:00"}' > "$workdir/.claude-code-hermit/state/last-operator-action.json"
 echo "$SUPPRESSED_ALERT_STATE" > "$workdir/.claude-code-hermit/state/alert-state.json"
-out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:00:00+00:00" node "$HEARTBEAT_PRECHECK" --peek .claude-code-hermit)"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:00:00+00:00" bun "$HEARTBEAT_PRECHECK" --peek .claude-code-hermit)"
 run_test "stale-gate: future-dated last-operator-action (clock skew) → EVALUATE (fail-open)" bash -c "[ '$out' = 'EVALUATE' ]"
 cleanup
 
@@ -746,7 +746,7 @@ printf '# Heartbeat\n\n- Check system\n' > "$workdir/.claude-code-hermit/HEARTBE
 touch "$workdir/.claude-code-hermit/sessions/SHELL.md"
 echo '{"session_state":"in_progress","session_id":"S-001"}' > "$workdir/.claude-code-hermit/state/runtime.json"
 echo "$SUPPRESSED_ALERT_STATE" > "$workdir/.claude-code-hermit/state/alert-state.json"
-out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:00:00+00:00" node "$HEARTBEAT_PRECHECK" --peek .claude-code-hermit)"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:00:00+00:00" bun "$HEARTBEAT_PRECHECK" --peek .claude-code-hermit)"
 run_test "stale-gate: absent last-operator-action (pre-upgrade install) → EVALUATE (no regression)" bash -c "[ '$out' = 'EVALUATE' ]"
 cleanup
 
@@ -763,7 +763,7 @@ echo '{"at":"2026-05-20T21:30:00+00:00"}' > "$workdir/.claude-code-hermit/state/
 # Same suppressed item but last_digest_date is yesterday → digest gate fires
 STALE_NO_DIGEST="{\"alerts\":{\"checklist:checksys\":{\"count\":6,\"consecutive_clean\":0,\"suppressed\":true,\"first_seen\":\"2026-05-19\",\"last_seen\":\"2026-05-19\",\"text\":\"Check system\"}},\"last_digest_date\":\"2026-05-19\",\"self_eval\":{},\"total_ticks\":1}"
 echo "$STALE_NO_DIGEST" > "$workdir/.claude-code-hermit/state/alert-state.json"
-out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:00:00+00:00" node "$HEARTBEAT_PRECHECK" --peek .claude-code-hermit)"
+out="$(cd "$workdir" && HERMIT_NOW="2026-05-20T22:00:00+00:00" bun "$HEARTBEAT_PRECHECK" --peek .claude-code-hermit)"
 run_test "stale-gate: operator recent + suppressed but digest not yet run today → EVALUATE (daily digest)" bash -c "[ '$out' = 'EVALUATE' ]"
 cleanup
 

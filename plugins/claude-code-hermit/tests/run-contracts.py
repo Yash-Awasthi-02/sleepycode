@@ -656,7 +656,7 @@ class TestHookOutputs(_TempDirTest):
         if env_extra:
             env.update(env_extra)
         result = subprocess.run(
-            ['node', str(REPO / 'scripts' / script)],
+            ['bun', str(REPO / 'scripts' / script)],
             input=stdin_data, capture_output=True, text=True,
             cwd=self._tmpdir, env=env, timeout=15,
         )
@@ -731,7 +731,7 @@ class TestCacheEditGuard(_TempDirTest):
         if env_extra:
             env.update(env_extra)
         result = subprocess.run(
-            ['node', str(self.SCRIPT)],
+            ['bun', str(self.SCRIPT)],
             input=json.dumps(event), capture_output=True, text=True,
             cwd=self._tmpdir, env=env, timeout=10,
         )
@@ -850,7 +850,7 @@ class TestStderrSanitization(_TempDirTest):
         if env_extra:
             env.update(env_extra)
         result = subprocess.run(
-            ['node', str(script)],
+            ['bun', str(script)],
             input=json.dumps(event), capture_output=True, text=True,
             cwd=self._tmpdir, env=env, timeout=10,
         )
@@ -972,7 +972,7 @@ class TestCronCorpus(unittest.TestCase):
         }}
         """
         result = subprocess.run(
-            ['node', '-e', js], capture_output=True, text=True, timeout=5,
+            ['bun', '-e', js], capture_output=True, text=True, timeout=5,
         )
         self.assertEqual(result.returncode, 0,
                          f'Node rejected valid expressions:\n{result.stderr}')
@@ -994,7 +994,7 @@ class TestCronCorpus(unittest.TestCase):
         }}
         """
         result = subprocess.run(
-            ['node', '-e', js], capture_output=True, text=True, timeout=5,
+            ['bun', '-e', js], capture_output=True, text=True, timeout=5,
         )
         self.assertEqual(result.returncode, 0,
                          f'Node accepted invalid expressions:\n{result.stderr}')
@@ -1021,7 +1021,7 @@ class TestMonitorsValidation(unittest.TestCase):
         process.stdout.write(JSON.stringify(result));
         """
         result = subprocess.run(
-            ['node', '-e', js], capture_output=True, text=True, timeout=5,
+            ['bun', '-e', js], capture_output=True, text=True, timeout=5,
         )
         self.assertEqual(result.returncode, 0, f'node exited non-zero: {result.stderr}')
         return json.loads(result.stdout)
@@ -1113,7 +1113,7 @@ class TestPushNotificationsValidation(unittest.TestCase):
         process.stdout.write(JSON.stringify(result));
         """
         result = subprocess.run(
-            ['node', '-e', js], capture_output=True, text=True, timeout=5,
+            ['bun', '-e', js], capture_output=True, text=True, timeout=5,
         )
         self.assertEqual(result.returncode, 0, f'node exited non-zero: {result.stderr}')
         return json.loads(result.stdout)
@@ -1237,7 +1237,7 @@ class TestChannelResolverContract(unittest.TestCase):
             f"process.stdout.write(JSON.stringify(r === null ? {{error:'no_reachable_channel'}} : r));"
             f"process.exit(r === null ? 1 : 0);"
         )
-        r = subprocess.run(['node', '-e', js], capture_output=True, text=True, timeout=5)
+        r = subprocess.run(['bun', '-e', js], capture_output=True, text=True, timeout=5)
         return r.returncode, json.loads(r.stdout.strip())
 
     def _run_validator(self, config_obj):
@@ -1246,7 +1246,7 @@ class TestChannelResolverContract(unittest.TestCase):
         const result = v.validate({json.dumps(config_obj)});
         process.stdout.write(JSON.stringify(result));
         """
-        r = subprocess.run(['node', '-e', js], capture_output=True, text=True, timeout=5)
+        r = subprocess.run(['bun', '-e', js], capture_output=True, text=True, timeout=5)
         self.assertEqual(r.returncode, 0, f'node exited non-zero: {r.stderr}')
         return json.loads(r.stdout)
 
@@ -1334,7 +1334,7 @@ class TestChannelResolverContract(unittest.TestCase):
     def test_missing_config_returns_read_error(self):
         """Missing config.json: exit 1, JSON error on stdout with detail+path."""
         r = subprocess.run(
-            ['node', str(self.RESOLVER), '/nope/missing-dir'],
+            ['bun', str(self.RESOLVER), '/nope/missing-dir'],
             capture_output=True, text=True
         )
         self.assertEqual(r.returncode, 1)
@@ -1601,7 +1601,7 @@ class TestRoutineModelValidation(unittest.TestCase):
         process.stdout.write(JSON.stringify(result));
         """
         result = subprocess.run(
-            ['node', '-e', js], capture_output=True, text=True, timeout=5,
+            ['bun', '-e', js], capture_output=True, text=True, timeout=5,
         )
         self.assertEqual(result.returncode, 0, f'node exited non-zero: {result.stderr}')
         return json.loads(result.stdout)
@@ -1667,7 +1667,7 @@ class TestStopPayloadSnapshot(_TempDirTest):
         if env_extra:
             env.update(env_extra)
         return subprocess.run(
-            ['node', str(REPO / 'scripts' / 'stop-pipeline.js')],
+            ['bun', str(REPO / 'scripts' / 'stop-pipeline.js')],
             input=json.dumps(payload_dict), capture_output=True, text=True,
             cwd=self._tmpdir, env=env, timeout=15,
         )
@@ -1676,7 +1676,7 @@ class TestStopPayloadSnapshot(_TempDirTest):
         env = os.environ.copy()
         env['CLAUDE_PLUGIN_ROOT'] = str(REPO)
         result = subprocess.run(
-            ['node', str(REPO / 'scripts' / 'doctor-check.js'),
+            ['bun', str(REPO / 'scripts' / 'doctor-check.js'),
              '.claude-code-hermit'],
             capture_output=True, text=True,
             cwd=self._tmpdir, env=env, timeout=15,

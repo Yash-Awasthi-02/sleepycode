@@ -15,37 +15,37 @@ echo ""
 # ── Validate mode ─────────────────────────────────────────────────────────────
 
 run_test "validate: canonical predicate accepted" \
-  node "$EVAL" --validate "avg_session_cost_usd < 0.30 over 10 sessions"
+  bun "$EVAL" --validate "avg_session_cost_usd < 0.30 over 10 sessions"
 
 run_test "validate: <= op accepted" \
-  node "$EVAL" --validate "avg_session_cost_usd <= 0.50 over 5 sessions"
+  bun "$EVAL" --validate "avg_session_cost_usd <= 0.50 over 5 sessions"
 
 run_test "validate: > op accepted" \
-  node "$EVAL" --validate "avg_session_cost_usd > 0.10 over 3 sessions"
+  bun "$EVAL" --validate "avg_session_cost_usd > 0.10 over 3 sessions"
 
 run_test "validate: >= op accepted" \
-  node "$EVAL" --validate "avg_session_cost_usd >= 0.05 over 1 session"
+  bun "$EVAL" --validate "avg_session_cost_usd >= 0.05 over 1 session"
 
 run_test "validate: integer threshold accepted" \
-  node "$EVAL" --validate "avg_session_cost_usd < 1 over 7 sessions"
+  bun "$EVAL" --validate "avg_session_cost_usd < 1 over 7 sessions"
 
 run_test "validate: bad op rejected (exit non-zero)" \
-  bash -c '! node "$1" --validate "avg_session_cost_usd ~ 0.30 over 10 sessions"' -- "$EVAL"
+  bash -c '! bun "$1" --validate "avg_session_cost_usd ~ 0.30 over 10 sessions"' -- "$EVAL"
 
 run_test "validate: bad op prints reason" \
-  bash -c 'node "$1" --validate "avg_session_cost_usd ~ 0.30 over 10 sessions" 2>&1 | grep -q "invalid grammar"' -- "$EVAL"
+  bash -c 'bun "$1" --validate "avg_session_cost_usd ~ 0.30 over 10 sessions" 2>&1 | grep -q "invalid grammar"' -- "$EVAL"
 
 run_test "validate: unsupported metric rejected" \
-  bash -c '! node "$1" --validate "total_tokens < 1000 over 5 sessions"' -- "$EVAL"
+  bash -c '! bun "$1" --validate "total_tokens < 1000 over 5 sessions"' -- "$EVAL"
 
 run_test "validate: unsupported metric prints reason" \
-  bash -c 'node "$1" --validate "total_tokens < 1000 over 5 sessions" 2>&1 | grep -q "unsupported metric"' -- "$EVAL"
+  bash -c 'bun "$1" --validate "total_tokens < 1000 over 5 sessions" 2>&1 | grep -q "unsupported metric"' -- "$EVAL"
 
 run_test "validate: missing 'over N sessions' rejected" \
-  bash -c '! node "$1" --validate "avg_session_cost_usd < 0.30"' -- "$EVAL"
+  bash -c '! bun "$1" --validate "avg_session_cost_usd < 0.30"' -- "$EVAL"
 
 run_test "validate: missing window number rejected" \
-  bash -c '! node "$1" --validate "avg_session_cost_usd < 0.30 over sessions"' -- "$EVAL"
+  bash -c '! bun "$1" --validate "avg_session_cost_usd < 0.30 over sessions"' -- "$EVAL"
 
 # ── Evaluate mode — helper to build fixtures ──────────────────────────────────
 
@@ -85,7 +85,7 @@ run_test "evaluate: INSUFFICIENT_DATA when fewer sessions than window" \
     write_report "$sdir/sessions" S-001 "2026-05-01T10:00:00Z" 0.20
     write_report "$sdir/sessions" S-002 "2026-05-02T10:00:00Z" 0.22
     write_report "$sdir/sessions" S-003 "2026-05-03T10:00:00Z" 0.18
-    out=$(node "'"$EVAL"'" "$sdir" "2026-04-30T00:00:00Z" "null" "avg_session_cost_usd < 0.30 over 5 sessions")
+    out=$(bun "'"$EVAL"'" "$sdir" "2026-04-30T00:00:00Z" "null" "avg_session_cost_usd < 0.30 over 5 sessions")
     echo "$out" | grep -q "INSUFFICIENT_DATA"
   '
 
@@ -97,8 +97,8 @@ run_test "evaluate: sessions_counted in INSUFFICIENT_DATA output" \
     mkdir -p "$sdir/sessions"
     '"$(declare -f write_report)"'
     write_report "$sdir/sessions" S-001 "2026-05-01T10:00:00Z" 0.20
-    out=$(node "'"$EVAL"'" "$sdir" "2026-04-30T00:00:00Z" "null" "avg_session_cost_usd < 0.30 over 5 sessions")
-    echo "$out" | node -e "const d=JSON.parse(require(\"fs\").readFileSync(\"/dev/stdin\",\"utf8\")); process.exit(d.sessions_counted===1?0:1)"
+    out=$(bun "'"$EVAL"'" "$sdir" "2026-04-30T00:00:00Z" "null" "avg_session_cost_usd < 0.30 over 5 sessions")
+    echo "$out" | bun -e "const d=JSON.parse(require(\"fs\").readFileSync(\"/dev/stdin\",\"utf8\")); process.exit(d.sessions_counted===1?0:1)"
   '
 
 # ── MET ───────────────────────────────────────────────────────────────────────
@@ -116,7 +116,7 @@ run_test "evaluate: MET when avg < threshold" \
     write_report "$sdir/sessions" S-003 "2026-05-03T10:00:00Z" 0.18
     write_report "$sdir/sessions" S-004 "2026-05-04T10:00:00Z" 0.19
     write_report "$sdir/sessions" S-005 "2026-05-05T10:00:00Z" 0.21
-    out=$(node "'"$EVAL"'" "$sdir" "2026-04-30T00:00:00Z" "null" "avg_session_cost_usd < 0.30 over 5 sessions")
+    out=$(bun "'"$EVAL"'" "$sdir" "2026-04-30T00:00:00Z" "null" "avg_session_cost_usd < 0.30 over 5 sessions")
     echo "$out" | grep -q "\"verdict\":\"MET\""
   '
 
@@ -130,8 +130,8 @@ run_test "evaluate: observed value in MET output" \
     write_report "$sdir/sessions" S-001 "2026-05-01T10:00:00Z" 0.20
     write_report "$sdir/sessions" S-002 "2026-05-02T10:00:00Z" 0.20
     write_report "$sdir/sessions" S-003 "2026-05-03T10:00:00Z" 0.20
-    out=$(node "'"$EVAL"'" "$sdir" "2026-04-30T00:00:00Z" "null" "avg_session_cost_usd < 0.30 over 3 sessions")
-    echo "$out" | node -e "const d=JSON.parse(require(\"fs\").readFileSync(\"/dev/stdin\",\"utf8\")); process.exit(d.observed===0.2?0:1)"
+    out=$(bun "'"$EVAL"'" "$sdir" "2026-04-30T00:00:00Z" "null" "avg_session_cost_usd < 0.30 over 3 sessions")
+    echo "$out" | bun -e "const d=JSON.parse(require(\"fs\").readFileSync(\"/dev/stdin\",\"utf8\")); process.exit(d.observed===0.2?0:1)"
   '
 
 # ── UNMET ─────────────────────────────────────────────────────────────────────
@@ -147,7 +147,7 @@ run_test "evaluate: UNMET when avg >= threshold (< op)" \
     write_report "$sdir/sessions" S-001 "2026-05-01T10:00:00Z" 0.40
     write_report "$sdir/sessions" S-002 "2026-05-02T10:00:00Z" 0.40
     write_report "$sdir/sessions" S-003 "2026-05-03T10:00:00Z" 0.40
-    out=$(node "'"$EVAL"'" "$sdir" "2026-04-30T00:00:00Z" "null" "avg_session_cost_usd < 0.30 over 3 sessions")
+    out=$(bun "'"$EVAL"'" "$sdir" "2026-04-30T00:00:00Z" "null" "avg_session_cost_usd < 0.30 over 3 sessions")
     echo "$out" | grep -q "\"verdict\":\"UNMET\""
   '
 
@@ -167,7 +167,7 @@ run_test "evaluate: accepted_in_session excluded from window" \
     write_report "$sdir/sessions" S-002 "2026-05-02T10:00:00Z" 0.20
     write_report "$sdir/sessions" S-003 "2026-05-03T10:00:00Z" 0.20
     write_report "$sdir/sessions" S-004 "2026-05-04T10:00:00Z" 0.20
-    out=$(node "'"$EVAL"'" "$sdir" "2026-04-30T00:00:00Z" "S-001" "avg_session_cost_usd < 0.30 over 3 sessions")
+    out=$(bun "'"$EVAL"'" "$sdir" "2026-04-30T00:00:00Z" "S-001" "avg_session_cost_usd < 0.30 over 3 sessions")
     echo "$out" | grep -q "\"verdict\":\"MET\""
   '
 
@@ -185,7 +185,7 @@ run_test "evaluate: sessions before accepted_date excluded" \
     write_report "$sdir/sessions" S-001 "2026-04-01T10:00:00Z" 0.10
     write_report "$sdir/sessions" S-002 "2026-05-02T10:00:00Z" 0.20
     write_report "$sdir/sessions" S-003 "2026-05-03T10:00:00Z" 0.20
-    out=$(node "'"$EVAL"'" "$sdir" "2026-05-01T00:00:00Z" "null" "avg_session_cost_usd < 0.30 over 3 sessions")
+    out=$(bun "'"$EVAL"'" "$sdir" "2026-05-01T00:00:00Z" "null" "avg_session_cost_usd < 0.30 over 3 sessions")
     echo "$out" | grep -q "INSUFFICIENT_DATA"
   '
 
@@ -203,7 +203,7 @@ run_test "evaluate: malformed report does not crash (fail-open)" \
     write_report "$sdir/sessions" S-001 "2026-05-01T10:00:00Z" 0.20
     write_report "$sdir/sessions" S-002 "2026-05-02T10:00:00Z" 0.20
     write_report "$sdir/sessions" S-003 "2026-05-03T10:00:00Z" 0.20
-    out=$(node "'"$EVAL"'" "$sdir" "2026-04-30T00:00:00Z" "null" "avg_session_cost_usd < 0.30 over 3 sessions")
+    out=$(bun "'"$EVAL"'" "$sdir" "2026-04-30T00:00:00Z" "null" "avg_session_cost_usd < 0.30 over 3 sessions")
     # Bad file is skipped; valid ones are evaluated normally.
     echo "$out" | grep -q "\"verdict\":\"MET\""
   '
@@ -215,7 +215,7 @@ run_test "evaluate: missing sessions dir returns INSUFFICIENT_DATA (not crash)" 
     sdir="$workdir/.claude-code-hermit"
     mkdir -p "$sdir/state"
     # No sessions/ directory.
-    out=$(node "'"$EVAL"'" "$sdir" "2026-04-30T00:00:00Z" "null" "avg_session_cost_usd < 0.30 over 3 sessions")
+    out=$(bun "'"$EVAL"'" "$sdir" "2026-04-30T00:00:00Z" "null" "avg_session_cost_usd < 0.30 over 3 sessions")
     echo "$out" | grep -q "INSUFFICIENT_DATA"
   '
 
@@ -233,7 +233,7 @@ run_test "evaluate: cost_usd=0 sessions excluded (no spurious MET)" \
     write_report "$sdir/sessions" S-001 "2026-05-01T10:00:00Z" 0.00
     write_report "$sdir/sessions" S-002 "2026-05-02T10:00:00Z" 0.00
     write_report "$sdir/sessions" S-003 "2026-05-03T10:00:00Z" 0.00
-    out=$(node "'"$EVAL"'" "$sdir" "2026-04-30T00:00:00Z" "null" "avg_session_cost_usd < 0.30 over 3 sessions")
+    out=$(bun "'"$EVAL"'" "$sdir" "2026-04-30T00:00:00Z" "null" "avg_session_cost_usd < 0.30 over 3 sessions")
     echo "$out" | grep -q "INSUFFICIENT_DATA"
   '
 
@@ -250,8 +250,8 @@ run_test "evaluate: unrecorded sessions skipped, recorded ones still count" \
     write_report "$sdir/sessions" S-003 "2026-05-03T10:00:00Z" 0.00
     write_report "$sdir/sessions" S-004 "2026-05-04T10:00:00Z" 0.20
     write_report "$sdir/sessions" S-005 "2026-05-05T10:00:00Z" 0.20
-    out=$(node "'"$EVAL"'" "$sdir" "2026-04-30T00:00:00Z" "null" "avg_session_cost_usd < 0.30 over 3 sessions")
-    echo "$out" | node -e "const d=JSON.parse(require(\"fs\").readFileSync(\"/dev/stdin\",\"utf8\")); process.exit(d.verdict===\"MET\"&&d.sessions_counted===3&&d.observed===0.2?0:1)"
+    out=$(bun "'"$EVAL"'" "$sdir" "2026-04-30T00:00:00Z" "null" "avg_session_cost_usd < 0.30 over 3 sessions")
+    echo "$out" | bun -e "const d=JSON.parse(require(\"fs\").readFileSync(\"/dev/stdin\",\"utf8\")); process.exit(d.verdict===\"MET\"&&d.sessions_counted===3&&d.observed===0.2?0:1)"
   '
 
 print_results

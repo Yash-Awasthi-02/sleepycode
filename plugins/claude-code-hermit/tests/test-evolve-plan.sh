@@ -54,7 +54,7 @@ printf '#!/bin/sh\necho run\n' > "$PR/state-templates/bin/hermit-run"
 
 # run_plan <hermit-dir> <hatch-target> <out-file>
 run_plan() {
-  CLAUDE_PLUGIN_ROOT="$PR" node "$EVOLVE_PLAN" "$1" --hatch-target="$2" > "$3" 2>/dev/null
+  CLAUDE_PLUGIN_ROOT="$PR" bun "$EVOLVE_PLAN" "$1" --hatch-target="$2" > "$3" 2>/dev/null
 }
 
 # -------------------------------------------------------
@@ -265,7 +265,7 @@ rm -rf "$proj"
 # -------------------------------------------------------
 proj="$(mktemp -d)"; mkdir -p "$proj/.claude-code-hermit"
 echo '{"_hermit_versions":{"claude-code-hermit":"1.1.6"}}' > "$proj/.claude-code-hermit/config.json"
-CLAUDE_PLUGIN_ROOT="$PR" node "$EVOLVE_PLAN" "$proj/.claude-code-hermit" > "$proj/plan.json" 2>/dev/null
+CLAUDE_PLUGIN_ROOT="$PR" bun "$EVOLVE_PLAN" "$proj/.claude-code-hermit" > "$proj/plan.json" 2>/dev/null
 run_test "no_hatch_target: missing flag -> errors[no_hatch_target], exit 0" python3 -c "
 import json
 d=json.load(open('$proj/plan.json'))

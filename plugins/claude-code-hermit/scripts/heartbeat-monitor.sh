@@ -16,7 +16,7 @@ HB_DIR="${2:?usage: heartbeat-monitor.sh <interval_seconds> <hermit_state_dir>}"
 PRECHECK="${HEARTBEAT_PRECHECK:-$(dirname "$0")/heartbeat-precheck.js}"
 first=1
 while true; do
-  verdict="$(node "$PRECHECK" --peek "$HB_DIR" 2>/dev/null || echo "ERROR")"
+  verdict="$(bun "$PRECHECK" --peek "$HB_DIR" 2>/dev/null || echo "ERROR")"
   case "$verdict" in
     EVALUATE*)
       [[ -n "$first" ]] || echo "HEARTBEAT_EVALUATE" ;;

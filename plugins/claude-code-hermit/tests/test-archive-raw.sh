@@ -33,7 +33,7 @@ EOF
 # 1. Empty raw/ — nothing to archive
 # -------------------------------------------------------
 workdir="$(make_hermit)"
-out="$(cd "$workdir" && node "$ARCHIVE" .claude-code-hermit 2>&1)"
+out="$(cd "$workdir" && bun "$ARCHIVE" .claude-code-hermit 2>&1)"
 run_test "empty raw/: nothing to archive message" bash -c "echo '$out' | grep -q 'nothing to archive'"
 cleanup
 
@@ -50,7 +50,7 @@ tags: []
 ---
 body
 EOF
-out="$(cd "$workdir" && node "$ARCHIVE" .claude-code-hermit 2>&1)"
+out="$(cd "$workdir" && bun "$ARCHIVE" .claude-code-hermit 2>&1)"
 run_test "md frontmatter: archived (output says 1 archived)" bash -c "echo '$out' | grep -qE '^archive-raw: 1 archived, 0 retained, 0 skipped, 0 pinned'"
 run_test "md frontmatter: file moved to .archive/" bash -c \
   "[ -f '$workdir/.claude-code-hermit/raw/.archive/note-${PAST}.md' ] && [ ! -f '$workdir/.claude-code-hermit/raw/note-${PAST}.md' ]"
@@ -61,7 +61,7 @@ cleanup
 # -------------------------------------------------------
 workdir="$(make_hermit)"
 echo '{"entities":[]}' > "$workdir/.claude-code-hermit/raw/snapshot-ha-context-${PAST}.json"
-out="$(cd "$workdir" && node "$ARCHIVE" .claude-code-hermit 2>&1)"
+out="$(cd "$workdir" && bun "$ARCHIVE" .claude-code-hermit 2>&1)"
 run_test "json filename-date: archived (output says 1 archived)" bash -c "echo '$out' | grep -qE '^archive-raw: 1 archived, 0 retained, 0 skipped, 0 pinned'"
 run_test "json filename-date: file moved to .archive/" bash -c \
   "[ -f '$workdir/.claude-code-hermit/raw/.archive/snapshot-ha-context-${PAST}.json' ] && [ ! -f '$workdir/.claude-code-hermit/raw/snapshot-ha-context-${PAST}.json' ]"
@@ -81,7 +81,7 @@ tags: []
 body
 EOF
 echo '{"entities":[]}' > "$workdir/.claude-code-hermit/raw/snapshot-ha-normalized-latest.json"
-out="$(cd "$workdir" && node "$ARCHIVE" .claude-code-hermit 2>&1)"
+out="$(cd "$workdir" && bun "$ARCHIVE" .claude-code-hermit 2>&1)"
 run_test "latest alias: output says 0 archived" bash -c "echo '$out' | grep -qE '^archive-raw: 0 archived'"
 run_test "latest alias: pinned count = 2" bash -c "echo '$out' | grep -qE '2 pinned'"
 run_test "latest alias: patterns-latest.md still in raw/" bash -c \
@@ -100,7 +100,7 @@ type: input
 ---
 Missing created field.
 EOF
-out="$(cd "$workdir" && node "$ARCHIVE" .claude-code-hermit 2>&1)"
+out="$(cd "$workdir" && bun "$ARCHIVE" .claude-code-hermit 2>&1)"
 run_test "missing created: 1 skipped" bash -c "echo '$out' | grep -qF '1 skipped'"
 run_test "missing created: named in output" bash -c "echo '$out' | grep -qF 'no-date.md'"
 run_test "missing created: reason text" bash -c "echo '$out' | grep -q 'missing created'"
@@ -119,7 +119,7 @@ type: input
 ---
 Bad date value.
 EOF
-out="$(cd "$workdir" && node "$ARCHIVE" .claude-code-hermit 2>&1)"
+out="$(cd "$workdir" && bun "$ARCHIVE" .claude-code-hermit 2>&1)"
 run_test "malformed created: 1 skipped" bash -c "echo '$out' | grep -qF '1 skipped'"
 run_test "malformed created: named in output" bash -c "echo '$out' | grep -qF 'bad-date.md'"
 run_test "malformed created: unparseable reason" bash -c "echo '$out' | grep -q 'unparseable'"
@@ -130,7 +130,7 @@ cleanup
 # -------------------------------------------------------
 workdir="$(make_hermit)"
 echo '{"state":"unknown"}' > "$workdir/.claude-code-hermit/raw/nodatefile.json"
-out="$(cd "$workdir" && node "$ARCHIVE" .claude-code-hermit 2>&1)"
+out="$(cd "$workdir" && bun "$ARCHIVE" .claude-code-hermit 2>&1)"
 run_test "json no-date: output says 1 skipped" bash -c "echo '$out' | grep -qE '^archive-raw: 0 archived, 0 retained, 1 skipped'"
 run_test "json no-date: file still in raw/" bash -c \
   "[ -f '$workdir/.claude-code-hermit/raw/nodatefile.json' ]"
@@ -147,7 +147,7 @@ type: input
 ---
 Bad frontmatter date, but filename carries ${PAST}.
 EOF
-out="$(cd "$workdir" && node "$ARCHIVE" .claude-code-hermit 2>&1)"
+out="$(cd "$workdir" && bun "$ARCHIVE" .claude-code-hermit 2>&1)"
 run_test "filename rescue: archived despite bad frontmatter" bash -c "echo '$out' | grep -qE '^archive-raw: 1 archived'"
 run_test "filename rescue: file moved to .archive/" bash -c \
   "[ -f '$workdir/.claude-code-hermit/raw/.archive/snapshot-${PAST}.md' ]"
@@ -158,7 +158,7 @@ cleanup
 # -------------------------------------------------------
 workdir="$(make_hermit)"
 echo '{"entities":[]}' > "$workdir/.claude-code-hermit/raw/snapshot-ha-context-${RECENT}.json"
-out="$(cd "$workdir" && node "$ARCHIVE" .claude-code-hermit 2>&1)"
+out="$(cd "$workdir" && bun "$ARCHIVE" .claude-code-hermit 2>&1)"
 run_test "json recent: output says 1 retained" bash -c "echo '$out' | grep -qE '^archive-raw: 0 archived, 1 retained'"
 run_test "json recent: file still in raw/" bash -c \
   "[ -f '$workdir/.claude-code-hermit/raw/snapshot-ha-context-${RECENT}.json' ]"
@@ -176,7 +176,7 @@ type: briefing
 ---
 See snapshot-ha-context-2020-01-01.json for details.
 EOF
-out="$(cd "$workdir" && node "$ARCHIVE" .claude-code-hermit 2>&1)"
+out="$(cd "$workdir" && bun "$ARCHIVE" .claude-code-hermit 2>&1)"
 run_test "json compiled-ref safety: output says 1 retained" bash -c "echo '$out' | grep -qE '^archive-raw: 0 archived, 1 retained'"
 run_test "json compiled-ref safety: file still in raw/" bash -c \
   "[ -f '$workdir/.claude-code-hermit/raw/snapshot-ha-context-${PAST}.json' ]"
@@ -204,7 +204,7 @@ type: input
 ---
 No created.
 EOF
-out="$(cd "$workdir" && node "$ARCHIVE" .claude-code-hermit 2>&1)"
+out="$(cd "$workdir" && bun "$ARCHIVE" .claude-code-hermit 2>&1)"
 run_test "mixed: output says 2 archived, 0 retained, 1 skipped, 1 pinned" bash -c "echo '$out' | grep -qE '^archive-raw: 2 archived, 0 retained, 1 skipped, 1 pinned'"
 run_test "mixed: no-created.md named in skip output" bash -c "echo '$out' | grep -qF 'no-created.md'"
 run_test "mixed: -latest.json still in raw/" bash -c \
@@ -219,7 +219,7 @@ cleanup
 # 12. Exit code is always 0 (fail-open)
 # -------------------------------------------------------
 workdir="$(mktemp -d)"
-node "$ARCHIVE" "$workdir/nonexistent-hermit" >/dev/null 2>&1
+bun "$ARCHIVE" "$workdir/nonexistent-hermit" >/dev/null 2>&1
 ec=$?
 run_test "fail-open: exit 0 with missing state dir" bash -c "[ $ec -eq 0 ]"
 cleanup

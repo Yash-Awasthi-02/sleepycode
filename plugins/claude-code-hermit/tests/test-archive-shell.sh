@@ -19,7 +19,7 @@ workdir="$(mktemp -d)"
 mkdir -p "$workdir/.claude-code-hermit/sessions"
 mkdir -p "$workdir/.claude-code-hermit/state"
 echo '{"session_state":"idle"}' > "$workdir/.claude-code-hermit/state/runtime.json"
-out="$(cd "$workdir" && node "$ARCHIVE" --source=manual)"
+out="$(cd "$workdir" && bun "$ARCHIVE" --source=manual)"
 run_test "shell-empty (no SHELL.md)" bash -c "echo '$out' | grep -qF '\"archived\":false'"
 run_test "shell-empty reason" bash -c "echo '$out' | grep -qF '\"reason\":\"shell-empty\"'"
 run_test "no snapshots dir created on empty" bash -c "[ ! -d '$workdir/.claude-code-hermit/sessions/snapshots' ]"
@@ -36,7 +36,7 @@ mkdir -p "$workdir/.claude-code-hermit/sessions"
 mkdir -p "$workdir/.claude-code-hermit/state"
 echo '{"session_state":"idle","last_shell_snapshot_at":null}' > "$workdir/.claude-code-hermit/state/runtime.json"
 printf '   \n  \n' > "$workdir/.claude-code-hermit/sessions/SHELL.md"
-out="$(cd "$workdir" && node "$ARCHIVE" --source=manual)"
+out="$(cd "$workdir" && bun "$ARCHIVE" --source=manual)"
 run_test "shell-empty (whitespace only)" bash -c "echo '$out' | grep -qF '\"archived\":false'"
 cleanup
 
@@ -45,7 +45,7 @@ cleanup
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 echo '{"session_state":"in_progress","last_shell_snapshot_at":null}' > "$workdir/.claude-code-hermit/state/runtime.json"
-out="$(cd "$workdir" && HERMIT_NOW='2026-05-06T22:00:00Z' node "$ARCHIVE" --source=routine)"
+out="$(cd "$workdir" && HERMIT_NOW='2026-05-06T22:00:00Z' bun "$ARCHIVE" --source=routine)"
 
 run_test "content: archived true" bash -c "echo '$out' | grep -qF '\"archived\":true'"
 run_test "content: snapshots dir exists" bash -c "[ -d '$workdir/.claude-code-hermit/sessions/snapshots' ]"
@@ -78,9 +78,9 @@ cleanup
 workdir="$(setup_workdir)"
 echo '{"session_state":"in_progress","last_shell_snapshot_at":null}' > "$workdir/.claude-code-hermit/state/runtime.json"
 
-first_out="$(cd "$workdir" && HERMIT_NOW='2026-05-06T22:00:00Z' node "$ARCHIVE" --source=routine)"
+first_out="$(cd "$workdir" && HERMIT_NOW='2026-05-06T22:00:00Z' bun "$ARCHIVE" --source=routine)"
 # Same minute → same filename → EEXIST → concurrent.
-second_out="$(cd "$workdir" && HERMIT_NOW='2026-05-06T22:00:00Z' node "$ARCHIVE" --source=routine)"
+second_out="$(cd "$workdir" && HERMIT_NOW='2026-05-06T22:00:00Z' bun "$ARCHIVE" --source=routine)"
 
 run_test "concurrent: first archived" bash -c "echo '$first_out' | grep -qF '\"archived\":true'"
 run_test "concurrent: second archived false" bash -c "echo '$second_out' | grep -qF '\"archived\":false'"
@@ -95,9 +95,9 @@ cleanup
 workdir="$(setup_workdir)"
 echo '{"session_state":"in_progress","last_shell_snapshot_at":null}' > "$workdir/.claude-code-hermit/state/runtime.json"
 
-cd "$workdir" && HERMIT_NOW='2026-05-06T22:00:00Z' node "$ARCHIVE" --source=routine >/dev/null
+cd "$workdir" && HERMIT_NOW='2026-05-06T22:00:00Z' bun "$ARCHIVE" --source=routine >/dev/null
 printf '\n## Active Work\nfresh content\n' >> "$workdir/.claude-code-hermit/sessions/SHELL.md"
-cd "$workdir" && HERMIT_NOW='2026-05-06T23:00:00Z' node "$ARCHIVE" --source=routine >/dev/null
+cd "$workdir" && HERMIT_NOW='2026-05-06T23:00:00Z' bun "$ARCHIVE" --source=routine >/dev/null
 cd "$ORIG_DIR"
 
 run_test "idempotency: two distinct snapshots created" bash -c \
@@ -111,7 +111,7 @@ cleanup
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 echo '{"session_state":"in_progress","last_shell_snapshot_at":null}' > "$workdir/.claude-code-hermit/state/runtime.json"
-cd "$workdir" && HERMIT_NOW='2026-05-06T22:00:00Z' node "$ARCHIVE" --source=routine >/dev/null
+cd "$workdir" && HERMIT_NOW='2026-05-06T22:00:00Z' bun "$ARCHIVE" --source=routine >/dev/null
 cd "$ORIG_DIR"
 
 run_test "namespace: no S-NNN-REPORT.md in sessions/" bash -c \
@@ -125,7 +125,7 @@ cleanup
 # -------------------------------------------------------
 # Custom setup: no state dir at all.
 workdir="$(mktemp -d)"
-cd "$workdir" && node "$ARCHIVE" >/dev/null 2>&1
+cd "$workdir" && bun "$ARCHIVE" >/dev/null 2>&1
 ec=$?
 cd "$ORIG_DIR"
 run_test "fail-open: exit 0 with no state dir" bash -c "[ $ec -eq 0 ]"
@@ -136,7 +136,7 @@ cleanup
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 rm "$workdir/.claude-code-hermit/state/runtime.json" 2>/dev/null || true
-out="$(cd "$workdir" && HERMIT_NOW='2026-05-06T22:00:00Z' node "$ARCHIVE" --source=routine)"
+out="$(cd "$workdir" && HERMIT_NOW='2026-05-06T22:00:00Z' bun "$ARCHIVE" --source=routine)"
 run_test "no-runtime: archived true" bash -c "echo '$out' | grep -qF '\"archived\":true'"
 run_test "no-runtime: snapshot file written" bash -c \
   "[ \$(ls '$workdir/.claude-code-hermit/sessions/snapshots/' | wc -l) -eq 1 ]"
@@ -161,7 +161,7 @@ Drift test — Progress Log heading deliberately absent.
 Some content here.
 EOF
 shell_before="$(cat "$workdir/.claude-code-hermit/sessions/SHELL.md")"
-out="$(cd "$workdir" && HERMIT_NOW='2026-05-06T22:00:00Z' node "$ARCHIVE" --source=routine 2>/tmp/archive-stderr.$$)"
+out="$(cd "$workdir" && HERMIT_NOW='2026-05-06T22:00:00Z' bun "$ARCHIVE" --source=routine 2>/tmp/archive-stderr.$$)"
 stderr="$(cat /tmp/archive-stderr.$$)"
 rm -f /tmp/archive-stderr.$$
 run_test "no-progress-log: archived true" bash -c "echo '$out' | grep -qF '\"archived\":true'"
@@ -178,7 +178,7 @@ cleanup
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 echo '{"session_state":"in_progress","last_shell_snapshot_at":null}' > "$workdir/.claude-code-hermit/state/runtime.json"
-cd "$workdir" && HERMIT_NOW='2026-05-06T22:00:00Z' node "$ARCHIVE" --source=routine >/dev/null
+cd "$workdir" && HERMIT_NOW='2026-05-06T22:00:00Z' bun "$ARCHIVE" --source=routine >/dev/null
 cd "$ORIG_DIR"
 run_test "no-tmp: no .tmp.<pid> snapshot leftover" bash -c \
   "[ \$(find '$workdir/.claude-code-hermit/sessions/snapshots/' -name '*.tmp.*' | wc -l) -eq 0 ]"

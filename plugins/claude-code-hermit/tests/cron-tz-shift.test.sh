@@ -17,7 +17,7 @@ failures=()
 check_stdout() {
   local name="$1" expected="$2" tz="$3" now="$4" cron="$5" fromtz="$6"
   local out stderr_out
-  out=$(TZ="$tz" HERMIT_CRON_TZ_SHIFT_NOW="$now" node "$HELPER" "$cron" "$fromtz" 2>/tmp/cron_test_stderr)
+  out=$(TZ="$tz" HERMIT_CRON_TZ_SHIFT_NOW="$now" bun "$HELPER" "$cron" "$fromtz" 2>/tmp/cron_test_stderr)
   local rc=$?
   stderr_out=$(cat /tmp/cron_test_stderr)
   if [ $rc -ne 0 ]; then
@@ -41,7 +41,7 @@ check_stdout() {
 check_warn() {
   local name="$1" expected="$2" pattern="$3" tz="$4" now="$5" cron="$6" fromtz="$7"
   local out stderr_out
-  out=$(TZ="$tz" HERMIT_CRON_TZ_SHIFT_NOW="$now" node "$HELPER" "$cron" "$fromtz" 2>/tmp/cron_test_stderr)
+  out=$(TZ="$tz" HERMIT_CRON_TZ_SHIFT_NOW="$now" bun "$HELPER" "$cron" "$fromtz" 2>/tmp/cron_test_stderr)
   local rc=$?
   stderr_out=$(cat /tmp/cron_test_stderr)
   if [ $rc -ne 0 ]; then
@@ -64,7 +64,7 @@ check_warn() {
 # Asserts exit non-zero.
 check_fail() {
   local name="$1" tz="$2" now="$3" cron="$4" fromtz="$5"
-  TZ="$tz" HERMIT_CRON_TZ_SHIFT_NOW="$now" node "$HELPER" "$cron" "$fromtz" >/dev/null 2>&1
+  TZ="$tz" HERMIT_CRON_TZ_SHIFT_NOW="$now" bun "$HELPER" "$cron" "$fromtz" >/dev/null 2>&1
   if [ $? -ne 0 ]; then
     echo "  PASS  $name"
     ((PASSED++)) || true

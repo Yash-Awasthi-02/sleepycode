@@ -11,7 +11,7 @@ const { spawnSync } = require('child_process');
 /**
  * Profile-gated hook execution wrapper.
  *
- * Usage: node run-with-profile.js <requiredProfiles> <scriptPath>
+ * Usage: bun run-with-profile.js <requiredProfiles> <scriptPath>
  *
  * requiredProfiles: comma-separated list of profiles that enable this hook
  *                   e.g. "standard,strict" means the hook runs on standard OR strict
@@ -27,7 +27,7 @@ const VALID_PROFILES = new Set(['minimal', 'standard', 'strict']);
 function main() {
   const args = process.argv.slice(2);
   if (args.length < 2) {
-    console.error('Usage: node run-with-profile.js <requiredProfiles> <scriptPath>');
+    console.error('Usage: bun run-with-profile.js <requiredProfiles> <scriptPath>');
     process.exit(1);
   }
 
@@ -57,7 +57,9 @@ function main() {
   }
 
   // Pipe stdin through to the target script
-  const result = spawnSync('node', [resolved], {
+  // process.execPath = whatever runtime is executing this hook (bun in production,
+  // either runtime in tests) — never hardcode, or the inner script escapes the flip.
+  const result = spawnSync(process.execPath, [resolved], {
     stdio: 'inherit',
     timeout: 30000,
     env: process.env,
