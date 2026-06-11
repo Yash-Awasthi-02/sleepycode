@@ -265,6 +265,10 @@ function validate(config: Json): { errors: string[]; warnings: string[] } {
     errors.push('push_notifications: must be a boolean');
   }
 
+  if (config.post_close_clear !== undefined && typeof config.post_close_clear !== 'boolean') {
+    errors.push('post_close_clear: must be a boolean');
+  }
+
   return { errors, warnings };
 }
 

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- **post-close context reset via `/clear`** (#340) — after `daily-auto-close` archives a session, the watchdog sends `/clear` on the next tick when the session is idle and unattended. The next sparse wake (e.g. the 03:xx heartbeat) reads only the `startup-context.ts` injection (~9 KB) instead of the full stale conversation (~200–450 K), eliminating the cold cache-write (1.25× input cost) that made sparse autonomous wakes expensive. `/clear` preserves session-scoped `CronCreate` routines and `Monitor` tasks (process-scoped, not conversation-scoped — empirically verified on 2.1.173); no re-arm is needed. Enabled by default (`post_close_clear: true`). Only fires when the watchdog is invoked on a schedule (Docker hermits: automatic; bare-metal: requires `hermit-watchdog install`).
+
 ### Changed
 
 - **recall: surfaces auto-memory alongside hermit artifacts** — drops `model: haiku` and adds a "From memory" step over the loaded memory index (#350). Zero-config; existing hermits pick it up on `/plugin update`.
@@ -60,6 +64,8 @@
 1. Run `/claude-code-hermit:heartbeat start` (or wait for the next session start) to restart the monitor so it begins writing `state/heartbeat-liveness.json`. An already-running monitor does not pick up the change automatically. Once the first iteration completes, `state/heartbeat-liveness.json` appears and `/hermit-doctor` can evaluate heartbeat liveness.
 2. `state/heartbeat-liveness.json` is runtime-created — no manual seeding required.
 3. To disable the heartbeat doctor check: set `heartbeat.enabled: false` in `config.json` (check returns `ok: disabled`).
+4. Add `"post_close_clear": true` to `.claude-code-hermit/config.json` (top-level, not nested under `watchdog`). This enables the post-close context reset that ships enabled by default in new hermits. To disable: set `"post_close_clear": false`.
+   Note: the reset only fires when `hermit-watchdog run` is invoked on a schedule. Docker hermits get this automatically (the entrypoint runs it every ~5 min). Bare-metal hermits need `hermit-watchdog install` to set up the systemd/launchd timer — without a timer the marker sits until the next watchdog invocation, which may never come on bare metal.
 
 Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
