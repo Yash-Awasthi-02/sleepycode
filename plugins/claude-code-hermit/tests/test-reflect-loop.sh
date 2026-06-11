@@ -198,4 +198,17 @@ run_test "reflect: integrity rule gains artifact-cited path" \
 run_test "reflect: three-condition rule covers artifact-cited recurrence" \
   grep -qF "measured ≥2 times in a machine-written state file" "$REFLECT"
 
+# ── item 6: ephemerality exception for procedure capture ────────────────────
+
+run_test "reflect: ephemerality exception present" \
+  grep -qF "Ephemerality exception" "$REFLECT"
+run_test "reflect: exception requires artifacts that will not survive" \
+  grep -qF "will not survive the session" "$REFLECT"
+run_test "reflect: exception requires pre-existing quantified cost" \
+  grep -qF "cost is quantified in session content that already exists" "$REFLECT"
+run_test "reflect: exception stays Tier 3 and counts toward kill criteria" \
+  grep -qF "count toward the kill-criteria sample" "$REFLECT"
+run_test "reflect: base ≥2-sessions recurrence signal intact" \
+  grep -qF "≥2 distinct archived sessions" "$REFLECT"
+
 print_results

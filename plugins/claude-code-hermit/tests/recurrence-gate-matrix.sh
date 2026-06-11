@@ -165,6 +165,17 @@ for file in "${GATE_FILES[@]}"; do
   fi
 done
 
+# procedure-capture ephemerality exception: defined in reflect, mirrored in
+# triage + proposal-create (judge needs no change — current-session handling
+# already covers it)
+for file in "$reflect" "$triage" "$REPO_DIR/skills/proposal-create/SKILL.md"; do
+  label="$(basename "$(dirname "$file")")/$(basename "$file")"
+  if ! grep -qi "ephemerality exception" "$file"; then
+    echo "FAIL [$label]: missing 'ephemerality exception' procedure-capture vocabulary"
+    rc=1
+  fi
+done
+
 if [[ $rc -eq 0 ]]; then
   echo "PASS: all recurrence gate checks passed"
 fi

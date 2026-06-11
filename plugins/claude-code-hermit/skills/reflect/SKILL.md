@@ -126,6 +126,7 @@ Only create a proposal if all three are true:
    - **Tier 1 + `Evidence Source: archived-session`**: requires 2+ archived sessions, identical to Tier 2/3. The loosening above is specific to the `current-session` path, not to Tier 1 generally.
    - **Tier 2 / Tier 3**: 2+ archived sessions required at every phase (baseline: observed more than once, across archived sessions).
    - **Artifact-cited efficiency/cost candidates**: recurrence is satisfied by the cited measurements themselves — the same waste measured ≥2 times in a machine-written state file (`Sessions: none` + `Artifact:` line; the judge verifies the file contains the cited values).
+   - **Procedure-capture ephemerality exception**: a procedure-capture candidate with ephemeral artifacts and quantified cost satisfies recurrence at 1 current session — see § Procedure capture.
 2. **Meaningful consequence** — something goes wrong without fixing it
 3. **Operator-actionable change** — something the operator can concretely approve
 
@@ -212,7 +213,9 @@ Read two sources (reuse the `Explore` subagent fetch already used in the Resolut
 
 Recurrence signal: the same multi-step procedure appears as a Lesson or memory workflow-pattern in **≥2 distinct archived sessions** and no existing skill covers it.
 
-**Evidence fields** (both set by construction — satisfies the evidence-integrity rule below trivially):
+**Ephemerality exception:** a procedure observed only in the current session is eligible when (a) its artifacts are ephemeral — they live outside the repo and the hermit state dir (e.g. `/tmp` scripts) and will not survive the session — and (b) its cost is quantified in session content that already exists (wall-clock, rerun count, or script count in SHELL.md Progress Log / Findings; reflect must not write it there itself — § Evidence integrity rule). Such candidates use `Evidence Source: current-session` with `Sessions: current`, stay Tier 3, write the procedure brief as usual (the brief preserves the evidence before it vanishes), and route through `proposal-create` like any procedure-capture candidate. They count toward the kill-criteria sample above — the safety valve if this exception turns noisy.
+
+**Evidence fields** (standard path — set by construction; ephemerality-exception candidates use `Evidence Source: current-session` instead, as stated above):
 - `Evidence Source: archived-session` (reads MEMORY.md + archived Lessons, never live SHELL.md)
 - `Evidence Origin: own-work` unless the procedure was originally learned from external content (web fetches, `raw/` captures, channel messages) — then `external-content`, which forces Tier 3 anyway
 
