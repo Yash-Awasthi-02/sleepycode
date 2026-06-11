@@ -72,7 +72,7 @@ The allowlist is per-channel inside the `channels` object in config.json:
 After authorization passes, run:
 
 ```
-node ${CLAUDE_PLUGIN_ROOT}/scripts/record-operator-action.js --force
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/record-operator-action.ts --force
 ```
 
 This writes `state/last-operator-action.json` with the current timestamp, resetting the AUTO_CLOSE quiet window (used by both the 12h-inactivity trigger and the daily-midnight lull drain). The `UserPromptSubmit` hook deliberately skips `<channel` prompts (it can't see the allowlist); this step is the authorized write site.
@@ -107,7 +107,7 @@ This is how the agent learns the DM channel ID for proactive outbound notificati
     - If bare `yes`/`no` and multiple pending entries: reply listing the pending IDs and ask the operator to specify (e.g. `"MP-20260422-0 yes"`). Do not resolve yet.
   - **On resolved entry:**
     - Read `question` from the entry before modifying.
-    - **"yes"** on tier 1 → execute the change at next idle, log outcome in SHELL.md, set `status: "approved"`. Append `micro-resolved` event via `append-metrics.js`: `{"ts":"<now ISO>","type":"micro-resolved","micro_id":"<id>","action":"approved","question":"<question>"}`
+    - **"yes"** on tier 1 → execute the change at next idle, log outcome in SHELL.md, set `status: "approved"`. Append `micro-resolved` event via `append-metrics.ts`: `{"ts":"<now ISO>","type":"micro-resolved","micro_id":"<id>","action":"approved","question":"<question>"}`
     - **"yes"** on tier 2 → create PROP-NNN via `/claude-code-hermit:proposal-create`, queue for next idle, set `status: "approved"`. Append `micro-resolved` event with `"action":"approved"`.
     - **"no"** → set `status: "rejected"`. Append `micro-resolved` event with `"action":"rejected","question":"<question>"`.
     - Remove the resolved entry from `pending`. Write the file.

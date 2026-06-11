@@ -78,19 +78,26 @@ Then run `/claude-code-hermit:hatch` to set up the target project.
 Run tests:
 
 ```
-bash tests/run-all.sh
+bun test
 ```
 
 **Development constraints (non-negotiable):**
 
-- No dependencies — no `package.json`, no `node_modules`. Hook scripts use Node.js stdlib only.
-- No build step — skills are plain markdown, hooks are standalone `.js`/`.sh` scripts.
+- **Runtime is Bun (TypeScript-native).** Hooks and scripts are `.ts` run directly by `bun` —
+  no transpile, no build. The minimum version lives in `.claude-plugin/hermit-meta.json`
+  (`required_bun_version`) — `doctor-check` and the `hermit-start` preflight both read it
+  dynamically. The Docker template pins its own `BUN_VERSION`; bump it together with the meta.
+- No runtime dependencies — shipped code imports only the standard library and Bun built-ins
+  (`Bun.*`, `bun:*`, `node:*` modules). The repo-root `package.json` is dev-only toolchain
+  (typecheck via `bunx tsc`, test-only fuzzing); nothing under `plugins/` may import from
+  `node_modules` outside `*.test.ts` files.
+- No build step — skills are plain markdown, hooks are standalone `.ts`/`.sh` scripts.
 - Avoid overengineering.
 - Hooks fail open — a hook must never block Claude Code. Catch all errors, `process.exit(0)`. Never exit non-zero on transient failures.
 - Consume stdin — every hook must read stdin to completion even if unused (avoids broken pipe errors).
 - Agent references in skill instructions must always use the full namespaced form `claude-code-hermit:<agent-name>` (e.g., `claude-code-hermit:session-mgr`). Bare names are auto-namespaced by the harness on load, so bare-name invocations from skill text will fail with "Agent type not found".
 - **Hermit `state-templates/CLAUDE-APPEND.md` blocks must not restate `config.json` contents** (routine schedules, Discord/Telegram user IDs, morning-brief times, `permission_mode`, `agent_name`, `sign_off`, `escalation`, `idle_behavior`). Those are loaded structurally from `config.json` on every session start. CLAUDE-APPEND describes behaviors, conventions, and workflow shape — not the wiring. Restating config values leaks them into `CLAUDE.md`, which the hatch's OPERATOR.md scan reads, tempting the model to mirror them again into OPERATOR.md prose. Naming routines by `id` and referencing `enabled` state is fine — those are stable; schedules and flags drift.
-- **Default `config.json` source of truth is `state-templates/config.json.template`.** Skills (especially `hatch`) must overlay operator choices onto the template — never re-declare a parallel inline default object in SKILL.md text. The `tests/test-template-skill-sync.sh` contract test catches drift between the template's top-level keys and `hatch/SKILL.md` references; if you add a field to the template, also reference it by name in hatch.
+- **Default `config.json` source of truth is `state-templates/config.json.template`.** Skills (especially `hatch`) must overlay operator choices onto the template — never re-declare a parallel inline default object in SKILL.md text. The `tests/template-skill-sync.test.ts` contract test catches drift between the template's top-level keys and `hatch/SKILL.md` references; if you add a field to the template, also reference it by name in hatch.
 - **SKILL.md size: trim before splitting.** Sibling files (e.g., `skills/<name>/EXTRA.md`) are not auto-loaded — only `SKILL.md` is. The model must explicitly `Read` siblings, which is unreliable for branch-conditional flow. When a SKILL.md grows large, prefer trimming verbose prose, collapsing redundant tables, and removing duplicated sections over splitting into multiple files.
 
 ## Debugging gotchas

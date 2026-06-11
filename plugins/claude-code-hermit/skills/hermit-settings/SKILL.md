@@ -138,7 +138,7 @@ Loop until operator says "done":
   - **enabled:** Toggle `channels.<name>.enabled`.
 - **primary <name>:** Validate `<name>` exists as a key in `channels` (and is not `primary` itself). If valid, set `channels.primary = "<name>"`. If invalid, reject: "No channel named `<name>` configured. Add it first with `add <name>`."
 - **primary clear:** Delete `channels.primary`. Outbound sends will fall back to the default `discord` → `telegram` → `imessage` order.
-Note: "Channel changes take effect on next `hermit-start` run. `channels.primary` is consulted live by `scripts/resolve-outbound-channel.js` on every proactive send — no restart needed for that key alone."
+Note: "Channel changes take effect on next `hermit-start` run. `channels.primary` is consulted live by `scripts/resolve-outbound-channel.ts` on every proactive send — no restart needed for that key alone."
 
 **If argument is "remote":**
 Ask: "Enable remote control? Connect from a browser or phone via claude.ai/code.

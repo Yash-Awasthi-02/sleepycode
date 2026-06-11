@@ -81,12 +81,12 @@ Otherwise, read `.claude-code-hermit/state/last-test.json`:
 - Anything else (file missing, stale SHA, or `status !== "pass"`): run tests now:
 
   ```bash
-  node "${CLAUDE_PLUGIN_ROOT}/scripts/record-test-result.js" run
+  bun "${CLAUDE_PLUGIN_ROOT}/scripts/record-test-result.ts" run
   ```
 
   Append `--cwd "<path>"` when the operator passed `--cwd`. Use `timeout: 600000`. If exit non-zero: read the just-written `state/last-test.json` and include `likely_cause` in the message if present (`tests failed (exit 137, likely OOM) — fix and re-run /dev-pr`); otherwise FAIL `"tests failed (exit N) — fix and re-run /dev-pr"`. If exit 0: proceed.
 
-  For suites longer than 10 min: run tests in a terminal, record with `node <PLUGIN_ROOT>/scripts/record-test-result.js write <exit_code> <duration_ms>` (append `--cwd "<path>"` when relevant), then re-run `/dev-pr`.
+  For suites longer than 10 min: run tests in a terminal, record with `bun <PLUGIN_ROOT>/scripts/record-test-result.ts write <exit_code> <duration_ms>` (append `--cwd "<path>"` when relevant), then re-run `/dev-pr`.
 
 This is the gate that enforces CLAUDE-APPEND §Tests Before PR mechanically rather than relying on the agent's self-report.
 
@@ -282,7 +282,7 @@ On Gate 3 FAIL: show the host-tool exit message + a one-line recovery hint.
 ## Rules
 
 - **Never skips clean-tree or protected-branch checks.** No `--force` flag exists; the only escape is to fix the underlying condition.
-- **Runs tests on cache miss.** If no fresh pass exists at HEAD, Gate 0 runs `record-test-result.js run` automatically. First `/dev-pr` after changes may take time; subsequent calls at the same HEAD hit cache instantly.
+- **Runs tests on cache miss.** If no fresh pass exists at HEAD, Gate 0 runs `record-test-result.ts run` automatically. First `/dev-pr` after changes may take time; subsequent calls at the same HEAD hit cache instantly.
 - **No screenshot creation.** Reads from `raw/screenshots/<binding-id>/manifest.json`. Producing screenshots is a stack-specific plugin's job.
 - **No merge.** Opening the PR is the terminal step; merging is a separate operator decision.
 - **Never force-push.** Even on divergence — surface the conflict, let the operator resolve. The `git-push-guard` hook blocks force-push at strict profile; this skill respects the same rule unconditionally.

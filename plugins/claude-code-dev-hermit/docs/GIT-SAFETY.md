@@ -59,7 +59,7 @@ A `PreToolUse` hook that intercepts Bash commands before they execute. Strict pr
 
 The trade-off rationale: false positives are 5-second annoyances; false negatives let bad pushes through.
 
-**Implementation:** `scripts/git-push-guard.js` reads JSON from stdin, exits 0 (allow) or 2 (block). Fails open on parse errors (exit 0). No runtime dependencies. Adapted from [Everything Claude Code](https://github.com/affaan-m/everything-claude-code) (MIT).
+**Implementation:** `scripts/git-push-guard.ts` reads JSON from stdin, exits 0 (allow) or 2 (block). Fails open on parse errors (exit 0). No runtime dependencies. Adapted from [Everything Claude Code](https://github.com/affaan-m/everything-claude-code) (MIT).
 
 ---
 
@@ -72,7 +72,7 @@ A `PreToolUse` hook on `Edit`/`Write` for the `claude --worktree` workflow. When
 - **Escape hatch:** set `WORKTREE_GUARD=off` to disable without editing code.
 - **Scope:** `Bash` command-string parsing (`cd`/`git -C` into main) is deliberately not handled — `Edit`/`Write` are the actual file-mutation path and always carry an absolute `file_path`. `NotebookEdit` is not covered (its path field differs).
 
-**Implementation:** `scripts/worktree-boundary-guard.js`, exits 0 (allow) or 2 (block), fails open on any error. No runtime dependencies.
+**Implementation:** `scripts/worktree-boundary-guard.ts`, exits 0 (allow) or 2 (block), fails open on any error. No runtime dependencies.
 
 ---
 
@@ -98,7 +98,7 @@ Or edit `.claude-code-hermit/config.json` directly: `"env": { "AGENT_HOOK_PROFIL
 
 ## Core Deny Patterns
 
-Core hermit ships its own `enforce-deny-patterns.js` `PreToolUse` hook that provides broader protections:
+Core hermit ships its own `enforce-deny-patterns.ts` `PreToolUse` hook that provides broader protections:
 
 - **`default` tier** (always active): catastrophic commands (`rm -rf`, credential access, OPERATOR.md bash redirects)
 - **`always_on` tier** (when `always_on: true` in config): `ssh`, `docker`, `kubectl`, `npm publish`, force push, `--no-verify`, OPERATOR.md Edit/Write, settings file modification

@@ -61,7 +61,7 @@ When you need to notify the operator proactively:
   - Respond in conversation either way (the conversation response is the durable record).
 - **If at least one channel is enabled**, resolve the outbound target by running:
   ```
-  node ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.js .claude-code-hermit
+  bun ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.ts .claude-code-hermit
   ```
   Parse stdout as JSON. A channel is eligible if `enabled !== false`, `allowed_users` is not `[]`, and `dm_channel_id` is set. Resolution order: `channels.primary` (if set and eligible), then the first eligible entry in `channels` (operator's config order — no hardcoded slug list, so newly added channel plugins are picked up automatically).
   - **On success** (`"id"` and `"chat_id"` in result): call `mcp__plugin_<id>_<id>__reply` with `{ chat_id, text: <message> }`. If the reply call itself fails (token expired, plugin crashed, network blip) and `push_notifications === true`, fire `PushNotification(message="<...>", status="proactive")` as a last-resort signal, then log + dedup as below.

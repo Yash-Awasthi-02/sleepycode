@@ -13,7 +13,7 @@ than repeating it.
 
 | Bucket | Purpose | Session-injected? | GC'd? |
 |---|---|---|---|
-| `raw/` | Ephemeral domain inputs (snapshots, fetches, logs) | No | Yes — `archive-raw.js` on `knowledge.raw_retention_days` |
+| `raw/` | Ephemeral domain inputs (snapshots, fetches, logs) | No | Yes — `archive-raw.ts` on `knowledge.raw_retention_days` |
 | `compiled/` | Durable domain outputs (briefings, digests, audits) | Yes, at session start | No — lives forever unless manually removed |
 | `state/` | Runtime ledgers for hooks and skills to coordinate | No | No |
 | `proposals/` | Operator-actionable improvement suggestions | No | No |
@@ -28,7 +28,7 @@ validators). Pick the bucket first; name second.
 - **Naming:** `<type>-<slug>-<YYYY-MM-DD>.md` (lowercase type, hyphenated date).
 - **Required frontmatter:** `title:`, `type:`, `created:` (ISO timestamp), `tags: [...]`.
 - **Retention:** archived after `knowledge.raw_retention_days` (default 14) via
-  `scripts/archive-raw.js`. Retained past TTL if any file in `compiled/` mentions the
+  `scripts/archive-raw.ts`. Retained past TTL if any file in `compiled/` mentions the
   filename — the archive sweep honors cross-references.
 - **Example:** `raw/snapshot-home-2026-04-17.md`
 
@@ -43,9 +43,9 @@ compliant path table.
 - **Required frontmatter:** `title:`, `type:`, `created:`, `tags:`, and a `source:`
   line pointing to the raw artifact(s) the compiled was derived from.
 - **Session injection:** every compiled file is surfaced to the model at session start
-  via `scripts/startup-context.js`. Shared budget — `knowledge.compiled_budget_chars`
+  via `scripts/startup-context.ts`. Shared budget — `knowledge.compiled_budget_chars`
   (default 2500, range 500–6000) applies across **all** compiled files, not per-file.
-  `/hermit-doctor` and `scripts/knowledge-lint.js` surface oversize. For deep retrieval
+  `/hermit-doctor` and `scripts/knowledge-lint.ts` surface oversize. For deep retrieval
   of specific past content by keyword, use `/recall`.
 - **Foundational pinning:** tag a compiled artifact `foundational` to pin it to every
   session regardless of age.
@@ -54,7 +54,7 @@ compliant path table.
 
 ## state/ — runtime ledgers
 
-Not a domain artifact. Never session-injected. Not GC'd by `archive-raw.js`. Hooks and
+Not a domain artifact. Never session-injected. Not GC'd by `archive-raw.ts`. Hooks and
 skills use this bucket to coordinate across invocations.
 
 - **Structured state:** `*.json`, read-modify-write. Examples: `alert-state.json`,
@@ -67,7 +67,7 @@ skills use this bucket to coordinate across invocations.
 - **No subdirectories** by convention. If runtime data naturally clusters, use a
   filename prefix (`monitors.runtime.json`, not `monitors/runtime.json`).
 - **Schema enforcement:** if a new JSON state file needs a guaranteed shape, add a
-  check to `scripts/validate-config.js` or a contract test in `tests/run-contracts.py`.
+  check to `scripts/validate-config.ts` or a contract test in `tests/contracts.test.ts`.
 
 ## proposals/ — improvement suggestions
 
@@ -92,7 +92,7 @@ When a new skill, routine, or plugin hermit introduces a new artifact type:
 4. **Declare the types in `knowledge-schema.md`** — every artifact type must appear
    there with `Produces:`, `When:`, and `Format:` lines. This is the behavioral
    contract operators read.
-5. **No code changes required** in `archive-raw.js` or `knowledge-lint.js` — both are
+5. **No code changes required** in `archive-raw.ts` or `knowledge-lint.ts` — both are
    convention-driven and pick up new artifacts automatically as long as the frontmatter
    contract is respected.
 6. **If runtime coordination is needed** (a queue, a dedup table, a counter), add a
@@ -101,7 +101,7 @@ When a new skill, routine, or plugin hermit introduces a new artifact type:
 ## Naming anti-patterns
 
 - **Subdirectories inside `raw/` or `compiled/`.** Breaks the flat-layout invariant
-  in CLAUDE.md. `archive-raw.js` and session injection both assume flat.
+  in CLAUDE.md. `archive-raw.ts` and session injection both assume flat.
 - **Day-only timestamps for high-frequency artifacts.** Use ISO date
   (`YYYY-MM-DD`) for human-written content. If you have multiple artifacts per day of
   the same type, add ISO-second precision to the slug (e.g.
@@ -117,7 +117,7 @@ When a new skill, routine, or plugin hermit introduces a new artifact type:
   recognizes the four buckets above plus `sessions/`, `templates/`, `bin/`, `docker/`.
   A new top-level directory will be invisible to every existing reader and scanner.
 - **Schema-typed JSON state files without a validator.** If a hook depends on a
-  specific shape in `state/foo.json`, the shape needs a test in `run-contracts.py`.
+  specific shape in `state/foo.json`, the shape needs a test in `tests/contracts.test.ts`.
   Silent schema drift is a recurring bug class; the contract tests are cheap insurance.
 
 ## Where this fits

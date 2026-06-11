@@ -76,7 +76,7 @@ Parse line 1 as the verdict. Lines 2+ are additive metadata (`closest_prop`, `al
 
 After receiving the verdict, append one event to `state/proposal-metrics.jsonl`:
 ```bash
-node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js \
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts \
   .claude-code-hermit/state/proposal-metrics.jsonl \
   '{"ts":"<now ISO>","type":"triage-verdict","verdict":"<CREATE|SUPPRESS|DUPLICATE>","caller":"scheduled-checks"}'
 ```
@@ -108,7 +108,7 @@ Queuing procedure:
 1. Generate ID: `MP-YYYYMMDD-N` where N increments within the same day (0, 1, 2). Check existing `micro-queued` events in `proposal-metrics.jsonl` for today to determine N.
 2. Append `micro-queued` event to `proposal-metrics.jsonl` first (so a partial failure leaves a recoverable orphaned event, not a silent ghost entry):
    ```bash
-   node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js \
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts \
      .claude-code-hermit/state/proposal-metrics.jsonl \
      '{"ts":"<now ISO>","type":"micro-queued","micro_id":"MP-YYYYMMDD-N","tier":1,"question":"<full question text>"}'
    ```
@@ -135,7 +135,7 @@ Adjustments always go through PROP-NNN — this skill never auto-adjusts.
 Write the state delta directly to `state/reflection-state.json → scheduled_checks.<id>`:
 
 ```bash
-node -e "
+bun -e "
 const fs=require('fs');
 const f='.claude-code-hermit/state/reflection-state.json';
 try {

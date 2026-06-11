@@ -9,7 +9,7 @@ Everything else is infra managed by the base hermit (`state/`, `sessions/`, `pro
 
 ## Why these two and nothing else
 
-The `compiled/` directory is scanned at session start to inject foundational context. `scripts/archive-raw.js` and the weekly review run retention against `raw/`, covering both dated `.md` and `.json` artifacts. Fixed-name `-latest.*` aliases are never archived. Anything outside these two paths is invisible to both mechanisms — your audits won't surface at session start, and your snapshots will never be archived.
+The `compiled/` directory is scanned at session start to inject foundational context. `scripts/archive-raw.ts` and the weekly review run retention against `raw/`, covering both dated `.md` and `.json` artifacts. Fixed-name `-latest.*` aliases are never archived. Anything outside these two paths is invisible to both mechanisms — your audits won't surface at session start, and your snapshots will never be archived.
 
 This mirrors the Karpathy raw-vs-compiled split: raw is the immutable ground truth, compiled is the LLM-maintained derivative. The filesystem layout is fixed; the `type` field in frontmatter is what differentiates work products within each directory.
 
@@ -45,7 +45,7 @@ tags: [home, sensors]
 ---
 ```
 
-Inside a session add `session: S-NNN`, and cite the artifact from the session report's `## Artifacts` section so the next session's `startup-context.js` injection surfaces it. For compiled artifacts, add a `source:` citation pointing to the raw artifact(s) they were derived from:
+Inside a session add `session: S-NNN`, and cite the artifact from the session report's `## Artifacts` section so the next session's `startup-context.ts` injection surfaces it. For compiled artifacts, add a `source:` citation pointing to the raw artifact(s) they were derived from:
 
 ```yaml
 source: raw/snapshot-home-2026-04-17.md
@@ -70,7 +70,7 @@ If a hermit produces many artifacts of the same type (per-room audits, per-accou
 | `.claude-code-hermit/raw/snapshot-home-2026-04-17.md` | ✅ | correct location, flat |
 | `.claude-code-hermit/compiled/audit-kitchen-2026-04-17.md` | ✅ | correct location |
 | `.claude-code-hermit/compiled/briefing-ha-2026-04-17.md` | ✅ | use `type: briefing` in frontmatter |
-| `.claude-code-hermit/raw/audits/latest.md` | ❌ | subfolder inside `raw/` — invisible to archive-raw.js |
+| `.claude-code-hermit/raw/audits/latest.md` | ❌ | subfolder inside `raw/` — invisible to archive-raw.ts |
 | `.claude-code-hermit/audits/` | ❌ | new top-level folder — not scanned at session start |
 | `audits/` (repo root) | ❌ | completely outside hermit state |
 | `reports/` (repo root) | ❌ | same — outside hermit state |

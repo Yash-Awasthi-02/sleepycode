@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ---
 
+## [Unreleased]
+
+### Changed
+
+- **tests run on bun and are TypeScript** — test files renamed `.js` → `.ts`; the runner and the domain-brainstorm inline eval invoke `bun` (bun migration, core #18).
+
+---
+
 ## [0.0.7] - 2026-06-04
 
 ### Added

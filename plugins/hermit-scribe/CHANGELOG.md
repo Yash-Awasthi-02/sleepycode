@@ -10,6 +10,10 @@ All notable changes to this project will be documented in this file.
 
 - **hermit-scribe: auto-derive issue labels** — type label from proposal `category` (`bug`/`chore`/`enhancement`) and plugin-scope label when a single scope resolves, on top of the always-present `hermit-filed`.
 
+### Changed
+
+- **bun runtime; file-issue is TypeScript** — `file-issue.js` → `file-issue.ts` (typed ESM, run with bun; usage strings and SKILL/docs updated), tests renamed and run via `bun` (bun migration, core #18).
+
 ---
 
 ## [0.0.4] - 2026-05-31

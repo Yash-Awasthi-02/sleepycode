@@ -28,6 +28,7 @@ Examples:
 
 Plugins ship one of two test conventions. Detect and dispatch:
 
+- **Bun entrypoint** — if `plugins/<slug>/tests/*.test.ts` exist with no `run-all.sh`: `cd plugins/<slug> && bun test 2>&1` (core hermit convention).
 - **Bash entrypoint** — if `plugins/<slug>/tests/run-all.sh` exists:
   ```bash
   bash plugins/<slug>/tests/run-all.sh 2>&1

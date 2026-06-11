@@ -105,7 +105,7 @@ Default: idle transition when work finishes. Waiting when blocked on operator in
   Morning: brief + priority check. Evening: daily journal.
 ```
 
-**Hooks fire throughout the session:** `cost-tracker.js` (costs), `suggest-compact.js` (context warnings), `session-diff.js` (changed files), and `evaluate-session.js` (quality nudges) run on every assistant turn (Stop). At the strict profile, `enforce-deny-patterns.js` blocks banned commands before execution (PreToolUse), and `channel-hook.js` + `heartbeat-touch.js` run on tool use (PostToolUse).
+**Hooks fire throughout the session:** `cost-tracker.ts` (costs), `suggest-compact.ts` (context warnings), `session-diff.ts` (changed files), and `evaluate-session.ts` (quality nudges) run on every assistant turn (Stop). At the strict profile, `enforce-deny-patterns.ts` blocks banned commands before execution (PreToolUse), and `channel-hook.ts` + `heartbeat-touch.js` run on tool use (PostToolUse).
 
 ### When learning fires
 
@@ -179,7 +179,7 @@ Manage with `/claude-code-hermit:hermit-settings routines`. Changes take effect 
 
 1. Resolves `$CLAUDE_PLUGIN_ROOT` and reads `config.timezone`
 2. Calls `CronList`, `CronDelete`s every `[hermit-routine:*]` entry — clears stale registrations and resets the 7-day expiry clock
-3. For each enabled routine, shifts the `schedule` from `config.timezone` to machine local time via `scripts/cron-tz-shift.js`, then registers a fresh `CronCreate` with that shifted schedule and a prompt that invokes the skill plus logs to `state/routine-metrics.jsonl`
+3. For each enabled routine, shifts the `schedule` from `config.timezone` to machine local time via `scripts/cron-tz-shift.ts`, then registers a fresh `CronCreate` with that shifted schedule and a prompt that invokes the skill plus logs to `state/routine-metrics.jsonl`
 
 CronCreate fires only between REPL turns — never mid-task. There is no queue: if Claude is mid-task when the cron time hits, the fire is deferred (not dropped) until idle. `run_during_waiting: false` routines additionally check `runtime.json` and self-suppress with a `skipped-waiting` event when `session_state == "waiting"`.
 

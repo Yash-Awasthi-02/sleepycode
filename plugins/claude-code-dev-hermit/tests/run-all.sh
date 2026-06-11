@@ -6,12 +6,12 @@ PLUGIN_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 rc=0
 
-node "$SCRIPT_DIR/skill-structure.test.js" || rc=$?
-node "$SCRIPT_DIR/hatch-mode.test.js" || rc=$?
-node "$SCRIPT_DIR/forge-awareness.test.js" || rc=$?
+bun "$SCRIPT_DIR/skill-structure.test.ts" || rc=$?
+bun "$SCRIPT_DIR/hatch-mode.test.ts" || rc=$?
+bun "$SCRIPT_DIR/forge-awareness.test.ts" || rc=$?
 
 while IFS= read -r f; do
-  node "$f" || rc=$?
-done < <(find "$PLUGIN_ROOT/scripts" -name '*.test.js' | sort)
+  bun "$f" || rc=$?
+done < <(find "$PLUGIN_ROOT/scripts" -name '*.test.ts' | sort)
 
 exit $rc

@@ -4,13 +4,13 @@ This plugin controls real home devices. The safety model is layered — the agen
 
 ## How Actuation Is Gated
 
-Every MCP call matching `mcp__homeassistant__Hass*` is pre-screened by `hooks/mcp-safety-gate.py` against `src/ha_agent_lab/policy.py` before it reaches Home Assistant. The hook fails closed — if the policy check errors or the target can't be resolved to a concrete entity, the call is blocked.
+Every MCP call matching `mcp__homeassistant__Hass*` is pre-screened by `hooks/mcp-safety-gate.ts` (importing the policy from `src/policy.ts` directly) before it reaches Home Assistant. The hook fails closed — if the policy check errors, the input can't be parsed, or the target can't be resolved to a concrete entity, the call is blocked (exit 2).
 
 ## What's Blocked by Default
 
 - **Sensitive domains**: `lock`, `alarm_control_panel`
 - **Security-tagged devices**: `cover`, `button`, `switch` entities matching security-related keywords (door, gate, garage, etc.)
-- **Unresolvable targets**: calls that specify only an `area_id` or `device_id` with no concrete `entity_id`
+- **Unresolvable targets**: any call carrying an `area_id`/`floor_id`/`label_id`/`device_id` selector that does not resolve to a concrete, well-formed `entity_id` — blocked even when a safe concrete `entity_id` is also present (the selector fans out server-side to entities the gate cannot enumerate). Domain matching is case-insensitive (`LOCK.front_door` is treated as `lock`); malformed ids with an empty domain (e.g. `.lock`) are rejected as unresolvable.
 - **Anything explicitly listed** in the sensitive-domain or sensitive-keyword policy
 
 Blocked operations do not silently fail — they become proposals for human review.
@@ -68,16 +68,18 @@ Run on demand:
 
 ## Changing the Policy
 
-Policy source of truth is `src/ha_agent_lab/policy.py`. Changes to this file are considered sensitive — review carefully and run the test suite before shipping:
+Policy source of truth is `src/policy.ts`, enforced at the harness level by `hooks/mcp-safety-gate.ts`. Changes to either file are considered sensitive — review carefully and run the test suite before shipping:
 
 ```bash
-.venv/bin/pytest tests/ -v
+bun test
 ```
+
+`tests/gate-corpus.test.ts` replays the retired Python gates (from git history) side by side with the TS hooks and asserts byte-identical verdicts; `tests/gate-fuzz.test.ts` property-tests the fail-closed guarantee on arbitrary garbage input. Both must stay green for any hook or policy change.
 
 When in doubt the hook fails closed. You can always relax the policy, but you have to do it deliberately.
 
 ## Hook Profile Gating
 
-`hooks/mcp-safety-gate.py` runs on **all profiles** by design — actuation gating is non-optional and must hold even in `lite` and `default` profiles where the operator may have loosened other controls.
+`hooks/mcp-safety-gate.ts` runs on **all profiles** by design — actuation gating is non-optional and must hold even in `lite` and `default` profiles where the operator may have loosened other controls.
 
-`hooks/curl-host-gate.py` (convenience auto-approver for curl/wget to the HA instance) is gated to `standard,strict` profiles. In `lite` profile it does not run, so HA URL calls go through the normal permission flow instead of being auto-approved.
+`hooks/curl-host-gate.ts` (convenience auto-approver for curl/wget to the HA instance) is gated to `standard,strict` profiles. In `lite` profile it does not run, so HA URL calls go through the normal permission flow instead of being auto-approved.

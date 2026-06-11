@@ -52,9 +52,9 @@ When the operator accepts a proposal:
 2. Update the YAML frontmatter: set `status` to `accepted`, add `accepted_date` as timestamp. Do NOT set `resolved_date` — resolution happens when reflect confirms the pattern is gone. If the file uses old bullet-point metadata (`- **Status:**`), update that instead.
 2b. **First-response tracking:** Check if the proposal's `responded` field is already `true`. If `false`: set `responded: true` in frontmatter, then append a `responded` event:
    ```
-   node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"responded","proposal_id":"PROP-NNN","action":"accept"}'
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"responded","proposal_id":"PROP-NNN","action":"accept"}'
    ```
-   Then call `node ${CLAUDE_PLUGIN_ROOT}/scripts/generate-summary.js .claude-code-hermit/state/`. If `responded` is already `true`, skip the append (prevents double-counting).
+   Then call `bun ${CLAUDE_PLUGIN_ROOT}/scripts/generate-summary.ts .claude-code-hermit/state/`. If `responded` is already `true`, skip the append (prevents double-counting).
 3. Append a timestamp to the Operator Decision section:
    ```
    Accepted on 2026-04-06T14:30:00+01:00.
@@ -73,7 +73,7 @@ When the operator accepts a proposal:
 3c. **Success signal (optional).** Check whether the proposal body has a `## Success Signal` section with a non-empty predicate line (ignore comment lines starting with `<!--`).
    - If a non-empty predicate line is found, validate it:
      ```
-     node ${CLAUDE_PLUGIN_ROOT}/scripts/eval-success-signal.js --validate "<predicate line>"
+     bun ${CLAUDE_PLUGIN_ROOT}/scripts/eval-success-signal.ts --validate "<predicate line>"
      ```
    - Exit 0 → set `success_signal: <predicate line>` in the proposal's YAML frontmatter.
    - Exit non-zero → log a one-line warning to SHELL.md Findings: `PROP-NNN success_signal ignored: <reason printed by the script>`. Leave `success_signal: null`.
@@ -187,7 +187,7 @@ When the operator accepts a proposal:
 
 1. Resolve the proposal file using the resolution algorithm above, then read it.
 2. Update the YAML frontmatter: set `status` to `deferred`, add `deferred_date` as timestamp. Do NOT set `resolved_date` — deferral is not a terminal state. If the file uses old bullet-point metadata (`- **Status:**`), update that instead.
-2b. **First-response tracking:** Same as accept flow — check `responded` field, set to `true` if `false`, append `responded` event with `"action":"defer"`, call `generate-summary.js`. Skip if already `true`.
+2b. **First-response tracking:** Same as accept flow — check `responded` field, set to `true` if `false`, append `responded` event with `"action":"defer"`, call `generate-summary.ts`. Skip if already `true`.
 3. Ask: "Any note on why it's deferred or when to revisit?" (optional — operator can skip)
 4. If a note is provided, append to the Operator Decision section:
    ```
@@ -201,7 +201,7 @@ Deferred proposals still appear in `/proposal-list` but are sorted below open pr
 
 1. Resolve the proposal file using the resolution algorithm above, then read it.
 2. Update the YAML frontmatter: set `status` to `dismissed`, add `dismissed_date` and `resolved_date` as timestamps. If the file uses old bullet-point metadata (`- **Status:**`), update that instead.
-2b. **First-response tracking:** Same as accept flow — check `responded` field, set to `true` if `false`, append `responded` event with `"action":"dismiss"`, call `generate-summary.js`. Skip if already `true`.
+2b. **First-response tracking:** Same as accept flow — check `responded` field, set to `true` if `false`, append `responded` event with `"action":"dismiss"`, call `generate-summary.ts`. Skip if already `true`.
 3. Ask: "Reason for dismissal?" (optional — operator can skip)
 4. If a reason is provided, append to the Operator Decision section:
    ```
@@ -220,7 +220,7 @@ Used when reflect has surfaced a sparse-cadence proposal as a resolution candida
 2. Update the YAML frontmatter: set `status` to `resolved`, `resolved_date` to current timestamp. Do NOT set `dismissed_date`. If the file uses old bullet-point metadata (`- **Status:**`), update that instead.
 3. Append a `resolved` event to proposal-metrics.jsonl:
    ```
-   node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"resolved","proposal_id":"PROP-NNN"}'
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"resolved","proposal_id":"PROP-NNN"}'
    ```
 4. Append to the Operator Decision section:
    ```

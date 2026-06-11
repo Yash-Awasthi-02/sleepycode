@@ -111,7 +111,7 @@ See [Skills Reference](skills.md) for the full list.
 | Session evaluator   | Stop         | standard+ | Validates SHELL.md quality, detects zombie/stale/bloat |
 | Stop pipeline       | Stop         | all       | Cost tracking, compact suggestion, session diff, evaluation, heartbeat |
 
-Hermits may add hooks at `strict` (e.g., git-push-guard). Use `run-with-profile.js` for profile-gated execution.
+Hermits may add hooks at `strict` (e.g., git-push-guard). Use `run-with-profile.ts` for profile-gated execution.
 
 ---
 
@@ -138,7 +138,7 @@ your-project/
 ├── .claude-code-hermit/
 │   ├── sessions/SHELL.md, S-NNN-REPORT.md
 │   ├── proposals/PROP-NNN.md
-│   ├── compiled/review-weekly-YYYY-Www.md  # Weekly review reports (weekly-review.js; type: review)
+│   ├── compiled/review-weekly-YYYY-Www.md  # Weekly review reports (weekly-review.ts; type: review)
 │   ├── templates/
 │   ├── state/                        # Runtime observations (agent-owned, not operator-configured)
 │   │   ├── runtime.json              # Session state: in_progress/waiting/idle (authoritative since v0.3.2)
@@ -149,7 +149,7 @@ your-project/
 │   │   ├── session-diff.json         # Uncommitted file tracking (session-diff-owned)
 │   │   ├── proposal-metrics.jsonl    # Append-only event log (proposal-create + proposal-act)
 │   │   ├── micro-proposals.json      # Pending micro-approvals list (reflect + channel-responder)
-│   │   ├── state-summary.md          # Auto-generated health snapshot (generate-summary.js)
+│   │   ├── state-summary.md          # Auto-generated health snapshot (generate-summary.ts)
 │   │   ├── monitors.runtime.json     # Active watch registry, cleared on session start (watch-owned)
 │   │   ├── .heartbeat                # Activity marker (heartbeat-touch-owned)
 │   │   └── .lifecycle.lock           # Always-on lifecycle lock (hermit-start-owned)
@@ -174,17 +174,17 @@ One writer per state file. No shared mutation bus.
 | `state/channel-activity.json`  | channel-hook.js only                                | channel-responder, heartbeat                                  |
 | `state/channel-replies.jsonl`  | channel-hook.js (append only)                       | reflect (routine-ROI engagement join)                         |
 | `state/session-diff.json`      | session-diff.js only                                | session-close (display)                                       |
-| `state/proposal-metrics.jsonl` | proposal-create + proposal-act (append only)        | generate-summary.js, proposal-metrics-report.js (read-only)   |
-| `state/micro-proposals.json`   | reflect (queue) + channel-responder/brief (resolve) | brief, generate-summary.js                                    |
-| `state/state-summary.md`       | generate-summary.js only                            | humans                                                        |
+| `state/proposal-metrics.jsonl` | proposal-create + proposal-act (append only)        | generate-summary.ts, proposal-metrics-report.ts (read-only)   |
+| `state/micro-proposals.json`   | reflect (queue) + channel-responder/brief (resolve) | brief, generate-summary.ts                                    |
+| `state/state-summary.md`       | generate-summary.ts only                            | humans                                                        |
 | `state/monitors.runtime.json`  | watch skill only                                    | session-start (clear on start), session-close (stop all)      |
 | `state/heartbeat-monitor.runtime.json` | heartbeat skill only                        | heartbeat-start (write), heartbeat-stop (clear), heartbeat-restart (rewrite) |
-| `state/cc-stop-snapshot.json`  | stop-pipeline.js only                               | doctor-check.js (scheduler/background-task health check)      |
+| `state/cc-stop-snapshot.json`  | stop-pipeline.ts only                               | doctor-check.ts (scheduler/background-task health check)      |
 | `state/.heartbeat`             | heartbeat-touch.js only                             | heartbeat (detect activity gaps)                              |
 | `state/.lifecycle.lock`        | hermit-start.py only                                | hermit-stop.py (cleanup)                                      |
-| `state/cost-index.json`        | cost-tracker.js only                                | cost-tracker.js (writeCostSummary, getCumulativeCost fallback), doctor-check.js |
-| `state/watchdog-state.json`    | hermit-watchdog.py only                             | doctor-check.js (consecutive_stale)                           |
-| `state/watchdog-events.jsonl`  | hermit-watchdog.py only (append)                    | doctor-check.js (event counts), session-start (restart reason)|
+| `state/cost-index.json`        | cost-tracker.ts only                                | cost-tracker.ts (writeCostSummary, getCumulativeCost fallback), doctor-check.ts |
+| `state/watchdog-state.json`    | hermit-watchdog.ts only                             | doctor-check.ts (consecutive_stale)                           |
+| `state/watchdog-events.jsonl`  | hermit-watchdog.ts only (append)                    | doctor-check.ts (event counts), session-start (restart reason)|
 
 ---
 
@@ -227,7 +227,7 @@ The `proposal-triage` and `reflection-judge` gate agents each carry their own pr
 ```
 .claude-code-hermit/
   raw/          # Domain inputs (fetched data, snapshots, logs) — ephemeral
-    .archive/   # Expired raw artifacts, moved by archive-raw.js
+    .archive/   # Expired raw artifacts, moved by archive-raw.ts
   compiled/     # Domain outputs (briefings, decisions, assessments) — durable
   knowledge-schema.md  # Per-hermit behavioral schema: what to produce and when
 ```
@@ -341,4 +341,4 @@ Deny patterns block dangerous operations regardless of permission mode. See [Sec
 
 2. **Boot script timing** — `hermit-start.py` waits 3 seconds before sending commands to tmux. May not be enough on slow hardware. Fix: poll `tmux capture-pane` for readiness.
 
-3. ~~**Silent cost-log corruption**~~ — Fixed: `cost-index.json` carries a `skipped_corrupt_lines` counter incremented on every `JSON.parse` failure; `doctor-check.js` surfaces a `warn` when the counter is non-zero.
+3. ~~**Silent cost-log corruption**~~ — Fixed: `cost-index.json` carries a `skipped_corrupt_lines` counter incremented on every `JSON.parse` failure; `doctor-check.ts` surfaces a `warn` when the counter is non-zero.

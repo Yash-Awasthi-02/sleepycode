@@ -46,8 +46,8 @@ The test suite covers all hooks and helpers; add tests for any new hook or lib l
 skills/hatch/        — one-time setup wizard
 skills/dev-pr/       — push branch + open PR
 hooks/hooks.json     — registers git-push-guard
-scripts/             — git-push-guard.js (the only script)
-tests/               — run-all.sh + skill-structure.test.js
+scripts/             — git-push-guard.ts (the only script)
+tests/               — run-all.sh + skill-structure.test.ts
 state-templates/     — CLAUDE-APPEND.md (injected into target project's CLAUDE.md)
 docs/                — user-facing documentation
 .claude-plugin/      — plugin manifest + hermit-meta.json

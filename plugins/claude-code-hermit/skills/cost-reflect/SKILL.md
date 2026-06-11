@@ -13,7 +13,7 @@ If this skill was invoked from a channel-arrived message (the inbound prompt con
 ## Step 1 — Run the analyzer
 
 ```
-node ${CLAUDE_PLUGIN_ROOT}/scripts/cost-reflect.js .claude-code-hermit
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/cost-reflect.ts .claude-code-hermit
 ```
 
 Capture stdout. If the output starts with "No cost data", report that message and stop — there's nothing to send.
@@ -28,7 +28,7 @@ When this skill fires from a routine or proactively (i.e., not from a direct ope
 
 1. Resolve the outbound channel:
    ```
-   node ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.js .claude-code-hermit
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/resolve-outbound-channel.ts .claude-code-hermit
    ```
    Parse stdout as JSON. On success (`"id"` and `"chat_id"` present), send via `mcp__plugin_<id>_<id>__reply` with `{ chat_id, text: <report> }` where `<id>` is the resolved channel name.
 

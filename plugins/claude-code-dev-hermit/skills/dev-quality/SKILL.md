@@ -78,7 +78,7 @@ Capture the content after the `Totals:` label and pass through to Gate 3 as the 
 If `commands.test` is unset: skip this gate, record `tests: skipped`, and proceed to Gate 3 pass path.
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/record-test-result.js" run
+bun "${CLAUDE_PLUGIN_ROOT}/scripts/record-test-result.ts" run
 ```
 
 When `--cwd <path>` is set, append `--cwd "<path>"` to the invocation. The script runs the test command from `<path>` and records `<path>`'s HEAD SHA into `last-test.json` (so `/dev-pr` cache checks against the right commit).
