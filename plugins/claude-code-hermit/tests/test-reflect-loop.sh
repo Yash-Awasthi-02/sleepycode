@@ -168,4 +168,19 @@ run_test "prune-observations: no args exits 1" bash -c \
   "! node '$PRUNE' >/dev/null 2>&1"
 rm -r "$workdir"
 
+# ── item 4: success_signal push + same-area absence guard ───────────────────
+
+PROPOSAL_CREATE="$REPO_ROOT/skills/proposal-create/SKILL.md"
+
+run_test "proposal-create: pushes for measurable success signal" \
+  grep -qF "Success signal — push for measurable" "$PROPOSAL_CREATE"
+run_test "proposal-create: validates predicate before writing" \
+  grep -qF -- "--validate" "$PROPOSAL_CREATE"
+run_test "proposal-create: empty signal is the documented exception" \
+  grep -qF "documented exception" "$PROPOSAL_CREATE"
+run_test "reflect: same-area guard before pattern-absence resolution" \
+  grep -qF "Same-area guard" "$REFLECT"
+run_test "reflect: same-area guard requires tag overlap" \
+  grep -qF "share ≥1 tag" "$REFLECT"
+
 print_results

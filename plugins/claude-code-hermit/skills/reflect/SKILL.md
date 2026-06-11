@@ -80,6 +80,8 @@ If `$ARGUMENTS` contains `--quick` (invoked as `/claude-code-hermit:reflect --qu
       Delegate the session fetch to the built-in `Explore` subagent. Prompt: `Glob .claude-code-hermit/sessions/S-*-REPORT.md. Sort descending by filename. Read the 3 most recent and return: filename, date from frontmatter, and the full body verbatim — do not truncate, summarize, or excerpt (full body is required for pattern presence/absence detection). If a body exceeds your read window, say so explicitly per file rather than silently trimming.` If Explore returns truncated bodies for any of the 3 files, fall back to reading those files inline with the Read tool before evaluating step e.
    e. If the pattern is **absent** from all 3 checked sessions — apply the cadence-aware resolution rule:
 
+      **Same-area guard (absence must be meaningful):** before counting absence, establish work-area overlap — collect the proposal's `tags` plus the `tags:` frontmatter of its `related_sessions` reports into a tag pool; at least one of the 3 checked sessions must share ≥1 tag from that pool (fallback when the pool is empty: a proposal-title keyword match in a session body). If none of the 3 sessions overlaps, the absence is vacuous — the fix was never exercised because the work moved elsewhere. Skip and revisit next cycle (same handling as the elapsed-guard-not-met branch below): do not resolve, do not nudge.
+
       **Compute original cadence:**
       - Read the proposal's `related_sessions` list from frontmatter.
       - For each `S-NNN`, read `date:` from `sessions/S-NNN-REPORT.md` frontmatter.
