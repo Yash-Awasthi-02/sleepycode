@@ -2,7 +2,13 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **recall: surfaces auto-memory alongside hermit artifacts** — drops `model: haiku` and adds a "From memory" step over the loaded memory index (#350). Zero-config; existing hermits pick it up on `/plugin update`.
+
 ### Added
+
+- **heartbeat liveness check in `/hermit-doctor`** (#346) — `heartbeat-monitor.sh` writes `state/heartbeat-liveness.json` (`last_peek_at`) on every poll iteration; `doctor-check.ts` gains a `heartbeat` check (14 JSON checks total) that fails with a seccomp/container diagnosis when an active session's heartbeat has not ticked in 3× the configured interval, or when no tick lands within a short (~2m) startup grace after the monitor registers. A tick older than the monitor's `started_at` is ignored so a prior session's liveness file can't mask a dead restart. Closes the silent-death hole where a Monitor subprocess blocked by kernel restrictions reported fully healthy. `parseDuration` moved to `scripts/lib/time.ts` (shared with precheck). Report grows to fifteen lines (fourteen JSON + sandbox).
 
 - **deny-patterns: block Edit/Write to installed plugin source** — a hermit can no longer modify its own files under `~/.claude/plugins/marketplaces/` (#351).
 
@@ -26,6 +32,7 @@
 ### Changed
 
 - **daily-auto-close defaults to Haiku** — the silent, stateless midnight close routine ships `model: "haiku"`; near-zero risk on Sonnet fleets, insures against session-model tier-drift cost on Opus fleets (#342).
+- **hermit-evolution: merged into a full evolution report** — the skill now produces a unified 6-section digest (cost trend + 30d source split, autonomy, proposal velocity, routines/watches with cadence, top-3 produced (inferred), grown since hatch (approximated)) instead of the prior terse 4-section snapshot; trigger phrases extended to include "evolution report", "monthly report", "how have I grown", "what did I produce last month".
 
 - **bun is now a required runtime (>=1.3)** — first step of the bun migration (#18): declared in `hermit-meta.json`, gated by `hermit-evolve` Step 0b (upgrade refuses to proceed without it), pinned in the Docker template (`BUN_VERSION` arg, native installer; the Claude Code CLI stays on npm).
 - **hooks and test harnesses run on bun** — every hooks.json command string, `heartbeat-monitor.sh`, and all test suites invoke `bun` instead of `node`; hook scripts stay stdlib `.js` at this step. `run-with-profile` spawns `process.execPath` so inner hooks inherit the outer runtime.
@@ -42,6 +49,10 @@
 - **reflect: pattern-absence resolution requires same-area overlap** — absence across 3 sessions only counts when at least one checked session shares a tag with the proposal (tags pooled from the proposal itself and its `related_sessions`); otherwise skip-and-revisit. Stops "stopped doing that kind of work" from auto-resolving as "fixed".
 
 ### Upgrade Instructions
+
+1. Run `/claude-code-hermit:heartbeat start` (or wait for the next session start) to restart the monitor so it begins writing `state/heartbeat-liveness.json`. An already-running monitor does not pick up the change automatically. Once the first iteration completes, `state/heartbeat-liveness.json` appears and `/hermit-doctor` can evaluate heartbeat liveness.
+2. `state/heartbeat-liveness.json` is runtime-created — no manual seeding required.
+3. To disable the heartbeat doctor check: set `heartbeat.enabled: false` in `config.json` (check returns `ok: disabled`).
 
 Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
