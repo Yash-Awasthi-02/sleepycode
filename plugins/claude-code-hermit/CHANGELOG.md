@@ -71,7 +71,9 @@
    If the marker is already present, skip silently.
    _(Opt-out: delete the marked block. Note: if a custom `WorktreeCreate` hook replaces the default git behavior, Claude Code does not process `.worktreeinclude`, so this block is harmless and inert.)_
 
-2. Run `/claude-code-hermit:heartbeat start` (or wait for the next session start) to restart the monitor so it begins writing `state/heartbeat-liveness.json` (runtime-created — no manual seeding required). An already-running monitor does not pick up the change automatically. Once the first iteration completes, `/hermit-doctor` can evaluate heartbeat liveness. To disable the heartbeat doctor check: set `heartbeat.enabled: false` in `config.json` (check returns `ok: disabled`).
+2. **Gitignore `OPERATOR.md`.** Check the project's `.gitignore` for a `.claude-code-hermit/OPERATOR.md` line. If absent, append it. This is required for `.worktreeinclude` to copy the file into worktrees (Claude Code only copies gitignored paths).
+
+3. Run `/claude-code-hermit:heartbeat start` (or wait for the next session start) to restart the monitor so it begins writing `state/heartbeat-liveness.json` (runtime-created — no manual seeding required). An already-running monitor does not pick up the change automatically. Once the first iteration completes, `/hermit-doctor` can evaluate heartbeat liveness. To disable the heartbeat doctor check: set `heartbeat.enabled: false` in `config.json` (check returns `ok: disabled`).
 
 Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
