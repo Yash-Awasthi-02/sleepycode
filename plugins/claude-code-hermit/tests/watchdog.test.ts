@@ -479,6 +479,11 @@ describe('inActiveHours (timezone)', () => {
     expect(inActiveHours(ACTIVE_WINDOW, 'America/New_York', REF)).toBe(false);
   });
 
+  test('end boundary is exclusive, matching heartbeat-precheck', () => {
+    // Pacific/Honolulu reads exactly 17:00 at REF (the window end).
+    expect(inActiveHours(ACTIVE_WINDOW, 'Pacific/Honolulu', REF)).toBe(false);
+  });
+
   test('fail-open on unparseable timezone', () => {
     expect(inActiveHours(ACTIVE_WINDOW, 'Not/AZone', REF)).toBe(true);
   });
