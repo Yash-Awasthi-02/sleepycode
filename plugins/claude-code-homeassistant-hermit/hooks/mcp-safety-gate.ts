@@ -101,6 +101,11 @@ function main(): void {
     fail('Failed to parse hook input');
   }
 
+  // Everything past parsing runs under a catch-all: classifyEntity reads
+  // config/.env from disk, and an uncaught I/O error (EACCES, EISDIR, TOCTOU
+  // ENOENT) would exit 1 — which Claude Code treats as NON-blocking. A safety
+  // gate must never fail open on an internal error.
+  try {
   let toolInput = (payload as Record<string, unknown>)['tool_input'];
   if (typeof toolInput !== 'object' || toolInput === null || Array.isArray(toolInput)) {
     toolInput = {};
@@ -144,6 +149,9 @@ function main(): void {
       `"permissionDecisionReason": ${reason}}}\n`,
   );
   process.exit(0);
+  } catch (e: any) {
+    fail(`Cannot verify target safety: internal error (${e?.code ?? 'unknown'}). Use a proposal instead.`);
+  }
 }
 
 if (import.meta.main) {

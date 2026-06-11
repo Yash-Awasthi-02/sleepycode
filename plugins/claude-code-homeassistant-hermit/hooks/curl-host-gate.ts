@@ -60,7 +60,7 @@ function buildNeedles(): string[] {
     return ['http://127.0.0.1:8123', 'http://localhost:8123', 'http://[::1]:8123'];
   }
 
-  return [...new Set(needles)]; // deduplicate, preserve order
+  return [...new Set(needles)];
 }
 
 function main(): void {

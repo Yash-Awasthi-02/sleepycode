@@ -5,6 +5,7 @@
 // (cwd-based config root, same as the conftest tmp_path fixture).
 
 import { afterEach, expect, test } from 'bun:test';
+import fs from 'node:fs';
 import { join } from 'node:path';
 
 import { cleanupTmp, makeHaConfig } from './helpers';
@@ -105,3 +106,16 @@ test('safe entity in ask mode passes silently', () => {
   expect(result.returncode).toBe(0);
   expect(result.stdout).toBe('');
 });
+
+test('internal I/O error during policy load fails CLOSED (exit 2), never 1', () => {
+  // A directory at <root>/.env passes loadEnvFile's existsSync guard and makes
+  // readFileSync throw EISDIR — the deterministic stand-in for EACCES/TOCTOU
+  // faults. Uncaught, bun would exit 1, which Claude Code treats as
+  // non-blocking: the exact fail-open class this gate exists to prevent.
+  const root = makeHaConfig('strict');
+  fs.mkdirSync(join(root, '.env'));
+  const result = run({ tool_input: { entity_id: 'lock.front_door' } }, root);
+  expect(result.returncode).toBe(2);
+  expect(result.stderr).toContain('internal error');
+});
+
