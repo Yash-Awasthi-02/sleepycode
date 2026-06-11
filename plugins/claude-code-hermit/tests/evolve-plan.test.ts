@@ -187,6 +187,12 @@ function writeManifest(proj: string, files: Record<string, { sha256: string; plu
   fs.writeFileSync(path.join(stateDir, 'template-manifest.json'), JSON.stringify({ version: 1, files }));
 }
 
+function writeRawManifest(proj: string, content: string) {
+  const stateDir = path.join(hermitDir(proj), 'state');
+  fs.mkdirSync(stateDir, { recursive: true });
+  fs.writeFileSync(path.join(stateDir, 'template-manifest.json'), content);
+}
+
 // Use real sha256 for fixtures — import the lib helper
 import { sha256 } from '../scripts/lib/hash';
 
@@ -246,7 +252,7 @@ test('manifest: missing (on-disk absent) -> missing regardless of manifest', wit
   fs.mkdirSync(path.join(hermitDir(proj), 'bin'), { recursive: true });
   // hermit-run absent -> class=missing, boot_critical=true
   writeManifest(proj, {
-    'bin/hermit-run': { sha256: 'abcdef', plugin_version: '1.1.6' },
+    'bin/hermit-run': { sha256: sha256(Buffer.from('OLD WRAPPER\n')), plugin_version: '1.1.6' },
   });
   const d = await runPlan(proj, 'local');
   const run = d.bin_changed.find((f: any) => f.name === 'hermit-run');
@@ -266,6 +272,34 @@ test('manifest-entry-absent: file on-disk but no manifest entry -> unmodified', 
   const shell = d.templates_changed.find((f: any) => f.name === 'SHELL.md.template');
   expect(shell).toBeDefined();
   expect(shell.class).toBe('unmodified'); // no manifest entry -> seed-as-unmodified
+}));
+
+test('invalid manifest shape -> error before template/bin classification', withProj(async (proj) => {
+  writeConfig(proj, '{"_hermit_versions":{"claude-code-hermit":"1.1.6"}}');
+  fs.mkdirSync(path.join(hermitDir(proj), 'templates'), { recursive: true });
+  fs.mkdirSync(path.join(hermitDir(proj), 'bin'), { recursive: true });
+  fs.writeFileSync(path.join(hermitDir(proj), 'templates', 'SHELL.md.template'), 'OPERATOR CUSTOMIZED\n');
+  fs.writeFileSync(path.join(hermitDir(proj), 'bin', 'hermit-run'), '#!/bin/sh\necho customized\n');
+  writeRawManifest(proj, '{"version":1}');
+
+  const d = await runPlan(proj, 'local');
+  expect(d.errors.map((e: any) => e.code)).toContain('manifest_invalid');
+  expect(d.errors[0].message).toContain('files');
+  expect(d.manifest_bootstrap).toBeUndefined();
+  expect('templates_changed' in d).toBe(false);
+  expect('bin_changed' in d).toBe(false);
+}));
+
+test('invalid manifest sha256 -> error before template/bin classification', withProj(async (proj) => {
+  writeConfig(proj, '{"_hermit_versions":{"claude-code-hermit":"1.1.6"}}');
+  writeRawManifest(proj, '{"version":1,"files":{"templates/SHELL.md.template":{"sha256":"abcdef"}}}');
+
+  const d = await runPlan(proj, 'local');
+  expect(d.errors.map((e: any) => e.code)).toContain('manifest_invalid');
+  expect(d.errors[0].message).toContain('templates/SHELL.md.template');
+  expect(d.manifest_bootstrap).toBeUndefined();
+  expect('templates_changed' in d).toBe(false);
+  expect('bin_changed' in d).toBe(false);
 }));
 
 // -------------------------------------------------------

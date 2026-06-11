@@ -48,6 +48,20 @@ function readJSON(p: string): Json {
   return JSON.parse(fs.readFileSync(p, 'utf8'));
 }
 
+function readTemplateManifestFiles(manifestPath: string): Record<string, { sha256: string }> {
+  const raw = readJSON(manifestPath);
+  if (!isPlainObject(raw) || !isPlainObject(raw.files)) {
+    throw new Error('template-manifest.json: missing or invalid `files` object');
+  }
+  const badKeys = Object.entries(raw.files).filter(
+    ([, v]: [string, any]) => !isPlainObject(v) || typeof v.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(v.sha256)
+  ).map(([k]) => k);
+  if (badKeys.length > 0) {
+    throw new Error(`template-manifest.json: invalid sha256 in: ${badKeys.join(', ')}`);
+  }
+  return raw.files as Record<string, { sha256: string }>;
+}
+
 // Strip trailing whitespace for equality comparison (a trailing newline must
 // not register as a content change).
 function normTrailing(s: string): string {
@@ -294,13 +308,15 @@ function buildPlan({ hermitDir, pluginRoot, hatchTarget }: { hermitDir: string; 
   const manifestPath = path.join(hermitDir, 'state', 'template-manifest.json');
   let manifestFiles: Record<string, { sha256: string }> | null = null;
   try {
-    const raw = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-    manifestFiles = (raw && typeof raw.files === 'object') ? raw.files : {};
+    manifestFiles = readTemplateManifestFiles(manifestPath);
   } catch (e: any) {
-    if (e && e.code !== 'ENOENT') {
-      errors.push({ code: 'manifest_parse_error', message: e.message });
+    if (e && e.code === 'ENOENT') {
+      plan.manifest_bootstrap = true;
+    } else {
+      const code = e && e.name === 'SyntaxError' ? 'manifest_parse_error' : 'manifest_invalid';
+      errors.push({ code, message: e.message });
+      return plan;
     }
-    plan.manifest_bootstrap = true;
   }
 
   const stDir = path.join(pluginRoot, 'state-templates');

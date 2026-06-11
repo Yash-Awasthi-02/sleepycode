@@ -6,15 +6,15 @@
 
 - **hermit-evolve: customization-aware template/bin updates** — `state/template-manifest.json` records the sha256 of every `templates/` and `bin/` file at hatch time; upgrades classify each changed file as `unmodified` (safe to overwrite), `customized-kept` (operator edited, template didn't move — kept silently), or `conflict` (both changed — parked as `.new` for templates, replaced with `.bak` for boot-critical bin/ wrappers). Deleted wrappers are restored. Closes the silent-overwrite surface that previously destroyed operator customizations on every upgrade touching those files. `hatch` now enumerates `state-templates/bin/` dynamically (fixes missing `hermit-watchdog` in prior seeding). `doctor-check` validates manifest shape.
 
+- **living topic pages (`type: topic`)** — undated `compiled/topic-<slug>.md` updated in place at session-close (merge findings, bump `updated`, refresh one-line `summary`) instead of accumulating dated copies; exempt from archive rotation; staleness linted on `updated ?? created` across all topic pages; new `topic-missing-updated` lint; declared in the knowledge-schema template alongside a `## Conventions` section for `[[wikilink]]` cross-references (#316).
+- **recall write-back** — after a synthesis drawing on 3+ distinct sources, recall offers (operator-confirmed, never automatic) to file it: small durable fact → auto-memory, domain synthesis → topic page.
+- **weekly-review: topic-page semantic check** — read-only scan for contradictions, stale claims, and broken `[[wikilinks]]` across topic pages; up to 3 findings join the channel summary.
+
 ### Upgrade Instructions
 
 Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
 1. **Seed `state/template-manifest.json`** — the first evolve after this version ships finds no manifest and runs in bootstrap mode: every managed `templates/` and `bin/` file that differs from upstream is classified as operator-unmodified and silently overwritten. Any file that gets overwritten on this first run will also have a one-time `<name>.bak` written alongside it — if you had customizations before this version shipped, check for `.bak` files in `templates/` and `bin/` to recover them. After this run the manifest is seeded and subsequent upgrades classify correctly.
-
-- **living topic pages (`type: topic`)** — undated `compiled/topic-<slug>.md` updated in place at session-close (merge findings, bump `updated`, refresh one-line `summary`) instead of accumulating dated copies; exempt from archive rotation; staleness linted on `updated ?? created` across all topic pages; new `topic-missing-updated` lint; declared in the knowledge-schema template alongside a `## Conventions` section for `[[wikilink]]` cross-references (#316).
-- **recall write-back** — after a synthesis drawing on 3+ distinct sources, recall offers (operator-confirmed, never automatic) to file it: small durable fact → auto-memory, domain synthesis → topic page.
-- **weekly-review: topic-page semantic check** — read-only scan for contradictions, stale claims, and broken `[[wikilinks]]` across topic pages; up to 3 findings join the channel summary.
 
 ### Changed
 
