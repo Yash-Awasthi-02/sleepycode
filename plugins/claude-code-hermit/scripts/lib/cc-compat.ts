@@ -1,5 +1,3 @@
-'use strict';
-
 // cc-compat.js — Centralized accessors for Claude Code-owned formats.
 //
 // Contract: this module wraps surfaces that Anthropic owns and can change
@@ -20,7 +18,10 @@
 //   - Cron grammar (5-field POSIX, stable; CronCreate semantics are doc)
 //   - Monitor sentinel constants (HEARTBEAT_EVALUATE is hermit's own protocol)
 
-const path = require('path');
+import path from 'node:path';
+
+type Json = any;
+type TriState = { state: string; count: number; entries: Json[] };
 
 // ---------------------------------------------------------------------------
 // Hook-payload accessors (pure, null-safe)
@@ -32,7 +33,7 @@ const path = require('path');
  * @param {object} payload
  * @returns {string|null}
  */
-function sessionId(payload) {
+function sessionId(payload: Json): string | null {
   if (!payload || typeof payload !== 'object') return null;
   return payload.session_id != null ? payload.session_id
     : payload.sessionId != null ? payload.sessionId
@@ -44,7 +45,7 @@ function sessionId(payload) {
  * @param {object} payload
  * @returns {string|null}
  */
-function transcriptPath(payload) {
+function transcriptPath(payload: Json): string | null {
   if (!payload || typeof payload !== 'object') return null;
   return payload.transcript_path != null ? payload.transcript_path : null;
 }
@@ -62,7 +63,7 @@ function transcriptPath(payload) {
  * @param {object} payload
  * @returns {{ state: string, count: number, entries: Array }}
  */
-function triStateField(payload, field) {
+function triStateField(payload: Json, field: string): TriState {
   if (!payload || typeof payload !== 'object' || !(field in payload)) {
     return { state: 'unsupported_or_unreachable', count: 0, entries: [] };
   }
@@ -74,7 +75,7 @@ function triStateField(payload, field) {
   return { state: 'populated', count: entries.length, entries };
 }
 
-function sessionCrons(payload) {
+function sessionCrons(payload: Json): TriState {
   return triStateField(payload, 'session_crons');
 }
 
@@ -84,7 +85,7 @@ function sessionCrons(payload) {
  * @param {object} payload
  * @returns {{ state: string, count: number, entries: Array }}
  */
-function backgroundTasks(payload) {
+function backgroundTasks(payload: Json): TriState {
   return triStateField(payload, 'background_tasks');
 }
 
@@ -98,7 +99,7 @@ function backgroundTasks(payload) {
  * @param {object} entry
  * @returns {string}
  */
-function entryText(entry) {
+function entryText(entry: Json): string {
   const c = entry.message?.content;
   if (!c) return '';
   return typeof c === 'string' ? c : JSON.stringify(c);
@@ -112,10 +113,10 @@ function entryText(entry) {
  * @param {object} entry
  * @returns {boolean}
  */
-function isToolResult(entry) {
+function isToolResult(entry: Json): boolean {
   if (entry.type !== 'user') return false;
   const c = entry.message?.content;
-  return Array.isArray(c) && c.some(b => b && b.type === 'tool_result');
+  return Array.isArray(c) && c.some((b: Json) => b && b.type === 'tool_result');
 }
 
 /**
@@ -128,7 +129,7 @@ function isToolResult(entry) {
  * @returns {{ inputTokens: number, cacheWriteTokens: number, cacheReadTokens: number,
  *             outputTokens: number, model: string } | null}
  */
-function extractUsage(entry) {
+function extractUsage(entry: Json): { inputTokens: number; cacheWriteTokens: number; cacheReadTokens: number; outputTokens: number; model: string } | null {
   if (entry.type !== 'assistant' || !entry.message?.usage) return null;
   const u = entry.message.usage;
   return {
@@ -158,7 +159,7 @@ function extractUsage(entry) {
  *   defaults to '.claude-code-hermit' relative to cwd.
  * @returns {string} absolute path to .claude/cost-log.jsonl
  */
-function costLogPath(hermitRootOrState) {
+function costLogPath(hermitRootOrState?: string): string {
   if (!hermitRootOrState) {
     return path.resolve('.claude', 'cost-log.jsonl');
   }
@@ -189,7 +190,7 @@ function costLogPath(hermitRootOrState) {
  * @param {object} [payload]
  * @returns {string|null}
  */
-function ccVersion(payload) {
+function ccVersion(payload?: Json): string | null {
   if (payload && typeof payload === 'object') {
     const v = payload.claude_code_version || payload.cc_version;
     if (v && typeof v === 'string') return v;
@@ -199,7 +200,7 @@ function ccVersion(payload) {
 
 // ---------------------------------------------------------------------------
 
-module.exports = {
+export {
   // Hook-payload accessors
   sessionId,
   transcriptPath,

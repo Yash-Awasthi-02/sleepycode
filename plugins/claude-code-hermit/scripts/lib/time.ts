@@ -1,9 +1,7 @@
-'use strict';
-
 // Returns 'HH:MM' in the given IANA timezone, or null on error.
 // Normalises Intl's '24:xx' (some locales emit this for midnight) to '00:xx'.
 // Optional ref date; defaults to now.
-function currentHHMM(timezone, ref) {
+function currentHHMM(timezone: string, ref?: Date): string | null {
   try {
     const parts = new Intl.DateTimeFormat('en-US', {
       timeZone: timezone,
@@ -20,7 +18,7 @@ function currentHHMM(timezone, ref) {
 }
 
 // Returns today as 'YYYY-MM-DD' in the given timezone.
-function todayYMD(timezone) {
+function todayYMD(timezone: string): string {
   try {
     return new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date());
   } catch {
@@ -28,4 +26,4 @@ function todayYMD(timezone) {
   }
 }
 
-module.exports = { currentHHMM, todayYMD };
+export { currentHHMM, todayYMD };

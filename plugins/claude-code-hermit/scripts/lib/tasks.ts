@@ -5,22 +5,22 @@
 // This is the ONLY place in the codebase that reads the task file format.
 // If Claude Code changes the format, update here.
 
-'use strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
 
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
+type Json = any;
 
 /**
  * Read all non-deleted tasks from the active task list.
  * Returns an empty array if no task list is configured or no tasks exist.
  */
-function readTasks() {
+function readTasks(): Json[] {
   const taskListId = process.env.CLAUDE_CODE_TASK_LIST_ID;
   if (!taskListId) return [];
 
   const taskDir = path.join(os.homedir(), '.claude', 'tasks', taskListId);
-  const tasks = [];
+  const tasks: Json[] = [];
   try {
     const files = fs.readdirSync(taskDir).filter(f => f.endsWith('.json'));
     for (const f of files) {
@@ -38,9 +38,9 @@ function readTasks() {
 /**
  * Compute progress counts from a task array.
  */
-function taskProgress(tasks) {
+function taskProgress(tasks: Json[]): { done: number; total: number } {
   const done = tasks.filter(t => t.status === 'completed').length;
   return { done, total: tasks.length };
 }
 
-module.exports = { readTasks, taskProgress };
+export { readTasks, taskProgress };

@@ -1,5 +1,3 @@
-'use strict';
-
 // Hermit-owned cost-log index: incremental byte-offset tracking + corrupt-line counting.
 // cc-compat.js owns the cost-log PATH only; this module owns the record shape and the index.
 //
@@ -19,19 +17,21 @@
 // Sole writer: cost-tracker.js (calls updateCostIndex after every log append).
 // Readers: cost-tracker.js (writeCostSummary, getCumulativeCost fallback), doctor-check.js.
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'node:fs';
+import path from 'node:path';
+
+type Json = any;
 
 const INDEX_VERSION = 2;
 
 // writeCostSummary reads today + the trailing 7 days; keep one extra day of buffer.
 const BY_DATE_RETENTION_DAYS = 8;
 
-function costIndexPath(hermitRoot) {
+function costIndexPath(hermitRoot: string): string {
   return path.join(path.resolve(hermitRoot), 'state', 'cost-index.json');
 }
 
-function readCostIndex(indexPath) {
+function readCostIndex(indexPath: string): Json | null {
   try {
     const data = JSON.parse(fs.readFileSync(indexPath, 'utf-8'));
     if (data && data.version === INDEX_VERSION) return data;
@@ -41,7 +41,7 @@ function readCostIndex(indexPath) {
   }
 }
 
-function _emptyIndex() {
+function _emptyIndex(): Json {
   return {
     version: INDEX_VERSION,
     byte_offset: 0,
@@ -56,7 +56,7 @@ function _emptyIndex() {
   };
 }
 
-function _writeIndex(indexPath, index) {
+function _writeIndex(indexPath: string, index: Json): Json {
   const tmp = indexPath + '.tmp';
   fs.writeFileSync(tmp, JSON.stringify(index, null, 2) + '\n', 'utf-8');
   fs.renameSync(tmp, indexPath);
@@ -65,7 +65,7 @@ function _writeIndex(indexPath, index) {
 
 // Drop by_date buckets older than the retention window. Keeps the index bounded
 // regardless of how long the hermit runs; total_* counters are unaffected.
-function _pruneByDate(index) {
+function _pruneByDate(index: Json): void {
   const cutoff = new Date(Date.now() - BY_DATE_RETENTION_DAYS * 86400000)
     .toISOString()
     .slice(0, 10);
@@ -75,7 +75,7 @@ function _pruneByDate(index) {
 }
 
 // Process one log line into the index in-place.
-function _processLine(index, line) {
+function _processLine(index: Json, line: string): void {
   try {
     const entry = JSON.parse(line);
     const cost = entry.estimated_cost_usd || 0;
@@ -113,7 +113,7 @@ function _processLine(index, line) {
 }
 
 // Full O(n) rebuild from scratch. Only called: first run, version mismatch, or log truncation.
-function rebuildCostIndex(logPath, indexPath) {
+function rebuildCostIndex(logPath: string, indexPath: string): Json {
   const index = _emptyIndex();
 
   let fileSize = 0;
@@ -143,7 +143,7 @@ function rebuildCostIndex(logPath, indexPath) {
 // Incremental update: read only bytes appended since last call. O(1) in the common case.
 // Falls back to rebuildCostIndex when the index is missing, version-mismatched, or the log
 // appears truncated (byte_offset > fileSize).
-function updateCostIndex(logPath, indexPath) {
+function updateCostIndex(logPath: string, indexPath: string): Json {
   let fileSize = 0;
   try {
     fileSize = fs.statSync(logPath).size;
@@ -191,4 +191,4 @@ function updateCostIndex(logPath, indexPath) {
   return _writeIndex(indexPath, index);
 }
 
-module.exports = { costIndexPath, readCostIndex, updateCostIndex, rebuildCostIndex };
+export { costIndexPath, readCostIndex, updateCostIndex, rebuildCostIndex };

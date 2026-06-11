@@ -1,4 +1,3 @@
-'use strict';
 /**
  * search.js — full-text search lib over hermit state (sessions/, compiled/, proposals/)
  * Zero npm dependencies. Node stdlib only.
@@ -12,8 +11,10 @@
  * opts: { type?: string, since?: string (ISO date), limit?: number }
  */
 
-const path = require('path');
-const { globDirRecursive, readFileWithFrontmatter } = require('./frontmatter');
+import path from 'node:path';
+import { globDirRecursive, readFileWithFrontmatter } from './frontmatter';
+
+type Json = any;
 
 // Weight multiplier for a term hit in a frontmatter field (vs. plain body hit)
 const FM_BOOST = 5;
@@ -28,7 +29,7 @@ const RECENCY_HALF_LIFE_DAYS = 180;
  * Extract the best available date string from a frontmatter object.
  * Tries keys in priority order; returns null if none found.
  */
-function extractDate(fm) {
+function extractDate(fm: Json): string | null {
   for (const key of ['created', 'date', 'accepted_date', 'start_date']) {
     if (fm[key] && typeof fm[key] === 'string') return fm[key];
   }
@@ -39,7 +40,7 @@ function extractDate(fm) {
  * Recency multiplier [0..1]. Exponential half-life decay from RECENCY_HALF_LIFE_DAYS.
  * Unparseable date → neutral (0.5).
  */
-function recencyBoost(dateStr) {
+function recencyBoost(dateStr: string | null): number {
   if (!dateStr) return 0.5;
   const ms = Date.parse(dateStr);
   if (isNaN(ms)) return 0.5;
@@ -51,7 +52,7 @@ function recencyBoost(dateStr) {
  * Tokenize a string into lowercase terms of length >= 2.
  * Strips non-alphanumeric chars except hyphens and underscores.
  */
-function tokenize(text) {
+function tokenize(text: string): string[] {
   return (text || '')
     .toLowerCase()
     .split(/\s+/)
@@ -62,7 +63,7 @@ function tokenize(text) {
 /**
  * Count overlapping occurrences of all terms in text (case-insensitive).
  */
-function countHits(text, terms) {
+function countHits(text: string, terms: string[]): number {
   if (!text) return 0;
   const lower = text.toLowerCase();
   let hits = 0;
@@ -83,9 +84,9 @@ function countHits(text, terms) {
  * + stripped leading blanks) so the returned line numbers resolve against the real file.
  * Returns Array<{ line, startLine, text }>; both line numbers are 1-indexed, file-relative.
  */
-function extractSnippets(body, terms, lineOffset) {
+function extractSnippets(body: string, terms: string[], lineOffset: number): Array<{ line: number; startLine: number; text: string }> {
   const lines = (body || '').split('\n');
-  const snippets = [];
+  const snippets: Array<{ line: number; startLine: number; text: string }> = [];
 
   for (let i = 0; i < lines.length && snippets.length < MAX_SNIPPETS_PER_FILE; i++) {
     const lower = lines[i].toLowerCase();
@@ -116,7 +117,7 @@ function extractSnippets(body, terms, lineOffset) {
  * @param {number}  [opts.limit] - max results to return (default 10)
  * @returns {Array<{path, relPath, type, title, date, score, snippets}>}
  */
-function search(hermitDir, query, opts) {
+function search(hermitDir: string, query: string, opts?: Json): Json[] {
   const o = opts || {};
   const terms = tokenize(query);
   if (terms.length === 0) return [];
@@ -131,7 +132,7 @@ function search(hermitDir, query, opts) {
     path.join(hermitDir, 'proposals'),
   ];
 
-  const results = [];
+  const results: Json[] = [];
 
   for (const dir of dirs) {
     const files = globDirRecursive(dir);
@@ -185,8 +186,8 @@ function search(hermitDir, query, opts) {
     }
   }
 
-  results.sort((a, b) => b.score - a.score);
+  results.sort((a: Json, b: Json) => b.score - a.score);
   return results.slice(0, limit);
 }
 
-module.exports = { search };
+export { search };

@@ -39,7 +39,7 @@ run_test "bin scripts executable" bash -c \
 # sanitize.js — safeForLLM
 # -------------------------------------------------------
 
-SANITIZE_LIB="$REPO_ROOT/scripts/lib/sanitize.js"
+SANITIZE_LIB="$REPO_ROOT/scripts/lib/sanitize.ts"
 
 run_test "safeForLLM: strips <system-reminder>" bash -c \
   "bun -e \"const {safeForLLM}=require('$SANITIZE_LIB'); const r=safeForLLM('<system-reminder>inject</system-reminder>'); process.exit(r.includes('<system-reminder>') ? 1 : 0)\""
@@ -741,7 +741,7 @@ rm -rf "$nohermit"
 # lib/cc-compat.js — CC-owned format accessors
 # -------------------------------------------------------
 
-CC_COMPAT_LIB="$REPO_ROOT/scripts/lib/cc-compat.js"
+CC_COMPAT_LIB="$REPO_ROOT/scripts/lib/cc-compat.ts"
 
 # Exports present
 run_test "cc-compat.js: exports required symbols" bash -c \
@@ -809,7 +809,7 @@ run_test "cc-compat.js: ccVersion absent → null (no throw)" bash -c \
 # lib/cost-log.js — incremental cost-log index
 # -------------------------------------------------------
 
-COST_LOG_LIB="$REPO_ROOT/scripts/lib/cost-log.js"
+COST_LOG_LIB="$REPO_ROOT/scripts/lib/cost-log.ts"
 COST_LOG_WORKDIR="$(setup_workdir)"
 COST_INDEX_PATH="$COST_LOG_WORKDIR/.claude-code-hermit/state/cost-index.json"
 COST_LOG_PATH="$COST_LOG_WORKDIR/.claude/cost-log.jsonl"
@@ -940,19 +940,19 @@ cleanup "$COST_LOG_WORKDIR"
 
 # Pricing lib exports the required symbols
 run_test "pricing.js: exports PRICING, costByType, calculateCost" bash -c \
-  "bun -e \"const p=require('$REPO_ROOT/scripts/lib/pricing.js'); ['PRICING','costByType','calculateCost'].forEach(k=>{ if(typeof p[k]==='undefined') throw new Error(k+' missing'); });\""
+  "bun -e \"const p=require('$REPO_ROOT/scripts/lib/pricing.ts'); ['PRICING','costByType','calculateCost'].forEach(k=>{ if(typeof p[k]==='undefined') throw new Error(k+' missing'); });\""
 
 # calculateCost golden value: sonnet, 1M cache_read → $0.30
 run_test "pricing.js: calculateCost golden (sonnet 1M cache_read = \$0.30)" bash -c \
-  "bun -e \"const {calculateCost}=require('$REPO_ROOT/scripts/lib/pricing.js'); const v=calculateCost('sonnet',0,0,1000000,0); if(Math.abs(v-0.30)>1e-9) throw new Error('got '+v);\""
+  "bun -e \"const {calculateCost}=require('$REPO_ROOT/scripts/lib/pricing.ts'); const v=calculateCost('sonnet',0,0,1000000,0); if(Math.abs(v-0.30)>1e-9) throw new Error('got '+v);\""
 
 # costByType sums to calculateCost
 run_test "pricing.js: costByType sums equal calculateCost" bash -c \
-  "bun -e \"const {costByType,calculateCost}=require('$REPO_ROOT/scripts/lib/pricing.js'); const t=costByType('opus',100,200,300,400); const s=t.input+t.cacheWrite+t.cacheRead+t.output; const c=calculateCost('opus',100,200,300,400); if(Math.abs(s-c)>1e-12) throw new Error('sum '+s+' != calculateCost '+c);\""
+  "bun -e \"const {costByType,calculateCost}=require('$REPO_ROOT/scripts/lib/pricing.ts'); const t=costByType('opus',100,200,300,400); const s=t.input+t.cacheWrite+t.cacheRead+t.output; const c=calculateCost('opus',100,200,300,400); if(Math.abs(s-c)>1e-12) throw new Error('sum '+s+' != calculateCost '+c);\""
 
 # Unknown model falls back to sonnet
 run_test "pricing.js: unknown model falls back to sonnet" bash -c \
-  "bun -e \"const {calculateCost}=require('$REPO_ROOT/scripts/lib/pricing.js'); const a=calculateCost('unknown-model',0,0,1000000,0); const b=calculateCost('sonnet',0,0,1000000,0); if(Math.abs(a-b)>1e-12) throw new Error('got '+a);\""
+  "bun -e \"const {calculateCost}=require('$REPO_ROOT/scripts/lib/pricing.ts'); const a=calculateCost('unknown-model',0,0,1000000,0); const b=calculateCost('sonnet',0,0,1000000,0); if(Math.abs(a-b)>1e-12) throw new Error('got '+a);\""
 
 # -------------------------------------------------------
 # cost-reflect.js

@@ -1,10 +1,10 @@
 // Shared helpers for reading YAML frontmatter from markdown files
 // and listing files by pattern. Zero npm dependencies.
 
-'use strict';
+import fs from 'node:fs';
+import path from 'node:path';
 
-const fs = require('fs');
-const path = require('path');
+type Json = any;
 
 /**
  * Parse YAML frontmatter from an already-read markdown string.
@@ -12,12 +12,12 @@ const path = require('path');
  * offset of the closing --- delimiter (-1 if no valid frontmatter found).
  * Arrays like [a, b, c] are parsed; null is preserved; inline comments stripped.
  */
-function _parseFrontmatterWithEnd(content) {
+function _parseFrontmatterWithEnd(content: string): { fm: Json | null; end: number } {
   if (!content.startsWith('---')) return { fm: null, end: -1 };
   const end = content.indexOf('\n---', 3);
   if (end === -1) return { fm: null, end: -1 };
   const yaml = content.slice(4, end);
-  const result = {};
+  const result: Record<string, any> = {};
   for (const line of yaml.split('\n')) {
     const m = line.match(/^(\w[\w_]*)\s*:\s*(.*)/);
     if (!m) continue;
@@ -41,7 +41,7 @@ function _parseFrontmatterWithEnd(content) {
  * Returns an object of key-value pairs, or null if no frontmatter found.
  * Arrays like [a, b, c] are parsed; null is preserved; inline comments stripped.
  */
-function parseFrontmatter(content) {
+function parseFrontmatter(content: string): Json | null {
   return _parseFrontmatterWithEnd(content).fm;
 }
 
@@ -49,7 +49,7 @@ function parseFrontmatter(content) {
  * Parse YAML frontmatter from a markdown file.
  * Returns an object of key-value pairs, or null if no frontmatter found.
  */
-function readFrontmatter(filePath) {
+function readFrontmatter(filePath: string): Json | null {
   try {
     return parseFrontmatter(fs.readFileSync(filePath, 'utf8'));
   } catch {
@@ -63,7 +63,7 @@ function readFrontmatter(filePath) {
  * Returns { fm, body, content } or null on error.
  * fm may be null if no frontmatter; body is always the post-header text.
  */
-function readFileWithFrontmatter(filePath) {
+function readFileWithFrontmatter(filePath: string): { fm: Json | null; body: string; content: string } | null {
   try {
     const content = fs.readFileSync(filePath, 'utf8');
     const { fm, end } = _parseFrontmatterWithEnd(content);
@@ -88,7 +88,7 @@ function readFileWithFrontmatter(filePath) {
  * reflect and weekly-review will read KAIROS daily logs instead of S-NNN-REPORT.md
  * archives.
  */
-function isEmptyAutoArchive(fm) {
+function isEmptyAutoArchive(fm: Json): boolean {
   if (!fm) return false;
   const ops = parseInt(fm.operator_turns, 10) || 0;
   return fm.closed_via === 'auto' && ops === 0;
@@ -99,8 +99,8 @@ function isEmptyAutoArchive(fm) {
  * return a Map<type, artifact> keeping only the newest artifact per type.
  * Artifacts without fm or fm.created are skipped.
  */
-function newestByType(artifacts) {
-  const byType = new Map();
+function newestByType(artifacts: Json[]): Map<string, Json> {
+  const byType = new Map<string, Json>();
   for (const a of artifacts) {
     if (!a.fm || !a.fm.created) continue;
     const type = a.fm.type || '_untyped';
@@ -116,7 +116,7 @@ function newestByType(artifacts) {
  * List files in a directory matching a regex pattern.
  * Returns full paths sorted by name.
  */
-function globDir(dir, pattern) {
+function globDir(dir: string, pattern: RegExp): string[] {
   try {
     return fs.readdirSync(dir)
       .filter(f => pattern.test(f))
@@ -131,8 +131,8 @@ function globDir(dir, pattern) {
  * Recursively list all .md files in a directory.
  * Returns full paths sorted by name.
  */
-function globDirRecursive(dir) {
-  const results = [];
+function globDirRecursive(dir: string): string[] {
+  const results: string[] = [];
   try {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name);
@@ -151,7 +151,7 @@ function globDirRecursive(dir) {
  * Supports directories (recursive scan) and simple glob patterns (*.md, name-*.md).
  * baseDir is the project root.
  */
-function resolveArtifactPath(baseDir, pathEntry) {
+function resolveArtifactPath(baseDir: string, pathEntry: string): string[] {
   const full = path.resolve(baseDir, pathEntry);
   if (!pathEntry.includes('*')) return globDirRecursive(full);
   // Glob pattern: match files in the parent directory
@@ -161,4 +161,4 @@ function resolveArtifactPath(baseDir, pathEntry) {
   return globDir(dir, re);
 }
 
-module.exports = { parseFrontmatter, readFrontmatter, readFileWithFrontmatter, isEmptyAutoArchive, newestByType, globDir, globDirRecursive, resolveArtifactPath };
+export { parseFrontmatter, readFrontmatter, readFileWithFrontmatter, isEmptyAutoArchive, newestByType, globDir, globDirRecursive, resolveArtifactPath };
