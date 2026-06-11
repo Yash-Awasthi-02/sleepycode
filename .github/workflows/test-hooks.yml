@@ -46,7 +46,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.3.11'
-      - run: bash tests/run-hooks.sh
+      - run: bun test tests/hooks.contract.test.ts
         working-directory: plugins/claude-code-hermit
       - run: python3 tests/run-contracts.py
         working-directory: plugins/claude-code-hermit

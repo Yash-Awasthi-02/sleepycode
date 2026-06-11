@@ -34,7 +34,7 @@ Abort with: `Plugin '<slug>' has no tests/ directory — nothing to run.`
 
 Plugins in this monorepo ship one of two test conventions. Detect and dispatch:
 
-- **Bash entrypoint**: if `plugins/<slug>/tests/run-all.sh` exists, run it. This is the convention used by the core hermit (`run-hooks.sh` + `run-contracts.py` + `run-scripts.sh` composite).
+- **Bash entrypoint**: if `plugins/<slug>/tests/run-all.sh` exists, run it. This is the convention used by the core hermit (`bun test` hook-contract suite + `run-contracts.py` + `run-scripts.sh` composite).
   ```bash
   bash plugins/<slug>/tests/run-all.sh 2>&1
   ```

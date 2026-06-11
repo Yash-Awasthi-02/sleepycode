@@ -99,7 +99,7 @@ Every plugin in this fleet that depends on the core hermit declares three versio
 "dependencies": [{ "name": "claude-code-hermit", "version": "^1.0.21" }]
 ```
 
-`required_core_version` is the canonical fleet contract. It is read by the core plugin's `hermit-doctor` (the `dependencies` check), `smoke-test`, and `hermit-evolve`, and by external/third-party hermits that live outside this monorepo. The parallel `requires.claude-code-hermit` field mirrors it — the two must agree, and `tests/run-hooks.sh` enforces this on every CI run (test `sibling manifests: required_core_version vs requires consistency`). When you bump one, bump all three.
+`required_core_version` is the canonical fleet contract. It is read by the core plugin's `hermit-doctor` (the `dependencies` check), `smoke-test`, and `hermit-evolve`, and by external/third-party hermits that live outside this monorepo. The parallel `requires.claude-code-hermit` field mirrors it — the two must agree, and `tests/hooks.contract.test.ts` enforces this on every CI run (test `sibling manifests: required_core_version vs requires consistency`). When you bump one, bump all three.
 
 When releasing core and a domain plugin together, use `/fleet-release` — it updates all three fields automatically after the core prep commit, before the domain plugin's release runs.
 
@@ -107,7 +107,7 @@ When releasing core and a domain plugin together, use `/fleet-release` — it up
 
 Each plugin owns its own `tests/run-all.sh` that orchestrates the suites it cares about. Examples:
 
-- `plugins/claude-code-hermit/tests/run-all.sh` — bash + Python; calls `run-hooks.sh`, `run-contracts.py`, `run-scripts.sh`, `recurrence-gate-matrix.sh`. See [`docs/testing.md`](plugins/claude-code-hermit/docs/testing.md) for hook-test details, fixtures, and how to write new tests.
+- `plugins/claude-code-hermit/tests/run-all.sh` — bash + Python; calls `bun test` (hook contract suite), `run-contracts.py`, `run-scripts.sh`, `recurrence-gate-matrix.sh`. See [`docs/testing.md`](plugins/claude-code-hermit/docs/testing.md) for hook-test details, fixtures, and how to write new tests.
 - `plugins/claude-code-homeassistant-hermit/tests/` — pytest suite; run via `.venv/bin/pytest tests/ -v`.
 
 CI runs each plugin's suite from its own directory (paths-filtered so unrelated plugin edits don't trigger every workflow). New plugins should follow the same pattern: a `run-all.sh` (or equivalent entry point) that returns non-zero on any failure, plus a paths-filtered GitHub Actions workflow under `.github/workflows/`.
