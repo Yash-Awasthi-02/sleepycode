@@ -47,6 +47,11 @@ Always launch Claude Code from this repo's root, not from inside a plugin dir. A
 - **CI is not path-filtered yet**: every plugin's tests run on every PR. Don't assume a HA-test failure on a core-only PR is your fault.
 - **Shell `cd` persists across Bash calls.** Any `cd` in a Bash call leaves CWD pinned for subsequent Bash calls in the session — affects CWD-relative scripts like `heartbeat-precheck.js .claude-code-hermit` (silently `SKIP|HEARTBEAT.md missing`) and commands like `git add`. Plugin test runners (`bun test` or `bash plugins/<slug>/tests/run-all.sh` run from inside the plugin dir) end inside `plugins/<slug>/`. Use absolute paths or prefix `cd "$(git rev-parse --show-toplevel)" && …` (resolves to the current tree root — the worktree under `claude --worktree`, the main checkout otherwise — never a hardcoded path).
 
+## Verification
+
+- **Confirm Claude Code's own behavior empirically before building on it.** When a feature or bug depends on how Claude Code itself behaves (what a tool actually returns, the exact shape a hook receives on stdin, how the harness namespaces or loads things, what a setting or slash command really does, how a native feature fires), don't conclude from docs, memory, or assumption. Spin up a tmux session running real Claude Code, exercise the actual tool, feature, or behavior, and read what it does. The empirical verdict from that run is what you build on; if it contradicts the docs or your expectation, the live behavior wins and that gap is the finding.
+- **Use tmux so the probe runs non-blocking alongside this session.** Launch `claude` in a tmux pane (`tmux new-session -d`, `send-keys` to drive it, `capture-pane` to read output), observe the real result, then act on it. Always follow the verdict the live run produces, never the assumed behavior.
+
 ## Rules
 
 - Always use Context7 for library/API documentation, code generation, and setup/configuration steps — don't wait for an explicit request.

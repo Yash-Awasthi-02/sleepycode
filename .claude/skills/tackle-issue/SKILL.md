@@ -91,7 +91,9 @@ Run these against the current code before forming any verdict.
 
 4. **Has the situation changed since the issue was filed?** `git log` on cited files, or `git log -S "<symbol>"` for named symbols. Check whether relevant commits landed after the issue date.
 
-Read referenced files with `Read`. Grep with `Grep`. Skim sibling tests for the existing behavior contract. Confirm each load-bearing claim against the current code, or label it "recalled, not verified."
+5. **If a load-bearing claim is about live Claude Code behavior, probe it — don't recall it.** Claims like "the hook doesn't receive X," "the skill triggers on Y," "the tool returns Z" can't be falsified with `Read`/`Grep`. Spin up a tmux `claude` session, exercise the actual behavior, and read what it does (see root `CLAUDE.md` § Verification). A live probe doesn't mutate the repo — it stays within this skill's read-only posture. Only do this when the claim is load-bearing; most issues don't need it.
+
+Read referenced files with `Read`. Grep with `Grep`. Skim sibling tests for the existing behavior contract. Confirm each load-bearing claim against the current code (or, for live-behavior claims, against a probe), or label it "recalled, not verified."
 
 **PROP-NNN cross-reference (this repo only):** if the issue body references `PROP-NNN-<slug>-HHMMSS`, read the matching file under `.claude-code-hermit/proposals/` and include its `## Problem` and `## Proposed Solution` sections in the evidence pass. Do NOT try to dereference PROP-NNN ids from other repos — the numbering is per-repo.
 
@@ -121,7 +123,7 @@ Present everything in chat. **Do not call ExitPlanMode.**
 ## Verdict: <Confirmed as-is | Refined approach | Corrected scope | Nothing to do>
 
 ## Evidence
-- <File or symbol checked> → <what was confirmed or falsified>
+- <File or symbol checked> → <what was confirmed or falsified> [probed live | read code | recalled]
 
 ## Trade-offs
 **Pros:** <value delivered, problems solved>
@@ -144,6 +146,7 @@ Then, **only if recommendation is SHIP or SHIP WITH CAVEAT**, append:
 
 ## Verification plan
 - <test, manual check, or command that proves the change works>
+- For behavior unit tests can't capture (hook firing, skill triggering, tool/harness behavior): a live tmux `claude` probe, not a reasoned assertion.
 ```
 
 Then stop. Do not ask whether to proceed.

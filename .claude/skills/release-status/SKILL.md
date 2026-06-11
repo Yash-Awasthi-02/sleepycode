@@ -27,6 +27,18 @@ git rev-list <last-tag-or-HEAD>..HEAD --count -- plugins/<slug>/
 # non-empty [Unreleased] section
 awk '/^## \[Unreleased\]/{flag=1; next} /^## \[/{flag=0} flag && NF' \
   plugins/<slug>/CHANGELOG.md
+
+# hygiene: duplicate section headers inside [Unreleased] (fragmented changelog
+# from parallel worktree merges)
+awk '/^## \[Unreleased\]/{f=1; next} /^## \[/{f=0} f && /^### /' \
+  plugins/<slug>/CHANGELOG.md | sort | uniq -d
+
+# hygiene: merges since last tag that touched the plugin but not its CHANGELOG
+# (likely missing an [Unreleased] entry; use the repo's initial commit if no tag)
+git log --merges --format=%H <last-tag-or-initial>..HEAD -- plugins/<slug>/ | while read m; do
+  git diff --name-only "$m^1" "$m" -- plugins/<slug>/CHANGELOG.md | grep -q . \
+    || git log -1 --format='%h %s' "$m"
+done
 ```
 
 For plugins with no `plugin.json` version or no recognizable tags: mark as `unstructured (skip)` and stop collecting data for that plugin.
@@ -79,6 +91,9 @@ claude-code-fitness-hermit        —         —          —      unstructured
 After the table:
 
 - List any **ERROR** items with a one-line explanation.
+- List changelog-hygiene warnings from step 1 (these block a clean `/release` and should be fixed first):
+  - `⚠ <slug>: fragmented changelog — duplicate '### <header>' inside [Unreleased]; consolidate (one header per section, see /commit)`
+  - `⚠ <slug>: <N> merge(s) since <last-tag> touched the plugin without a CHANGELOG entry: <hash> <subject>, ...` — verify each is genuinely operator-invisible (pure refactor/test-only) or backfill a bullet.
 - End with one of:
   - `Nothing ready to ship.` — no plugin is `awaiting-tag` or `prep-needed`
   - `Ready to ship: <slug>, <slug>` — plugins where status is `awaiting-tag` or `prep-needed`

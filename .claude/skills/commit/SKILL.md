@@ -51,6 +51,8 @@ For `$SCOPE = plugin`: open `$PLUGIN_DIR/CHANGELOG.md`. Find the `## [Unreleased
 
 Follow the format: `- **component: one-line summary** — one short sentence of rationale if non-obvious.` Keep each bullet to 1–3 lines (~40 words for the whole bullet). Content that doesn't obviously affect operator behavior belongs in the commit message body, not here. The verbose form is reserved for `### Upgrade Instructions` (added by `/release`, not here), which `hermit-evolve` reads imperative-step-by-step.
 
+**One header per section.** `[Unreleased]` contains at most one each of `### Added`, `### Changed`, `### Fixed` (and `### Removed`/`### Security` when used). Append bullets under the existing header — never create a second copy of a header that already exists. Parallel worktree branches each adding their own headers is how the section fragments at merge time; if you find duplicate headers already present (left by earlier merges), consolidate them into one while you're in the file — same for a duplicated `### Upgrade Instructions` list (merge, dedupe, renumber). `/release-status` flags this as `fragmented changelog`.
+
 Do not create a new version header (`## [X.Y.Z]`). That belongs to `/release`.
 
 ### 3. Draft the commit message
