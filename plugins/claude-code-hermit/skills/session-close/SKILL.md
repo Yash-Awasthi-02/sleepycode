@@ -27,7 +27,7 @@ Use this when the operator wants to end everything (via `hermit-stop` or explici
 
 ### Auto-close path (`--auto`)
 
-When invoked with `--auto` by heartbeat, skip steps 1–5 and jump directly to step 6 (shutdown_skill), step 7 (Tasks cleanup), step 8 (session-mgr archive), and step 9 (pending-close cleanup). Pass this templated payload to session-mgr:
+When invoked with `--auto` by heartbeat, skip steps 1–5 and jump directly to step 6 (shutdown_skill), step 7 (Tasks cleanup), step 8 (session-mgr archive), step 9 (pending-close cleanup), and step 10 (context-reset marker). Pass this templated payload to session-mgr:
 
 ```
 Status: completed
@@ -73,6 +73,11 @@ If the archive in step 8 fails, leave `pending-close.json` in place so the next 
    ```
    Also include the task table (if native Tasks were created).
 9. **Pending-close cleanup (both paths).** After the session-mgr archive returns success, delete `.claude-code-hermit/state/pending-close.json` if it exists (`rm -f` — ignore if absent). Any pending midnight-drain flag is invalidated by a successful close, regardless of trigger; without this step a flag queued before an operator-invoked close would survive and the next session's first heartbeat tick could fire `AUTO_CLOSE` against it.
+10. **Context-reset marker (`--auto` only, after step 9 success).** Write `.claude-code-hermit/state/clear-requested.json`:
+    ```json
+    { "requested_at": "<utc ISO>", "reason": "daily-auto-close" }
+    ```
+    Skip on archive failure (step 9 is skipped too — the marker inherits the archive-success precondition). Skip on operator-invoked closes entirely — only the `--auto` path writes this. The watchdog reads it on the next tick and sends `/clear` when the session is still alive + idle + unattended, resetting the stale conversation context before the next scheduled wake incurs a cold cache-write. `/clear` preserves CronCreate routines and Monitor tasks; no re-arm is needed.
 
 ---
 

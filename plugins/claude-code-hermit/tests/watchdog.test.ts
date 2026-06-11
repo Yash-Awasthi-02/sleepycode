@@ -468,6 +468,122 @@ test.if(isLinux)('uninstall without systemctl → exit 0, no traceback', withHer
   expect(r.stdout + r.stderr).not.toContain('Traceback');
 }));
 
+// -------------------------------------------------------
+// post-close clear tests
+// -------------------------------------------------------
+
+function writeClearMarker(h: Hermit): void {
+  fs.writeFileSync(state(h, 'clear-requested.json'),
+    JSON.stringify({ requested_at: new Date().toISOString(), reason: 'daily-auto-close' }) + '\n');
+}
+
+// watchdog.enabled: false verifies clear fires independently of the watchdog restart path
+function writePostCloseClearConfig(h: Hermit): void {
+  fs.writeFileSync(path.join(h.dir, '.claude-code-hermit', 'config.json'), JSON.stringify({
+    post_close_clear: true,
+    watchdog: { enabled: false },
+    heartbeat: { enabled: true, every: '2h', active_hours: { start: '00:00', end: '23:59' } },
+  }, null, 2) + '\n');
+}
+
+test('post_close_clear: marker + idle + tmux alive + operator silent → /clear sent, marker deleted',
+  withHermit(async (h) => {
+    writePostCloseClearConfig(h);
+    // runtime: idle (as set by session-mgr after auto-close)
+    patchRuntime(h, { session_state: 'idle' });
+    writeClearMarker(h);
+    // operator idle 30 min ago
+    fs.writeFileSync(state(h, 'last-operator-action.json'),
+      JSON.stringify({ at: isoAgo(0.5) }) + '\n');
+    writeFakeTmux(h, 0); // tmux session alive
+    writeFakePgrep(h, 1);
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    const tmuxLog = fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8');
+    expect(tmuxLog).toContain('/clear');
+    expect(fs.existsSync(state(h, 'clear-requested.json'))).toBe(false);
+    expect(fs.readFileSync(eventsFile(h), 'utf-8')).toContain('post-close-clear');
+  }));
+
+test('post_close_clear: operator active < 10 min → no send, marker kept',
+  withHermit(async (h) => {
+    writePostCloseClearConfig(h);
+    patchRuntime(h, { session_state: 'idle' });
+    writeClearMarker(h);
+    // operator active 3 min ago — within the 10-min grace
+    fs.writeFileSync(state(h, 'last-operator-action.json'),
+      JSON.stringify({ at: isoAgo(3 / 60) }) + '\n');
+    writeFakeTmux(h, 0);
+    writeFakePgrep(h, 1);
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+    expect(fs.existsSync(state(h, 'clear-requested.json'))).toBe(true);
+  }));
+
+test('post_close_clear: session not idle → no send, marker kept',
+  withHermit(async (h) => {
+    writePostCloseClearConfig(h);
+    // setupHermit() defaults to session_state: in_progress — no patchRuntime needed
+    writeClearMarker(h);
+    writeFakeTmux(h, 0);
+    writeFakePgrep(h, 1);
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+    expect(fs.existsSync(state(h, 'clear-requested.json'))).toBe(true);
+  }));
+
+test('post_close_clear: tmux session dead → no send, marker kept',
+  withHermit(async (h) => {
+    writePostCloseClearConfig(h);
+    patchRuntime(h, { session_state: 'idle' });
+    writeClearMarker(h);
+    writeFakeTmux(h, 1); // tmux session dead (hermit-stop ran)
+    writeFakePgrep(h, 1);
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+    expect(fs.existsSync(state(h, 'clear-requested.json'))).toBe(true);
+  }));
+
+test('post_close_clear: shutdown requested → no send, marker kept',
+  withHermit(async (h) => {
+    writePostCloseClearConfig(h);
+    patchRuntime(h, { session_state: 'idle', shutdown_requested_at: isoAgo(0.5) });
+    writeClearMarker(h);
+    writeFakeTmux(h, 0); // tmux still briefly alive mid-shutdown
+    writeFakePgrep(h, 1);
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+    expect(fs.existsSync(state(h, 'clear-requested.json'))).toBe(true);
+  }));
+
+test('post_close_clear: no marker → no send',
+  withHermit(async (h) => {
+    writePostCloseClearConfig(h);
+    patchRuntime(h, { session_state: 'idle' });
+    writeFakeTmux(h, 0);
+    writeFakePgrep(h, 1);
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+  }));
+
+test('post_close_clear: flag false → no send even with marker',
+  withHermit(async (h) => {
+    writeConfig(h); // standard config: watchdog.enabled true, no post_close_clear
+    patchRuntime(h, { session_state: 'idle' });
+    writeClearMarker(h);
+    writeFakeTmux(h, 0);
+    writeFakePgrep(h, 1);
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+    expect(fs.existsSync(state(h, 'clear-requested.json'))).toBe(true);
+  }));
+
 // ---------- inActiveHours unit tests ----------
 // 2026-06-11T03:00:00Z → 12:00 Asia/Tokyo (inside 09:00-17:00), 23:00 America/New_York (outside)
 const ACTIVE_WINDOW = { start: '09:00', end: '17:00' };

@@ -96,6 +96,7 @@ const DEFAULT_CONFIG: Json = {
     escalate_after: 3,
     operator_grace: '15m',
   },
+  post_close_clear: true,
 };
 
 const sleep = (s: number) => new Promise((r) => setTimeout(r, s * 1000));

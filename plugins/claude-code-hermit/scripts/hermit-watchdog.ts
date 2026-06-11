@@ -34,6 +34,7 @@ const WATCHDOG_EVENTS_JSONL = path.join(STATE_DIR, 'watchdog-events.jsonl');
 const HEARTBEAT_FILE = path.join(STATE_DIR, '.heartbeat');
 const ROUTINE_METRICS_JSONL = path.join(STATE_DIR, 'routine-metrics.jsonl');
 const LAST_OPERATOR_ACTION = path.join(STATE_DIR, 'last-operator-action.json');
+const CLEAR_REQUESTED_JSON = path.join(STATE_DIR, 'clear-requested.json');
 
 // --- Utilities ---
 
@@ -245,6 +246,42 @@ function doRearm(sessionName: string): void {
   process.stderr.write(`[watchdog] re-armed "${sessionName}"\n`);
 }
 
+// --- Post-close context reset ---
+
+/**
+ * Runs before the watchdog.enabled gate — independent of watchdog restart behavior;
+ * fires on any hermit with post_close_clear: true and a running scheduler.
+ * /clear preserves CronCreate routines and Monitor tasks (process-scoped, not
+ * conversation-scoped), so no re-arm is needed after clearing.
+ * Takes the lifecycle lock around the send so it can't race a concurrent tick or restart.
+ */
+function maybePostCloseClear(config: Json): void {
+  if (config.post_close_clear !== true) return;
+  if (!fs.existsSync(CLEAR_REQUESTED_JSON)) return;
+
+  const runtime = readRuntimeJson();
+  if (!runtime) return;
+  if (runtime.session_state !== 'idle') return;
+  if (runtime.shutdown_requested_at || runtime.shutdown_completed_at) return; // never clear a stopping hermit
+
+  const sessionName = runtime.tmux_session ?? '';
+  if (!sessionName) return;
+  if (!tmuxSessionAlive(sessionName)) return;
+
+  const opAge = getOperatorLastActionAgeSecs();
+  if (opAge !== null && opAge < 10 * 60) return; // operator active < 10 min — back off
+
+  if (!tryAcquireLifecycleLock()) return; // another lifecycle action in flight, retry next tick
+  try {
+    sendKeys(sessionName, '/clear');
+    try { fs.rmSync(CLEAR_REQUESTED_JSON); } catch {}
+    appendEvent('post-close-clear', 'daily-auto-close context reset');
+  } finally {
+    releaseLock(LIFECYCLE_LOCK);
+  }
+  process.exit(0);
+}
+
 // --- Main decision loop ---
 
 function main(): void {
@@ -256,6 +293,9 @@ function main(): void {
   } catch {
     process.exit(0);
   }
+
+  // 0. Post-close clear — independent of watchdog.enabled; runs on any hermit with a scheduler
+  maybePostCloseClear(config);
 
   // 1. Config gate
   const watchdogCfg = config?.watchdog ?? {};
