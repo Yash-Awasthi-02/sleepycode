@@ -24,6 +24,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { acquireLock, releaseLock } from './lib/lockfile';
 import { utcISOStamp as utcStamp } from './lib/time';
 import { writeRuntimeJson, readRuntimeJson, STATE_DIR, LIFECYCLE_LOCK } from './lib/runtime';
+import { tmuxSessionAlive, getSessionName as deriveSessionName } from './lib/tmux';
 
 type Json = any;
 
@@ -82,10 +83,6 @@ function ageSecs(ts: string): number | null {
 }
 
 // --- Tmux helpers ---
-
-function tmuxSessionAlive(sessionName: string): boolean {
-  return spawnSync('tmux', ['has-session', '-t', sessionName], { stdio: 'ignore' }).status === 0;
-}
 
 /** Capture pane content and return its SHA-256 hash, or null on failure. */
 function getPaneHash(sessionName: string): string | null {
@@ -363,9 +360,7 @@ function main(): void {
 function getSessionName(): string {
   if (!fs.existsSync(CONFIG_PATH)) return 'hermit';
   try {
-    const cfg = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8'));
-    const name = cfg.tmux_session_name ?? 'hermit-{project_name}';
-    return String(name).replaceAll('{project_name}', path.basename(process.cwd()));
+    return deriveSessionName(JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf-8')));
   } catch {
     return 'hermit';
   }
