@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **recall: surfaces auto-memory alongside hermit artifacts** — drops `model: haiku` and adds a "From memory" step over the loaded memory index (#350). Zero-config; existing hermits pick it up on `/plugin update`.
+
 ### Added
 
 - **deny-patterns: block Edit/Write to installed plugin source** — a hermit can no longer modify its own files under `~/.claude/plugins/marketplaces/` (#351).
