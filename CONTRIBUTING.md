@@ -107,7 +107,7 @@ When releasing core and a domain plugin together, use `/fleet-release` — it up
 
 Each plugin owns its own `tests/run-all.sh` that orchestrates the suites it cares about. Examples:
 
-- `plugins/claude-code-hermit/tests/run-all.sh` — bash + Python; calls `bun test` (hook contract suite), `run-contracts.py`, `run-scripts.sh`, `recurrence-gate-matrix.sh`. See [`docs/testing.md`](plugins/claude-code-hermit/docs/testing.md) for hook-test details, fixtures, and how to write new tests.
+- `plugins/claude-code-hermit/tests/run-all.sh` — runs `bun test` (all `tests/*.test.ts` suites) plus the remaining Python contract harness `run-contracts.py`. See [`docs/testing.md`](plugins/claude-code-hermit/docs/testing.md) for fixtures and how to write new tests.
 - `plugins/claude-code-homeassistant-hermit/tests/` — pytest suite; run via `.venv/bin/pytest tests/ -v`.
 
 CI runs each plugin's suite from its own directory (paths-filtered so unrelated plugin edits don't trigger every workflow). New plugins should follow the same pattern: a `run-all.sh` (or equivalent entry point) that returns non-zero on any failure, plus a paths-filtered GitHub Actions workflow under `.github/workflows/`.
