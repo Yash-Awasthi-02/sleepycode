@@ -1,27 +1,27 @@
-'use strict';
+// Tests for git-push-guard.ts
+// Run with: bun scripts/git-push-guard.test.ts
 
-// Tests for git-push-guard.js
-// Run with: node scripts/git-push-guard.test.js
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import os from 'node:os';
+import fs from 'node:fs';
 
-const { spawnSync } = require('child_process');
-const path = require('path');
-const os = require('os');
-const fs = require('fs');
+type Json = any;
 
-const GUARD = path.join(__dirname, 'git-push-guard.js');
+const GUARD = path.join(import.meta.dir, 'git-push-guard.ts');
 
 let passed = 0;
 let failed = 0;
 
-function makeInput(command) {
+function makeInput(command: string): string {
   return JSON.stringify({ tool_input: { command } });
 }
 
-function run(command, env = {}) {
+function run(command: string, env: Json = {}) {
   return runRaw(makeInput(command), env);
 }
 
-function runRaw(rawInput, env = {}) {
+function runRaw(rawInput: string, env: Json = {}) {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-test-'));
   try {
     const result = spawnSync(process.execPath, [GUARD], {
@@ -37,7 +37,7 @@ function runRaw(rawInput, env = {}) {
 }
 
 // Run guard with a temporary config that sets custom protected branches
-function runWithConfig(command, protectedBranches, env = {}) {
+function runWithConfig(command: string, protectedBranches: string[], env: Json = {}) {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'guard-test-'));
   try {
     const hermitDir = path.join(tmpDir, '.claude-code-hermit');
@@ -58,7 +58,7 @@ function runWithConfig(command, protectedBranches, env = {}) {
   }
 }
 
-function assert(description, actual, expected) {
+function assert(description: string, actual: number | null, expected: number) {
   if (actual === expected) {
     console.log(`  ✓ ${description}`);
     passed++;
@@ -76,7 +76,7 @@ assert('force push passes through', run('git push --force origin feature/x', { A
 
 console.log('\nNon-strict profile (AGENT_HOOK_PROFILE unset):');
 assert('push to main passes through when unset', (() => {
-  const env = { ...process.env };
+  const env: Json = { ...process.env };
   delete env.AGENT_HOOK_PROFILE;
   return runRaw(makeInput('git push origin main'), env);
 })(), 0);

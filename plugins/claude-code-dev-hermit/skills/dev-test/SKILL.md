@@ -16,7 +16,7 @@ Optional `--cwd <path>`. When set, the test command runs from `<path>` and `last
 Run the following Bash command. Use `timeout: 600000` (10-min ceiling). Append `--cwd "<path>"` when the operator passed `--cwd`.
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/record-test-result.js" run
+bun "${CLAUDE_PLUGIN_ROOT}/scripts/record-test-result.ts" run
 ```
 
 If exit 0: report `tests: pass`.
@@ -32,7 +32,7 @@ If exit non-zero for any other reason: report `tests: FAIL (exit N)` with the la
 For suites longer than 10 min (Bash ceiling): run the test command directly in a terminal, then record the result manually:
 
 ```bash
-node <CLAUDE_PLUGIN_ROOT>/scripts/record-test-result.js write <exit_code> <duration_ms>
+bun <CLAUDE_PLUGIN_ROOT>/scripts/record-test-result.ts write <exit_code> <duration_ms>
 ```
 
 Then re-run `/dev-pr`.

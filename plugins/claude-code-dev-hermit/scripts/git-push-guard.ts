@@ -1,15 +1,13 @@
-'use strict';
-
 // Adapted from Everything Claude Code (https://github.com/affaan-m/everything-claude-code) — MIT.
 // v0.3.0 simplified the original tokenizer-based parser to regex-only.
 // Strict-profile only (AGENT_HOOK_PROFILE=strict). Exit 2 hard-blocks the bash call.
 
-const fs = require('fs');
-const path = require('path');
+import fs from 'node:fs';
+import path from 'node:path';
 
 const MAX_STDIN = 1024 * 1024;
 
-function findHermitDir(startDir) {
+function findHermitDir(startDir: string): string | null {
   let dir = startDir;
   for (let i = 0; i < 8; i++) {
     if (fs.existsSync(path.join(dir, '.claude-code-hermit', 'config.json'))) return path.join(dir, '.claude-code-hermit');
@@ -20,7 +18,7 @@ function findHermitDir(startDir) {
   return null;
 }
 
-function loadProtectedBranches() {
+function loadProtectedBranches(): string[] {
   try {
     const hermitDir = findHermitDir(process.cwd());
     if (!hermitDir) return ['main', 'master'];
@@ -31,7 +29,7 @@ function loadProtectedBranches() {
   return ['main', 'master'];
 }
 
-function branchRegex(pattern) {
+function branchRegex(pattern: string): RegExp {
   const escaped = pattern
     .replace(/[.+^${}()|[\]\\]/g, '\\$&')
     .replace(/\*\*/g, '§§')
@@ -44,7 +42,7 @@ function branchRegex(pattern) {
     : new RegExp(`^${escaped}$`, 'i');
 }
 
-function extractDests(subcmd) {
+function extractDests(subcmd: string): string[] | null {
   const afterPush = subcmd.replace(/^[\s\S]*?\bpush\b/, '');
   const positionals = afterPush.trim().split(/\s+/).filter(t => t && !t.startsWith('-'));
   if (positionals.length < 2) return null;
@@ -55,7 +53,7 @@ function extractDests(subcmd) {
   });
 }
 
-function block(msg) {
+function block(msg: string): void {
   console.error(`[git-push-guard] BLOCKED: ${msg}`);
   process.exit(2);
 }
@@ -63,7 +61,7 @@ function block(msg) {
 async function main() {
   if ((process.env.AGENT_HOOK_PROFILE || 'standard').trim().toLowerCase() !== 'strict') process.exit(0);
 
-  const chunks = [];
+  const chunks: Buffer[] = [];
   let total = 0;
   for await (const chunk of process.stdin) {
     total += chunk.length;
@@ -73,7 +71,7 @@ async function main() {
   const raw = Buffer.concat(chunks).toString('utf-8').trim();
   if (!raw) process.exit(0);
 
-  let command;
+  let command: string;
   try {
     const data = JSON.parse(raw);
     command = (data.tool_input || data.input || {}).command || '';

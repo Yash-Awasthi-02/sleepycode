@@ -1,18 +1,16 @@
-'use strict';
+import { spawnSync, execSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 
-const { spawnSync } = require('child_process');
-const fs = require('fs');
-const os = require('os');
-const path = require('path');
+type Json = any;
 
-const HOOK = path.join(__dirname, 'record-test-result.js');
+const HOOK = path.join(import.meta.dir, 'record-test-result.ts');
 
 let passed = 0;
 let failed = 0;
 
-const { execSync } = require('child_process');
-
-function setupProject(testCmd) {
+function setupProject(testCmd: string | null): string {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rec-test-'));
   const hermit = path.join(tmp, '.claude-code-hermit');
   fs.mkdirSync(hermit, { recursive: true });
@@ -25,7 +23,7 @@ function setupProject(testCmd) {
   return tmp;
 }
 
-function runHook(cwd, payload) {
+function runHook(cwd: string, payload: Json) {
   const result = spawnSync(process.execPath, [HOOK], {
     input: JSON.stringify(payload),
     cwd,
@@ -34,18 +32,18 @@ function runHook(cwd, payload) {
   return result.status;
 }
 
-function readState(cwd) {
+function readState(cwd: string): Json | null {
   const file = path.join(cwd, '.claude-code-hermit', 'state', 'last-test.json');
   if (!fs.existsSync(file)) return null;
   return JSON.parse(fs.readFileSync(file, 'utf-8'));
 }
 
-function assert(name, cond, detail) {
+function assert(name: string, cond: any, detail?: string) {
   if (cond) { console.log(`  ✓ ${name}`); passed++; }
   else { console.error(`  ✗ ${name}${detail ? ' — ' + detail : ''}`); failed++; }
 }
 
-function cleanup(dir) {
+function cleanup(dir: string) {
   fs.rmSync(dir, { recursive: true, force: true });
 }
 

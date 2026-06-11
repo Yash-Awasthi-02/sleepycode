@@ -1,5 +1,3 @@
-'use strict';
-
 // PostToolUse Bash hook: when the configured test command runs, record its
 // exit code + duration + sha to .claude-code-hermit/state/last-test.json.
 // /dev-pr Gate 0 reads this file to verify tests actually ran on the current
@@ -12,13 +10,15 @@
 //
 // Always exits 0 — recording failures must not block subsequent tools.
 
-const fs = require('fs');
-const path = require('path');
-const { execSync, spawnSync } = require('child_process');
+import fs from 'node:fs';
+import path from 'node:path';
+import { execSync, spawnSync } from 'node:child_process';
+
+type Json = any;
 
 const MAX_STDIN = 1024 * 1024;
 
-function findHermitDir(startDir) {
+function findHermitDir(startDir: string): string | null {
   let dir = startDir;
   for (let i = 0; i < 8; i++) {
     if (fs.existsSync(path.join(dir, '.claude-code-hermit', 'config.json'))) return path.join(dir, '.claude-code-hermit');
@@ -29,29 +29,29 @@ function findHermitDir(startDir) {
   return null;
 }
 
-function loadTestCommand(hermitDir) {
+function loadTestCommand(hermitDir: string): string | null {
   try {
     const cfg = JSON.parse(fs.readFileSync(path.join(hermitDir, 'config.json'), 'utf-8'));
     return cfg?.['claude-code-dev-hermit']?.commands?.test || null;
   } catch (_) { return null; }
 }
 
-function gitHead(cwd) {
+function gitHead(cwd: string): string | null {
   try {
     return execSync('git rev-parse HEAD', { cwd, encoding: 'utf-8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
   } catch (_) { return null; }
 }
 
-function atomicWrite(filePath, content) {
+function atomicWrite(filePath: string, content: string): void {
   const tmp = filePath + '.tmp';
   fs.writeFileSync(tmp, content);
   fs.renameSync(tmp, filePath);
 }
 
-function writeRecord(hermitDir, command, exitCode, durationMs, targetDir) {
+function writeRecord(hermitDir: string, command: string, exitCode: number, durationMs: number | null, targetDir?: string | null): void {
   const sha = gitHead(targetDir || process.cwd());
   if (!sha) return;
-  const record = {
+  const record: Json = {
     command,
     exit_code: exitCode,
     duration_ms: durationMs,
@@ -75,7 +75,7 @@ function writeRecord(hermitDir, command, exitCode, durationMs, targetDir) {
 
 const argv = process.argv;
 
-function parseCwdFlag(args) {
+function parseCwdFlag(args: string[]): string | null {
   const i = args.indexOf('--cwd');
   if (i === -1) return null;
   const val = args[i + 1];
@@ -100,7 +100,7 @@ if (argv[2] === 'run') {
   const testCmd = loadTestCommand(hermitDir);
   if (!testCmd) { console.error('commands.test not configured'); process.exit(1); }
   const start = Date.now();
-  const spawnOpts = { stdio: 'inherit' };
+  const spawnOpts: Json = { stdio: 'inherit' };
   if (targetDir) spawnOpts.cwd = targetDir;
   const r = spawnSync('bash', ['-c', testCmd], spawnOpts);
   writeRecord(hermitDir, testCmd, r.status ?? 1, Date.now() - start, targetDir);
@@ -121,7 +121,7 @@ if (argv[2] === 'write') {
 }
 
 async function main() {
-  const chunks = [];
+  const chunks: Buffer[] = [];
   let total = 0;
   for await (const chunk of process.stdin) {
     total += chunk.length;
@@ -131,7 +131,7 @@ async function main() {
   const raw = Buffer.concat(chunks).toString('utf-8').trim();
   if (!raw) process.exit(0);
 
-  let data;
+  let data: Json;
   try { data = JSON.parse(raw); } catch { process.exit(0); }
 
   if (data.tool_response?.interrupted === true) process.exit(0);

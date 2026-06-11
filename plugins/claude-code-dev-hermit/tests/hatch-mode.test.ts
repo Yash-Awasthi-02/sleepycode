@@ -1,14 +1,12 @@
-'use strict';
-
 // Structural lint for the hatch-mode feature (v0.3.2).
 // Verifies template shape, preamble presence, and skill references.
 // These are grep-level checks — no runtime skill execution.
 
-const fs = require('fs');
-const path = require('path');
-const { makeReporter } = require('./test-utils');
+import fs from 'node:fs';
+import path from 'node:path';
+import { makeReporter } from './test-utils';
 
-const PLUGIN_ROOT = path.join(__dirname, '..');
+const PLUGIN_ROOT = path.join(import.meta.dir, '..');
 const TEMPLATES = path.join(PLUGIN_ROOT, 'state-templates');
 const STANDARD = path.join(TEMPLATES, 'CLAUDE-APPEND.md');
 const SAFETY = path.join(TEMPLATES, 'CLAUDE-APPEND-SAFETY.md');

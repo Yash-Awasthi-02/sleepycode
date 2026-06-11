@@ -1,21 +1,21 @@
-'use strict';
-
-// Run with: node scripts/worktree-boundary-guard.test.js
+// Run with: bun scripts/worktree-boundary-guard.test.ts
 //
 // Builds a real git fixture (main repo + linked worktree mirroring `.claude/worktrees/<name>/`)
 // so the guard's git-based detection runs against actual worktree state, not a mock.
 
-const { spawnSync } = require('child_process');
-const path = require('path');
-const os = require('os');
-const fs = require('fs');
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import os from 'node:os';
+import fs from 'node:fs';
 
-const GUARD = path.join(__dirname, 'worktree-boundary-guard.js');
+type Json = any;
+
+const GUARD = path.join(import.meta.dir, 'worktree-boundary-guard.ts');
 
 let passed = 0;
 let failed = 0;
 
-function assert(description, actual, expected) {
+function assert(description: string, actual: number | null, expected: number) {
   if (actual === expected) {
     console.log(`  ✓ ${description}`);
     passed++;
@@ -25,7 +25,7 @@ function assert(description, actual, expected) {
   }
 }
 
-function runRaw(rawInput, cwd, env = {}) {
+function runRaw(rawInput: string, cwd: string, env: Json = {}) {
   return spawnSync(process.execPath, [GUARD], {
     input: rawInput,
     env: { ...process.env, ...env },
@@ -34,7 +34,7 @@ function runRaw(rawInput, cwd, env = {}) {
   }).status;
 }
 
-function runEdit(filePath, cwd, env = {}) {
+function runEdit(filePath: string, cwd: string, env: Json = {}) {
   return runRaw(JSON.stringify({ tool_input: { file_path: filePath } }), cwd, env);
 }
 
@@ -44,7 +44,7 @@ const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'wtguard-')));
 const mainRepo = path.join(tmp, 'main');
 fs.mkdirSync(mainRepo);
 
-function g(args, cwd = mainRepo) {
+function g(args: string[], cwd = mainRepo) {
   const r = spawnSync('git', args, { cwd, encoding: 'utf-8' });
   if (r.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${r.stderr}`);
 }

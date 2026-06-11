@@ -62,7 +62,7 @@ Parse the verdict:
 After each verdict, append a metrics event via the shared helper:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js" .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"brainstorm-emit","skill":"domain-brainstorm","verdict":"<CREATE|SUPPRESS|DUPLICATE>","proposal_id":null}'
+bun "${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts" .claude-code-hermit/state/proposal-metrics.jsonl '{"ts":"<now ISO>","type":"brainstorm-emit","skill":"domain-brainstorm","verdict":"<CREATE|SUPPRESS|DUPLICATE>","proposal_id":null}'
 ```
 Set `"proposal_id":"PROP-NNN"` for CREATE events; use JSON `null` for SUPPRESS/DUPLICATE events.
 

@@ -1,14 +1,12 @@
-'use strict';
-
 // Structural lint for forge-aware /dev-pr and /hatch (issue #33).
 // Asserts exact flag snippets per tool, rejects old wrong defaults, and
 // checks that stale-doc strings have been removed from docs.
 
-const fs = require('fs');
-const path = require('path');
-const { makeReporter } = require('./test-utils');
+import fs from 'node:fs';
+import path from 'node:path';
+import { makeReporter } from './test-utils';
 
-const PLUGIN_ROOT = path.join(__dirname, '..');
+const PLUGIN_ROOT = path.join(import.meta.dir, '..');
 const HATCH_SKILL  = path.join(PLUGIN_ROOT, 'skills', 'hatch', 'SKILL.md');
 const DEV_PR_SKILL = path.join(PLUGIN_ROOT, 'skills', 'dev-pr', 'SKILL.md');
 const README       = path.join(PLUGIN_ROOT, 'README.md');
@@ -19,7 +17,7 @@ const { ok, summary } = makeReporter();
 
 // ── Load files ──────────────────────────────────────────────────────────────
 
-function load(p) {
+function load(p: string): string {
   ok(`${path.relative(PLUGIN_ROOT, p)} exists`, fs.existsSync(p), p);
   return fs.existsSync(p) ? fs.readFileSync(p, 'utf-8') : '';
 }
