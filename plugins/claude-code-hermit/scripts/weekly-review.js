@@ -198,8 +198,8 @@ const openLoops = allProposals
 // --- Reflect vital-signs ---
 // Week-scoped on purpose: reflection-state.json counters are cumulative since
 // hatch, so weekly numbers come from the week's session-report Progress Log
-// lines (runs, candidates, suppressions) and proposal-metrics.jsonl events
-// (surfaced, accepted). All reads fail open to zeros.
+// lines (runs, candidates, suppressions) and reflect-exclusive micro-proposal
+// events in proposal-metrics.jsonl (surfaced, accepted). All reads fail open to zeros.
 const REFLECT_LINE_RE = /reflect \((?:newborn|juvenile|adult|quick[^)]*)\) — (\d+) candidates?; verdicts: accept=\d+ downgrade=\d+ suppress=\d+/;
 let reflectRuns = 0;
 let reflectCandidates = 0;
@@ -219,6 +219,13 @@ for (const s of weekSessions) {
   }
 }
 
+// micro-queued / micro-resolved are reflect-exclusive event types: only the
+// reflect loop queues micro-proposals, so approving one is approving reflect
+// output regardless of which surface records the approval. `created`/`responded`
+// are shared by capability-brainstorm, operator-request, and channel callers and
+// carry no reflect-distinguishing field (the `source` enum value `auto-detected`
+// is shared), so Tier-3 reflect proposals routing through them are deliberately
+// excluded — undercount, never over-claim non-reflect activity as reflect's.
 let reflectSurfaced = 0;
 let reflectAccepted = 0;
 try {
@@ -229,9 +236,8 @@ try {
       const e = JSON.parse(line);
       const d = new Date(e.ts);
       if (!(d >= weekStart && d < weekEnd)) continue;
-      if (e.type === 'micro-queued' || e.type === 'created') reflectSurfaced++;
-      if ((e.type === 'responded' && e.action === 'accept') ||
-          (e.type === 'micro-resolved' && e.action === 'approved')) reflectAccepted++;
+      if (e.type === 'micro-queued') reflectSurfaced++;
+      if (e.type === 'micro-resolved' && e.action === 'approved') reflectAccepted++;
     } catch {}
   }
 } catch {}

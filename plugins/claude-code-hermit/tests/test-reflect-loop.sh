@@ -79,6 +79,9 @@ Work.
 - [11:00] reflect (quick, post-routine) — 0 candidates; verdicts: accept=0 downgrade=0 suppress=0; outcomes: none
 EOF
 
+# micro-queued / micro-resolved are reflect-exclusive (count toward surfaced/accepted).
+# created / responded are shared by non-reflect callers (brainstorm, operator, channel)
+# and must NOT be attributed to reflect. PROP-OLD is out-of-week (date filter).
 cat > "$workdir/.claude-code-hermit/state/proposal-metrics.jsonl" << EOF
 {"ts":"${TODAY_TS}","type":"micro-queued","micro_id":"MP-1","tier":1,"question":"q"}
 {"ts":"${TODAY_TS}","type":"created","proposal_id":"PROP-001"}
@@ -101,10 +104,10 @@ run_test "weekly-review: reflect_runs counts both phases incl quick" bash -c \
   "grep -q 'reflect_runs: 2' '$review_file'"
 run_test "weekly-review: reflect_candidates summed" bash -c \
   "grep -q 'reflect_candidates: 2' '$review_file'"
-run_test "weekly-review: reflect_surfaced from in-week metrics only" bash -c \
-  "grep -q 'reflect_surfaced: 2' '$review_file'"
-run_test "weekly-review: reflect_accepted counts accept + approved" bash -c \
-  "grep -q 'reflect_accepted: 2' '$review_file'"
+run_test "weekly-review: reflect_surfaced counts micro-queued only (excludes shared created)" bash -c \
+  "grep -q 'reflect_surfaced: 1' '$review_file'"
+run_test "weekly-review: reflect_accepted counts micro-resolved approved only (excludes shared responded)" bash -c \
+  "grep -q 'reflect_accepted: 1' '$review_file'"
 run_test "weekly-review: reflect_cost_usd from routine:reflect sources in-week" bash -c \
   "grep -q 'reflect_cost_usd: 0.50' '$review_file'"
 run_test "weekly-review: suppression digest normalized slug:code" bash -c \
@@ -128,6 +131,8 @@ run_test "reflect: graduation threshold is 2 distinct sessions excl current" \
   grep -qF "≥2 distinct \`session_id\`s, at least one not the current session" "$REFLECT"
 run_test "reflect: quick-mode deferrals append to ledger" \
   grep -qF '"source":"quick-deferral"' "$REFLECT"
+run_test "reflect: quick-mode Progress Log carries suppressed suffix for the weekly digest" \
+  grep -qF "so quick-run suppressions reach the weekly digest" "$REFLECT"
 run_test "reflect: cost spike recorded to ledger not memory" \
   grep -qF '"source":"cost-spike"' "$REFLECT"
 run_test "reflect: sub-threshold outcomes append to ledger not memory" \
@@ -166,6 +171,20 @@ run_test "prune-observations: missing file exits 0" bash -c \
   "node '$PRUNE' '$workdir/nonexistent-dir' | grep -q 'pruned 0, kept 0'"
 run_test "prune-observations: no args exits 1" bash -c \
   "! node '$PRUNE' >/dev/null 2>&1"
+rm -r "$workdir"
+
+# timestamp-format robustness: ledger ts is agent-written and not format-enforced,
+# so a fresh entry in +00:00-offset form (not Z) must still be parsed as fresh.
+workdir="$(mktemp -d)"
+mkdir -p "$workdir/.claude-code-hermit/state"
+LEDGER="$workdir/.claude-code-hermit/state/observations.jsonl"
+OFFSET_TS="$(date -u +%Y-%m-%dT12:00:00+00:00)"
+cat > "$LEDGER" << EOF
+{"ts":"${OFFSET_TS}","pattern":"offset-fresh","session_id":"S-030","source":"reflect"}
+{"ts":"2020-01-01T00:00:00+00:00","pattern":"offset-dead","session_id":"S-031","source":"reflect"}
+EOF
+run_test "prune-observations: +00:00-offset fresh entry parsed as fresh (kept)" bash -c \
+  "node '$PRUNE' '$workdir/.claude-code-hermit' | grep -q 'pruned 1, kept 1' && grep -q 'offset-fresh' '$LEDGER'"
 rm -r "$workdir"
 
 # ── item 4: success_signal push + same-area absence guard ───────────────────

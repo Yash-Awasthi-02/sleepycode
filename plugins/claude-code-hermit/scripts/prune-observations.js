@@ -31,14 +31,15 @@ try {
   process.exit(0);
 }
 
-const cutoff = new Date(Date.now() - RETENTION_DAYS * 86400000).toISOString();
+const cutoffMs = Date.now() - RETENTION_DAYS * 86400000;
 const lines = content.split('\n').filter(l => l.trim());
 
 const freshPatterns = new Set();
 const parsed = lines.map(line => {
   try {
     const e = JSON.parse(line);
-    const fresh = typeof e.ts === 'string' && e.ts >= cutoff;
+    const tsMs = Date.parse(e.ts);
+    const fresh = Number.isFinite(tsMs) && tsMs >= cutoffMs;
     if (fresh && e.pattern) freshPatterns.add(e.pattern);
     return { line, pattern: e.pattern, fresh };
   } catch {
