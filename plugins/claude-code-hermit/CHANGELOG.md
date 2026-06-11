@@ -4,7 +4,7 @@
 
 ### Added
 
-- **post-close context reset via `/clear`** (#340) — after `daily-auto-close` archives a session, the watchdog sends `/clear` on the next tick when the session is idle and unattended. The next sparse wake (e.g. the 03:xx heartbeat) reads only the `startup-context.ts` injection (~9 KB) instead of the full stale conversation (~200–450 K), eliminating the cold cache-write (1.25× input cost) that made sparse autonomous wakes expensive. `/clear` preserves session-scoped `CronCreate` routines and `Monitor` tasks (process-scoped, not conversation-scoped — empirically verified on 2.1.173); no re-arm is needed. Enabled by default (`post_close_clear: true`). Only fires when the watchdog is invoked on a schedule (Docker hermits: automatic; bare-metal: requires `hermit-watchdog install`).
+- **post-close context reset via `/clear`** (#340) — after `daily-auto-close` archives a session, the watchdog sends `/clear` on the next tick when the session is idle and unattended, so the next sparse wake reads only the startup-context injection instead of the full stale conversation (drops the 1.25× cold cache-write). Preserves process-scoped `CronCreate` routines and `Monitor` tasks; no re-arm needed. Enabled by default (`post_close_clear: true`); only fires when the watchdog runs on a schedule (Docker: automatic; bare-metal: requires `hermit-watchdog install`).
 
 ### Changed
 

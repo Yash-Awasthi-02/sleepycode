@@ -253,14 +253,16 @@ function doRearm(sessionName: string): void {
  * fires on any hermit with post_close_clear: true and a running scheduler.
  * /clear preserves CronCreate routines and Monitor tasks (process-scoped, not
  * conversation-scoped), so no re-arm is needed after clearing.
+ * Takes the lifecycle lock around the send so it can't race a concurrent tick or restart.
  */
 function maybePostCloseClear(config: Json): void {
-  if (!config.post_close_clear) return;
+  if (config.post_close_clear !== true) return;
   if (!fs.existsSync(CLEAR_REQUESTED_JSON)) return;
 
   const runtime = readRuntimeJson();
   if (!runtime) return;
   if (runtime.session_state !== 'idle') return;
+  if (runtime.shutdown_requested_at || runtime.shutdown_completed_at) return; // never clear a stopping hermit
 
   const sessionName = runtime.tmux_session ?? '';
   if (!sessionName) return;
@@ -269,9 +271,14 @@ function maybePostCloseClear(config: Json): void {
   const opAge = getOperatorLastActionAgeSecs();
   if (opAge !== null && opAge < 10 * 60) return; // operator active < 10 min — back off
 
-  sendKeys(sessionName, '/clear');
-  try { fs.rmSync(CLEAR_REQUESTED_JSON); } catch {}
-  appendEvent('post-close-clear', 'daily-auto-close context reset');
+  if (!tryAcquireLifecycleLock()) return; // another lifecycle action in flight, retry next tick
+  try {
+    sendKeys(sessionName, '/clear');
+    try { fs.rmSync(CLEAR_REQUESTED_JSON); } catch {}
+    appendEvent('post-close-clear', 'daily-auto-close context reset');
+  } finally {
+    releaseLock(LIFECYCLE_LOCK);
+  }
   process.exit(0);
 }
 

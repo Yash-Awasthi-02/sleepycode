@@ -547,6 +547,19 @@ test('post_close_clear: tmux session dead → no send, marker kept',
     expect(fs.existsSync(state(h, 'clear-requested.json'))).toBe(true);
   }));
 
+test('post_close_clear: shutdown requested → no send, marker kept',
+  withHermit(async (h) => {
+    writePostCloseClearConfig(h);
+    patchRuntime(h, { session_state: 'idle', shutdown_requested_at: isoAgo(0.5) });
+    writeClearMarker(h);
+    writeFakeTmux(h, 0); // tmux still briefly alive mid-shutdown
+    writeFakePgrep(h, 1);
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+    expect(fs.existsSync(state(h, 'clear-requested.json'))).toBe(true);
+  }));
+
 test('post_close_clear: no marker → no send',
   withHermit(async (h) => {
     writePostCloseClearConfig(h);
