@@ -125,6 +125,7 @@ Only create a proposal if all three are true:
    - **Tier 1 + `Evidence Source: current-session`**: 1+ session acceptable. Cite `Sessions: current` when the pattern is present in the live SHELL.md `## Findings` / `## Blockers` (judge returns `ACCEPT (current-session)`). Phase is irrelevant for this path.
    - **Tier 1 + `Evidence Source: archived-session`**: requires 2+ archived sessions, identical to Tier 2/3. The loosening above is specific to the `current-session` path, not to Tier 1 generally.
    - **Tier 2 / Tier 3**: 2+ archived sessions required at every phase (baseline: observed more than once, across archived sessions).
+   - **Artifact-cited efficiency/cost candidates**: recurrence is satisfied by the cited measurements themselves — the same waste measured ≥2 times in a machine-written state file (`Sessions: none` + `Artifact:` line; the judge verifies the file contains the cited values).
 2. **Meaningful consequence** — something goes wrong without fixing it
 3. **Operator-actionable change** — something the operator can concretely approve
 
@@ -266,7 +267,10 @@ For any candidate with `Evidence Source: current-session`, reflect must **not** 
 
 **Exempt** (always allowed, any time): the mandatory `## Progress Log` append (see § Progress Log Entry) and housekeeping notes that do not describe the candidate's pattern (e.g. skipped-scheduled-check lines, resolved-proposal notes).
 
-If the pattern is only visible to reflect via inference (cost log, token counters, timing), the candidate is not eligible for `Evidence Source: current-session` in that run. Keep it sub-threshold until it recurs and can be cited from independent historical evidence (`Evidence Source: archived-session`).
+If the pattern is only visible to reflect via inference (cost log, token counters, timing), the candidate is not eligible for `Evidence Source: current-session` prose evidence in that run — reflect must never write the pattern into SHELL.md to certify itself. Two paths exist instead:
+
+- **Artifact-cited (efficiency/cost-class only):** when a machine-written state file already contains the measurement, raise the candidate immediately with `Sessions: none` plus an `Artifact:` line citing the file and the value — the judge verifies the artifact directly (judge §0.5/§1.4) instead of suppressing `no-sessions`.
+- **No qualifying artifact:** keep it sub-threshold — append it to the observations ledger and let it graduate by recurrence (step 3b).
 
 ## Evidence Validation
 
@@ -294,7 +298,7 @@ Sessions: ...
 
 The judge returns one verdict line per candidate, matched by `<title>`. Apply the routing below to each line independently.
 
-`Evidence Source:` defaults to `archived-session` if omitted. Plugin-check candidates use `Evidence Source: scheduled-check/<id>` with `Sessions: none`. Tier-1 candidates with live SHELL.md evidence use `Evidence Source: current-session` with `Sessions: current` (see § Three-Condition Rule, condition 1).
+`Evidence Source:` defaults to `archived-session` if omitted. Plugin-check candidates use `Evidence Source: scheduled-check/<id>` with `Sessions: none`. Tier-1 candidates with live SHELL.md evidence use `Evidence Source: current-session` with `Sessions: current` (see § Three-Condition Rule, condition 1). Efficiency/cost artifact candidates use the default `Evidence Source: archived-session` with `Sessions: none` plus an `Artifact:` line — judge §0.5 routes them to §1.4 artifact verification instead of suppressing `no-sessions`.
 
 `Evidence Origin:` defaults to `own-work` if omitted. Set to `external-content` when the evidence derives from web fetches, `raw/` third-party captures, or a channel finding with an `[origin: external]` marker (see § Proposal Tier Classification and § channel-responder §4). The two fields are orthogonal: a candidate can be `archived-session` + `external-content`.
 
@@ -319,7 +323,7 @@ After reflecting and validating with `claude-code-hermit:reflection-judge`, choo
 
 Sub-threshold observations (interesting but failing the Three-Condition Rule — typically single-occurrence) do not surface to the operator in steady state. Append them to the observations ledger with a short stable pattern label: `node ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.js .claude-code-hermit/state/observations.jsonl '{"ts":"<now ISO>","pattern":"<short pattern label>","session_id":"<S-NNN>","source":"reflect"}'` — they graduate via the step 3b recurrence promotion (≥2 distinct sessions). Reuse the exact label when re-observing a known pattern; grouping is by string equality. Do not generate observations for their own sake, and do not surface them before they graduate.
 
-Reflect-generated inferences (cost spikes, token-count shapes, timing patterns) **never** use bypass Evidence Sources (`scheduled-check/*` or `operator-request`). They remain sub-threshold observations in the ledger and graduate only by genuine recurrence across sessions, at which point step 3b promotes them with `Evidence Source: archived-session` and the ledger `Artifact:` citation.
+Reflect-generated inferences (cost spikes, token-count shapes, timing patterns) **never** use bypass Evidence Sources (`scheduled-check/*` or `operator-request`). They either (a) carry a verifiable `Artifact:` citation to a machine-written state file and take the artifact-cited path now (see § Evidence integrity rule), or (b) land in the observations ledger and graduate by recurrence, at which point step 3b promotes them with `Evidence Source: archived-session` and the ledger `Artifact:` citation.
 
 **Phase-aware surfacing exception:**
 - `newborn`: also log each sub-threshold observation inline to SHELL.md Findings as `Noticed: <pattern>` (single line, no ceremony). Gives the operator early signal that reflect is watching while recurrence data accumulates.

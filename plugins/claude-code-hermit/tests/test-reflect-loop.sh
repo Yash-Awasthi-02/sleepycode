@@ -183,4 +183,19 @@ run_test "reflect: same-area guard before pattern-absence resolution" \
 run_test "reflect: same-area guard requires tag overlap" \
   grep -qF "share ≥1 tag" "$REFLECT"
 
+# ── item 5: artifact-cited evidence path ────────────────────────────────────
+
+run_test "judge: Sessions none artifact exception present" \
+  grep -qF "Artifact exception" "$JUDGE"
+run_test "judge: artifact exception scoped to efficiency/cost class" \
+  grep -qF "efficiency/cost-class" "$JUDGE"
+run_test "judge: generalizes verification beyond the ledger" \
+  grep -qF "artifact does not contain cited value" "$JUDGE"
+run_test "reflect: integrity rule keeps prose self-certification barred" \
+  grep -qF "must never write the pattern into SHELL.md" "$REFLECT"
+run_test "reflect: integrity rule gains artifact-cited path" \
+  grep -qF "Artifact-cited (efficiency/cost-class only)" "$REFLECT"
+run_test "reflect: three-condition rule covers artifact-cited recurrence" \
+  grep -qF "measured ≥2 times in a machine-written state file" "$REFLECT"
+
 print_results

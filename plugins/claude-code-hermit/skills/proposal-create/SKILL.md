@@ -13,7 +13,7 @@ Create a proposal only when you discover something with real leverage:
 ## Three-Condition Rule
 
 Only create a proposal if all three are true:
-1. **Repeated pattern** — observed more than once, across sessions. **Skip for `scheduled-check/*`, `operator-request`, `current-session`, and `capability-brainstorm` evidence sources** — recurrence is either established by the check's own analysis, validated upstream by `reflection-judge`, or established by the brainstorm pass.
+1. **Repeated pattern** — observed more than once, across sessions. **Skip for `scheduled-check/*`, `operator-request`, `current-session`, and `capability-brainstorm` evidence sources** — recurrence is either established by the check's own analysis, validated upstream by `reflection-judge`, or established by the brainstorm pass. For efficiency/cost-class candidates, evidence citing a machine-written state file with the measured values also counts — the judge verifies the file.
 2. **Meaningful consequence** — something goes wrong without fixing it
 3. **Operator-actionable change** — something the operator can concretely approve
 

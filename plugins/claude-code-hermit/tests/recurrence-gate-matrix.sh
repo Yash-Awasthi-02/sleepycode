@@ -155,6 +155,16 @@ if ! grep -q 'never suppressed `covered-by-memory`' "$judge"; then
   rc=1
 fi
 
+# artifact-cited vocabulary must appear in every gate file (reflect + judge
+# are also covered by the block above)
+for file in "${GATE_FILES[@]}"; do
+  label="$(basename "$(dirname "$file")")/$(basename "$file")"
+  if ! grep -q "machine-written state file" "$file"; then
+    echo "FAIL [$label]: missing 'machine-written state file' artifact-cited vocabulary"
+    rc=1
+  fi
+done
+
 if [[ $rc -eq 0 ]]; then
   echo "PASS: all recurrence gate checks passed"
 fi
