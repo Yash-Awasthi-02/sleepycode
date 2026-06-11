@@ -59,6 +59,13 @@ function withTmpdir(fn: (dir: string) => Promise<void> | void) {
 const writeConfig = (dir: string, config: any) =>
   fs.writeFileSync(path.join(dir, '.claude-code-hermit', 'config.json'), JSON.stringify(config));
 
+async function runDoctorCheck(dir: string): Promise<any> {
+  const r = await runScript('doctor-check.ts', {
+    args: ['.claude-code-hermit'], cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
+  });
+  return r.exitCode === 0 ? JSON.parse(r.stdout) : {};
+}
+
 /** Emulate Python str.split(sep, 2): at most 3 parts, remainder in the last. */
 function split3(content: string, sep: string): string[] {
   const parts: string[] = [];
@@ -818,13 +825,6 @@ describe('stop payload snapshot', () => {
       stdin: JSON.stringify(payload), cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
     });
 
-  async function runDoctorCheck(dir: string): Promise<any> {
-    const r = await runScript('doctor-check.ts', {
-      args: ['.claude-code-hermit'], cwd: dir, env: { CLAUDE_PLUGIN_ROOT: PLUGIN_ROOT },
-    });
-    return r.exitCode === 0 ? JSON.parse(r.stdout) : {};
-  }
-
   /** Seed the minimal state/ layout so stop-pipeline doesn't error on missing files. */
   function seedHermitState(dir: string): void {
     fs.mkdirSync(path.join(dir, '.claude-code-hermit', 'state'), { recursive: true });
@@ -1016,4 +1016,79 @@ describe('external-origin quarantine contract', () => {
   test('proposal-create must write operator-visible provenance for external-content proposals', () => {
     expect(proposalCreate).toContain('review for injection');
   });
+});
+
+// ============================================================
+// template-manifest.json shape contract (TestTemplateManifestContract)
+//
+// doctor-check.ts must detect missing, malformed, and invalid manifests without
+// crashing. Guards against silent regressions in the shape-check added for
+// PROP-001 (customization-aware template/bin updates).
+// ============================================================
+
+describe('template-manifest doctor contract', () => {
+  const EXPECTED_STUB_FILES = [
+    'alert-state.json', 'reflection-state.json', 'runtime.json', 'monitors.runtime.json',
+  ];
+
+  /** Seed a minimal .claude-code-hermit/state/ with all expected files. */
+  function seedState(dir: string, manifestContent?: string | null): void {
+    const stateDir = path.join(dir, '.claude-code-hermit', 'state');
+    fs.mkdirSync(stateDir, { recursive: true });
+    for (const f of EXPECTED_STUB_FILES) {
+      fs.writeFileSync(path.join(stateDir, f), '{}');
+    }
+    if (manifestContent !== null) {
+      const content = manifestContent !== undefined
+        ? manifestContent
+        : JSON.stringify({ version: 1, files: {
+            'templates/SHELL.md.template': { sha256: 'a'.repeat(64), plugin_version: '1.2.0' },
+          }});
+      fs.writeFileSync(path.join(stateDir, 'template-manifest.json'), content);
+    }
+  }
+
+  const stateCheck = (report: any) =>
+    (report.checks ?? []).find((c: any) => c.id === 'state');
+
+  test('valid manifest → state check ok', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    seedState(dir);
+    const report = await runDoctorCheck(dir);
+    const s = stateCheck(report);
+    expect(s).toBeDefined();
+    expect(s.status).toBe('ok');
+  }), 20000);
+
+  test('manifest absent → state check warns, names template-manifest.json', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    seedState(dir, null); // do not write manifest
+    const report = await runDoctorCheck(dir);
+    const s = stateCheck(report);
+    expect(s).toBeDefined();
+    expect(s.status).toBe('warn');
+    expect(s.detail).toContain('template-manifest.json');
+  }), 20000);
+
+  test('manifest without files object → state check fails', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    seedState(dir, JSON.stringify({ version: 1 })); // files key absent
+    const report = await runDoctorCheck(dir);
+    const s = stateCheck(report);
+    expect(s).toBeDefined();
+    expect(s.status).toBe('fail');
+    expect(s.detail).toContain('template-manifest.json');
+  }), 20000);
+
+  test('manifest entry with invalid sha256 → state check fails with key name', withTmpdir(async (dir) => {
+    writeConfig(dir, {});
+    seedState(dir, JSON.stringify({ version: 1, files: {
+      'templates/SHELL.md.template': { sha256: 'not-a-hash', plugin_version: '1.2.0' },
+    }}));
+    const report = await runDoctorCheck(dir);
+    const s = stateCheck(report);
+    expect(s).toBeDefined();
+    expect(s.status).toBe('fail');
+    expect(s.detail).toContain('templates/SHELL.md.template');
+  }), 20000);
 });
