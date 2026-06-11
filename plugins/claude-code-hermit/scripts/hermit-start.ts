@@ -16,6 +16,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { acquireLock, releaseLock } from './lib/lockfile';
+import { writeRuntimeJson, readRuntimeJson } from './lib/runtime';
 import { localISOStamp } from './lib/time';
 
 type Json = any;
@@ -336,23 +337,6 @@ function checkSandboxCapability(): void {
   console.log(`[hermit] Warning: sandbox enabled but: ${msg}`);
   const hint = probe.install_hint;
   if (pyTruthy(hint)) console.log(`[hermit] Fix: ${hint}`);
-}
-
-/** Atomic write to state/runtime.json. */
-function writeRuntimeJson(data: Json): void {
-  fs.mkdirSync(STATE_DIR, { recursive: true });
-  data.updated_at = localISOStamp();
-  fs.writeFileSync(RUNTIME_TMP, JSON.stringify(data, null, 2) + '\n');
-  fs.renameSync(RUNTIME_TMP, RUNTIME_JSON);
-}
-
-/** Read state/runtime.json, return null if missing or invalid. */
-function readRuntimeJson(): Json | null {
-  try {
-    return JSON.parse(fs.readFileSync(RUNTIME_JSON, 'utf-8'));
-  } catch {
-    return null;
-  }
 }
 
 function tmuxSessionAlive(sessionName: string): boolean {

@@ -15,13 +15,11 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { acquireLock, releaseLock } from './lib/lockfile';
 import { localISOStamp } from './lib/time';
+import { readRuntimeJson, updateRuntimeField, STATE_DIR } from './lib/runtime';
 
 type Json = any;
 
 const CONFIG_PATH = '.claude-code-hermit/config.json';
-const STATE_DIR = '.claude-code-hermit/state';
-const RUNTIME_JSON = path.join(STATE_DIR, 'runtime.json');
-const RUNTIME_TMP = path.join(STATE_DIR, '.runtime.json.tmp');
 const LIFECYCLE_LOCK = path.join(STATE_DIR, '.lifecycle.lock');
 const SESSIONS_DIR = '.claude-code-hermit/sessions';
 const SHELL_PATH = path.join(SESSIONS_DIR, 'SHELL.md');
@@ -97,27 +95,6 @@ function saveConfig(config: Json): void {
   try {
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2) + '\n');
   } catch {}
-}
-
-function writeRuntimeJson(data: Json): void {
-  fs.mkdirSync(STATE_DIR, { recursive: true });
-  data.updated_at = localISOStamp();
-  fs.writeFileSync(RUNTIME_TMP, JSON.stringify(data, null, 2) + '\n');
-  fs.renameSync(RUNTIME_TMP, RUNTIME_JSON);
-}
-
-function readRuntimeJson(): Json | null {
-  try {
-    return JSON.parse(fs.readFileSync(RUNTIME_JSON, 'utf-8'));
-  } catch {
-    return null;
-  }
-}
-
-function updateRuntimeField(updates: Json): void {
-  const runtime = readRuntimeJson() || {};
-  Object.assign(runtime, updates);
-  writeRuntimeJson(runtime);
 }
 
 function acquireLifecycleLock(): void {

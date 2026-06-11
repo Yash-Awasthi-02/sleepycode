@@ -23,13 +23,12 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { acquireLock, releaseLock } from './lib/lockfile';
 import { localISOStamp } from './lib/time';
+import { writeRuntimeJson, RUNTIME_JSON } from './lib/runtime';
 
 type Json = any;
 
 const CONFIG_PATH = '.claude-code-hermit/config.json';
 const STATE_DIR = '.claude-code-hermit/state';
-const RUNTIME_JSON = path.join(STATE_DIR, 'runtime.json');
-const RUNTIME_TMP = path.join(STATE_DIR, '.runtime.json.tmp');
 const LIFECYCLE_LOCK = path.join(STATE_DIR, '.lifecycle.lock');
 const WATCHDOG_STATE_JSON = path.join(STATE_DIR, 'watchdog-state.json');
 const WATCHDOG_EVENTS_JSONL = path.join(STATE_DIR, 'watchdog-events.jsonl');
@@ -199,13 +198,6 @@ function readWatchdogState(): Json {
 function writeWatchdogState(state: Json): void {
   state.last_check_at = utcStamp();
   writeJson(WATCHDOG_STATE_JSON, state);
-}
-
-function writeRuntimeJson(data: Json): void {
-  fs.mkdirSync(STATE_DIR, { recursive: true });
-  data.updated_at = localISOStamp();
-  fs.writeFileSync(RUNTIME_TMP, JSON.stringify(data, null, 2) + '\n');
-  fs.renameSync(RUNTIME_TMP, RUNTIME_JSON);
 }
 
 // --- Actions ---
