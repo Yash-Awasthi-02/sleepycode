@@ -26,7 +26,7 @@ function test(name, fn) {
 }
 
 function run(env, args) {
-  return spawnSync("node", [SCRIPT, ...args], {
+  return spawnSync(process.execPath, [SCRIPT, ...args], {
     env: { PATH: process.env.PATH, ...env },
     encoding: "utf8",
   });

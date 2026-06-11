@@ -10,6 +10,10 @@ All notable changes to this project will be documented in this file.
 
 - **hermit-scribe: auto-derive issue labels** — type label from proposal `category` (`bug`/`chore`/`enhancement`) and plugin-scope label when a single scope resolves, on top of the always-present `hermit-filed`.
 
+### Changed
+
+- **tests run on bun** — `run-all.sh` invokes `bun`; `cli.test.js` spawns `process.execPath` (bun migration, core #18).
+
 ---
 
 ## [0.0.4] - 2026-05-31
