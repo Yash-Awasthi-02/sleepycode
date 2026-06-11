@@ -679,19 +679,39 @@ run_test "checkDependencies (no siblings → ok)" bash -c \
 cleanup
 
 # -------------------------------------------------------
-# 52. checkDependencies — unrecognized range form (~1.0.20) → pass-through ok, no false fail
+# 52. checkDependencies — tilde range is evaluated (Bun.semver): outside → warn
 # -------------------------------------------------------
 workdir="$(setup_workdir)"
 cd "$workdir"
 mkdir -p "$workdir/plugins/claude-code-hermit/.claude-plugin" "$workdir/plugins/example-sibling/.claude-plugin"
 echo '{"name":"claude-code-hermit","version":"1.0.20"}' > "$workdir/plugins/claude-code-hermit/.claude-plugin/plugin.json"
 echo '{"name":"example-sibling","version":"0.1.0"}' > "$workdir/plugins/example-sibling/.claude-plugin/plugin.json"
+echo '{"required_core_version":"~2.0.0"}' > "$workdir/plugins/example-sibling/.claude-plugin/hermit-meta.json"
+mkdir -p "$workdir/.claude-code-hermit/proposals"
+cat > "$workdir/.claude-code-hermit/config.json" <<'EOF'
+{"agent_name":"t","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true},"routines":[]}
+EOF
+run_test "checkDependencies (tilde range outside → warn)" bash -c \
+  "CLAUDE_PLUGIN_ROOT='$workdir/plugins/claude-code-hermit' bun '$REPO_ROOT/scripts/doctor-check.ts' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='dependencies'][0]; assert d['status']=='warn', d\""
+cleanup
+
+# -------------------------------------------------------
+# 52b. checkDependencies — tilde range satisfied → ok; unparseable range → ok (fail-open)
+# -------------------------------------------------------
+workdir="$(setup_workdir)"
+cd "$workdir"
+mkdir -p "$workdir/plugins/claude-code-hermit/.claude-plugin" "$workdir/plugins/example-sibling/.claude-plugin"
+echo '{"name":"claude-code-hermit","version":"1.0.25"}' > "$workdir/plugins/claude-code-hermit/.claude-plugin/plugin.json"
+echo '{"name":"example-sibling","version":"0.1.0"}' > "$workdir/plugins/example-sibling/.claude-plugin/plugin.json"
 echo '{"required_core_version":"~1.0.20"}' > "$workdir/plugins/example-sibling/.claude-plugin/hermit-meta.json"
 mkdir -p "$workdir/.claude-code-hermit/proposals"
 cat > "$workdir/.claude-code-hermit/config.json" <<'EOF'
 {"agent_name":"t","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true},"routines":[]}
 EOF
-run_test "checkDependencies (unrecognized range → ok pass-through)" bash -c \
+run_test "checkDependencies (tilde range satisfied → ok)" bash -c \
+  "CLAUDE_PLUGIN_ROOT='$workdir/plugins/claude-code-hermit' bun '$REPO_ROOT/scripts/doctor-check.ts' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='dependencies'][0]; assert d['status']=='ok', d\""
+echo '{"required_core_version":"not-a-range"}' > "$workdir/plugins/example-sibling/.claude-plugin/hermit-meta.json"
+run_test "checkDependencies (unparseable range → ok fail-open)" bash -c \
   "CLAUDE_PLUGIN_ROOT='$workdir/plugins/claude-code-hermit' bun '$REPO_ROOT/scripts/doctor-check.ts' '$workdir/.claude-code-hermit' >/dev/null && python3 -c \"import json; r=json.load(open('$workdir/.claude-code-hermit/state/doctor-report.json')); d=[c for c in r['checks'] if c['id']=='dependencies'][0]; assert d['status']=='ok', d\""
 cleanup
 

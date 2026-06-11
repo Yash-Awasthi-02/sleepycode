@@ -209,26 +209,12 @@ function checkProposals() {
   }
 }
 
-// Lightweight semver-range check. Supports `>=X.Y.Z` and `X.Y.Z` (treated as `>=X.Y.Z`).
-// Pre-release tags and complex ranges (`^`, `~`, `||`, `<`) are not supported — fall back to ok.
+// Full npm-style range evaluation (`>=`, `~`, `^`, `||`, comparators) via Bun.semver.
+// Unparseable ranges are treated as satisfied — same fail-open posture as the old
+// hand-rolled check: don't second-guess a range we can't read.
 function satisfiesRange(version: any, range: any): boolean {
   if (typeof version !== 'string' || typeof range !== 'string') return true;
-  const m = range.match(/^\s*(>=|=)?\s*(\d+)\.(\d+)\.(\d+)\s*$/);
-  if (!m) return true; // unrecognized range form — don't second-guess
-  const [, , rMaj, rMin, rPatch] = m;
-  const v = version.match(/^(\d+)\.(\d+)\.(\d+)/);
-  if (!v) return true;
-  const [, vMaj, vMin, vPatch] = v;
-  const cmp = [
-    parseInt(vMaj, 10) - parseInt(rMaj, 10),
-    parseInt(vMin, 10) - parseInt(rMin, 10),
-    parseInt(vPatch, 10) - parseInt(rPatch, 10),
-  ];
-  for (const c of cmp) {
-    if (c > 0) return true;
-    if (c < 0) return false;
-  }
-  return true; // equal
+  return Bun.semver.satisfies(version, range);
 }
 
 function checkDependencies() {
