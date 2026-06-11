@@ -3,7 +3,7 @@
 ## Running Tests
 
 ```bash
-bash tests/run-all.sh
+bun test
 ```
 
 This runs all test suites — hook tests, contract tests, and frontmatter validation.
@@ -14,7 +14,7 @@ This runs all test suites — hook tests, contract tests, and frontmatter valida
 
 Tests live in `tests/`:
 
-- `run-all.sh` — main test runner, executes all test suites
+- `bun test` from the plugin dir runs every `tests/*.test.ts` suite
 - `fixtures/` — input files for hook tests
 
 ### Fixture Files
@@ -74,17 +74,17 @@ All hooks follow this contract:
 
 ### Test Framework
 
-Hook contract tests live in `tests/hooks.contract.test.ts` and run with `bun test` (no extra dependencies — `bun:test` is built in). The remaining suites are shell/Python scripts. No Jest, Vitest, or anything else — see [Contributing](../CONTRIBUTING.md).
+Hook contract tests live in `tests/hooks.contract.test.ts` and run with `bun test` (no extra dependencies — `bun:test` is built in). All other suites are also `bun test` — no shell harnesses, no Python, no Jest, no Vitest. See [Contributing](../CONTRIBUTING.md).
 
 ---
 
-## Contract Tests (run-contracts.py)
+## Contract Tests (tests/contracts.test.ts + tests/hermit-start.test.ts)
 
 ```bash
-python3 tests/run-contracts.py
+bun test tests/contracts.test.ts tests/hermit-start.test.ts
 ```
 
-Runs 20+ Python-based contract tests that verify:
+Runs 20+ contract tests that verify:
 
 - Plugin manifest integrity (`plugin.json` fields, skill/hook references)
 - Hook script exit codes and stdin contracts

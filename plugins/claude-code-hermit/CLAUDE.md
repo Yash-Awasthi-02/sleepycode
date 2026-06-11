@@ -78,7 +78,7 @@ Then run `/claude-code-hermit:hatch` to set up the target project.
 Run tests:
 
 ```
-bash tests/run-all.sh
+bun test
 ```
 
 **Development constraints (non-negotiable):**

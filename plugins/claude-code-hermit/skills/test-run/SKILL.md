@@ -13,7 +13,7 @@ Run all hermit test suites and report a concise pass/fail summary.
 
 1. Run all suites via the unified entry point:
    ```bash
-   bash ${CLAUDE_PLUGIN_ROOT}/tests/run-all.sh 2>&1
+   cd ${CLAUDE_PLUGIN_ROOT} && bun test 2>&1
    ```
 
 2. Report results:

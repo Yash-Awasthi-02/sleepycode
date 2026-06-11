@@ -40,7 +40,7 @@ The `@claude-code-hermit` suffix disambiguates when both a user-scoped and a pro
 ## Testing
 
 ```bash
-( cd plugins/claude-code-hermit && bash tests/run-all.sh )
+( cd plugins/claude-code-hermit && bun test )
 ```
 
 For HA-hermit changes:
@@ -64,7 +64,7 @@ See [Testing](docs/testing.md) for hook test details, fixtures, manual testing, 
 1. Create a feature branch off `main` (`fix/<N>-<slug>`, `feat/<N>-<slug>`, or `chore/<slug>`)
 2. Run `/release-status` for a read-only pipeline snapshot (flags stale `required_core_version`, shows what's awaiting tag)
 3. Make changes
-4. Run `( cd plugins/claude-code-hermit && bash tests/run-all.sh )` locally (and the HA pytest suite if HA code changed)
+4. Run `( cd plugins/claude-code-hermit && bun test )` locally (and the HA pytest suite if HA code changed)
 5. Add a bullet to the affected plugin's `CHANGELOG.md` under `## [Unreleased]` — the maintainer promotes it to a real version at release time. (If you're using Claude Code with the repo's local skills, `/commit` does this automatically.)
 6. Push — CI runs the same tests
 7. Keep commits focused — one concern per PR
@@ -81,7 +81,7 @@ To add a first-party (pattern 1) hermit:
 
 1. Create `plugins/<your-hermit>/` with `.claude-plugin/plugin.json` (set `name`, `version`, `description`, `author`) and `.claude-plugin/hermit-meta.json` (set `required_core_version`, `requires`).
 2. Add the matching entry to the root `.claude-plugin/marketplace.json` `plugins[]` array — keep `name`, `version`, and the URL fields in sync.
-3. Add `tests/run-all.sh` if you have tests (see the per-plugin runner pattern below).
+3. Add tests under `tests/` (bun test `*.test.ts` files, or a `tests/run-all.sh` runner — see the per-plugin pattern below).
 4. Cut releases via `/release <your-hermit>` — the skill bumps versions in both manifest and marketplace, tags as `<your-hermit>-vX.Y.Z`, and pushes.
 
 ## The `required_core_version` Convention
@@ -105,9 +105,9 @@ When releasing core and a domain plugin together, use `/fleet-release` — it up
 
 ## Per-Plugin Test Runner Pattern
 
-Each plugin owns its own `tests/run-all.sh` that orchestrates the suites it cares about. Examples:
+Each plugin owns its own test entry point. Examples:
 
-- `plugins/claude-code-hermit/tests/run-all.sh` — runs `bun test` (all `tests/*.test.ts` suites) plus the remaining Python contract harness `run-contracts.py`. See [`docs/testing.md`](plugins/claude-code-hermit/docs/testing.md) for fixtures and how to write new tests.
+- `plugins/claude-code-hermit/` — pure `bun test` from the plugin dir (auto-discovers `tests/*.test.ts`; no runner script). See [`docs/testing.md`](plugins/claude-code-hermit/docs/testing.md) for fixtures and how to write new tests.
 - `plugins/claude-code-homeassistant-hermit/tests/` — pytest suite; run via `.venv/bin/pytest tests/ -v`.
 
 CI runs each plugin's suite from its own directory (paths-filtered so unrelated plugin edits don't trigger every workflow). New plugins should follow the same pattern: a `run-all.sh` (or equivalent entry point) that returns non-zero on any failure, plus a paths-filtered GitHub Actions workflow under `.github/workflows/`.
