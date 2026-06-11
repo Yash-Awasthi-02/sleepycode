@@ -711,7 +711,7 @@ Configure the Claude Code bash sandbox for this hermit when the system supports 
 
 3. **Probe capability**:
    ```bash
-   python3 ${CLAUDE_PLUGIN_ROOT}/scripts/sandbox-probe.py
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/sandbox-probe.ts
    ```
    Parse the JSON `status` field.
 

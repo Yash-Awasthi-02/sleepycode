@@ -618,7 +618,7 @@ class TestWriteSettingsEnv(_TempDirTest):
     def test_sandbox_probe_warn_message_references_apparmor_for_ubuntu_24_04(self):
         """The user-namespace warn branch must mention the AppArmor remediation path,
         not the (incorrect) kernel.userns_restrict sysctl."""
-        probe_script = REPO / 'scripts' / 'sandbox-probe.py'
+        probe_script = REPO / 'scripts' / 'sandbox-probe.ts'
         src = probe_script.read_text()
         self.assertIn('AppArmor', src, 'AppArmor remediation missing from probe source')
         self.assertNotIn('kernel.userns_restrict', src,

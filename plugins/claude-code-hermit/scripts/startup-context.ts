@@ -302,11 +302,14 @@ function main() {
   // -------------------------------------------------------
   try {
     const statusPath = path.resolve(AGENT_DIR, 'sessions', '.status.json');
-    const out = execSync(
-      `python3 "${path.join(PLUGIN_ROOT, 'scripts', 'read-cost.py')}" "${statusPath}"`,
-      { encoding: 'utf-8', timeout: 2000, stdio: ['pipe', 'pipe', 'pipe'] }
-    ).trim();
-    if (out) emit('Session Cost', out.slice(0, BUDGETS.cost));
+    let out = 'No cost data';
+    try {
+      const d = JSON.parse(fs.readFileSync(statusPath, 'utf-8'));
+      out = `$${d.cost_usd.toFixed(4)} (${Math.round(d.tokens / 1000)}K tokens)`;
+    } catch {
+      // missing/malformed status — keep the placeholder, same as read-cost.py did
+    }
+    emit('Session Cost', out.slice(0, BUDGETS.cost));
   } catch {
     // Non-fatal
   }

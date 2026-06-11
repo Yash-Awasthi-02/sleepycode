@@ -27,7 +27,7 @@ summary. Safe to run at any time. Produces no side effects beyond writing
 
 2.5. **Sandbox capability check** (fourteenth check, run after step 2):
 
-   Architectural note: this check is computed by the skill orchestrator, not by `doctor-check.ts`. `state/doctor-report.json` therefore contains only the thirteen checks emitted in step 2; the sandbox line is appended to the rendered summary and to SHELL.md but is not present in the JSON report. Tools that consume `doctor-report.json` programmatically should call `scripts/sandbox-probe.py` separately if they need the sandbox status.
+   Architectural note: this check is computed by the skill orchestrator, not by `doctor-check.ts`. `state/doctor-report.json` therefore contains only the thirteen checks emitted in step 2; the sandbox line is appended to the rendered summary and to SHELL.md but is not present in the JSON report. Tools that consume `doctor-report.json` programmatically should call `scripts/sandbox-probe.ts` separately if they need the sandbox status.
 
    Determine the sandbox enabled state: read `.claude/settings.json` and `.claude/settings.local.json`; the last file that explicitly declares `sandbox.enabled` wins (Claude Code's merge order). Treat non-bool values as undeclared.
 
@@ -35,7 +35,7 @@ summary. Safe to run at any time. Produces no side effects beyond writing
    - **If running inside a container** (`/.dockerenv` or `/run/.containerenv` exists): emit `✓ sandbox — enabled, in container (enableWeakerNestedSandbox auto-managed by hermit-start)`. Do not run the probe — `unshare --user --pid true` fails unconditionally in unprivileged containers, producing a spurious WARN. Hermit-start writes `enableWeakerNestedSandbox: true` to settings.local.json for this case, which sidesteps the kernel restriction.
    - Otherwise, run:
      ```bash
-     python3 ${CLAUDE_PLUGIN_ROOT}/scripts/sandbox-probe.py
+     bun ${CLAUDE_PLUGIN_ROOT}/scripts/sandbox-probe.ts
      ```
      Branch on `status`:
      - `pass`: emit `✓ sandbox — enabled, deps OK.`
@@ -76,7 +76,7 @@ summary. Safe to run at any time. Produces no side effects beyond writing
 | `reflect` | Reads `state/reflection-state.json` counters. Flags an unproductive reflect loop. | `warn` if `total_runs ≥ 10` AND `empty_runs / total_runs > 0.80` AND `proposals_created == 0`. `ok` below 10 runs (insufficient sample) or when the loop produces output. |
 | `scheduler` | Reads `state/cc-stop-snapshot.json` (written by stop-pipeline.ts at each Stop). Reports armed cron count, background-task count, and snapshot age. | `ok` if snapshot present with counts and `captured_at`; `ok` (not yet captured) if snapshot absent (first run post-upgrade); `warn` if `session_crons` or `background_tasks` state is `unsupported_or_unreachable` (old CC build or registry unreachable — never reported as "0 crons"). |
 | `watchdog` | Reads `config.watchdog`, `state/watchdog-state.json`, and `state/watchdog-events.jsonl`; summarizes restarts/nudges/re-arms over the last 7 days. | `ok` when disabled or quiet; `warn` if any restart in the last 7 days or a stale cycle is in progress. |
-| `sandbox` | Runs `scripts/sandbox-probe.py` and cross-references with `sandbox.enabled` in settings files. | `fail` if sandbox enabled and deps (bwrap/socat) missing; `warn` if deps present but user-namespaces disabled; `ok` if disabled or fully operational. |
+| `sandbox` | Runs `scripts/sandbox-probe.ts` and cross-references with `sandbox.enabled` in settings files. | `fail` if sandbox enabled and deps (bwrap/socat) missing; `warn` if deps present but user-namespaces disabled; `ok` if disabled or fully operational. |
 
 No automatic fixes. Doctor reports; the operator acts.
 

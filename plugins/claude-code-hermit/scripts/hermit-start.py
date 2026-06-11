@@ -211,13 +211,13 @@ def _is_sandbox_enabled():
 
 
 def _sandbox_probe_cached():
-    """Run sandbox-probe.py; cache result keyed on a system fingerprint."""
+    """Run sandbox-probe.ts (via bun); cache result keyed on a system fingerprint."""
     import hashlib
     import platform
 
     probe_cache = STATE_DIR / 'sandbox-probe.json'
     plugin_root = Path(__file__).resolve().parent.parent
-    probe_script = plugin_root / 'scripts' / 'sandbox-probe.py'
+    probe_script = plugin_root / 'scripts' / 'sandbox-probe.ts'
     if not probe_script.exists():
         return None
 
@@ -244,7 +244,7 @@ def _sandbox_probe_cached():
 
     try:
         out = subprocess.run(
-            [sys.executable, str(probe_script)],
+            ['bun', str(probe_script)],
             capture_output=True, text=True, timeout=10,
         )
         if out.returncode != 0:
