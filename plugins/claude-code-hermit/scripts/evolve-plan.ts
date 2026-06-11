@@ -13,7 +13,12 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { sha256 } from './lib/hash';
+
 type Json = any;
+
+type FileClass = 'missing' | 'unmodified' | 'customized-kept' | 'conflict';
+interface ClassifiedFile { name: string; class: FileClass; boot_critical?: boolean; }
 
 const MARKER = '<!-- claude-code-hermit: Session Discipline -->';
 const TEMPLATE_FILES = [
@@ -105,28 +110,79 @@ function newConfigKeys(tmpl: Json, config: Json, prefix?: string, out?: Json[]):
   return out;
 }
 
-// Basenames whose project copy differs from (or is missing relative to) the
-// template. Source missing -> nothing to sync (skip). Byte comparison only;
-// contents never enter the plan.
-function changedFiles(srcDir: string, dstDir: string, names: string[]): string[] {
-  const changed: string[] = [];
+// Classify each managed file against the pristine-baseline manifest.
+//
+// manifestFiles: the `files` map from state/template-manifest.json, or null
+//   when the manifest is absent (bootstrap run — treat baseline as on-disk).
+// keyPrefix:     path prefix used as the manifest key ("templates" or "bin").
+// bootCritical:  true for bin/ wrappers (stale = broken hermit).
+//
+// Only files that need attention (on-disk absent or on-disk != upstream) are
+// returned. Source missing -> skip (nothing to sync), same as before.
+function classifyFiles(
+  srcDir: string,
+  dstDir: string,
+  names: string[],
+  manifestFiles: Record<string, { sha256: string }> | null,
+  keyPrefix: string,
+  bootCritical: boolean,
+): ClassifiedFile[] {
+  const result: ClassifiedFile[] = [];
   for (const name of names) {
     let srcBuf: Buffer;
     try {
       srcBuf = fs.readFileSync(path.join(srcDir, name));
-    } catch (e) {
-      continue;
+    } catch {
+      continue; // source missing -> nothing to sync
     }
-    let dstBuf: Buffer;
+
+    let dstBuf: Buffer | null;
     try {
       dstBuf = fs.readFileSync(path.join(dstDir, name));
-    } catch (e) {
-      changed.push(name);
+    } catch {
+      dstBuf = null;
+    }
+
+    // on-disk absent -> restore unconditionally (deleted wrapper / fresh install)
+    if (dstBuf === null) {
+      const e: ClassifiedFile = { name, class: 'missing' };
+      if (bootCritical) e.boot_critical = true;
+      result.push(e);
       continue;
     }
-    if (!srcBuf.equals(dstBuf)) changed.push(name);
+
+    // on-disk identical to upstream -> nothing to do
+    if (srcBuf.equals(dstBuf)) continue;
+
+    // on-disk differs from upstream -> 3-way classify via manifest baseline
+    const manifestKey = `${keyPrefix}/${name}`;
+    const baseline = manifestFiles ? manifestFiles[manifestKey] : null;
+
+    let cls: FileClass;
+    if (baseline == null) {
+      // No manifest entry (bootstrap or file added after last hatch) ->
+      // treat baseline as on-disk (seed-as-unmodified): safe to overwrite.
+      cls = 'unmodified';
+    } else {
+      const onDiskHash = sha256(dstBuf);
+      const baseHash = baseline.sha256;
+      if (onDiskHash === baseHash) {
+        cls = 'unmodified';          // operator never touched it; template moved
+      } else {
+        const upstreamHash = sha256(srcBuf);
+        if (upstreamHash === baseHash) {
+          cls = 'customized-kept';   // operator edited; template didn't change
+        } else {
+          cls = 'conflict';          // both sides diverged
+        }
+      }
+    }
+
+    const e: ClassifiedFile = { name, class: cls };
+    if (bootCritical) e.boot_critical = true;
+    result.push(e);
   }
-  return changed;
+  return result;
 }
 
 // Marker-onward block: from the MARKER line to EOF or the next standalone
@@ -234,8 +290,21 @@ function buildPlan({ hermitDir, pluginRoot, hatchTarget }: { hermitDir: string; 
     errors.push({ code: 'config_template_unreadable', message: e.message });
   }
 
+  // Read pristine-baseline manifest. Absence = bootstrap run.
+  const manifestPath = path.join(hermitDir, 'state', 'template-manifest.json');
+  let manifestFiles: Record<string, { sha256: string }> | null = null;
+  try {
+    const raw = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    manifestFiles = (raw && typeof raw.files === 'object') ? raw.files : {};
+  } catch (e: any) {
+    if (e && e.code !== 'ENOENT') {
+      errors.push({ code: 'manifest_parse_error', message: e.message });
+    }
+    plan.manifest_bootstrap = true;
+  }
+
   const stDir = path.join(pluginRoot, 'state-templates');
-  plan.templates_changed = changedFiles(stDir, path.join(hermitDir, 'templates'), TEMPLATE_FILES);
+  plan.templates_changed = classifyFiles(stDir, path.join(hermitDir, 'templates'), TEMPLATE_FILES, manifestFiles, 'templates', false);
 
   const binSrc = path.join(stDir, 'bin');
   let binNames: string[] = [];
@@ -246,7 +315,7 @@ function buildPlan({ hermitDir, pluginRoot, hatchTarget }: { hermitDir: string; 
   } catch (e) {
     // no bin dir in source -> nothing to sync (not an operator-facing error)
   }
-  plan.bin_changed = changedFiles(binSrc, path.join(hermitDir, 'bin'), binNames);
+  plan.bin_changed = classifyFiles(binSrc, path.join(hermitDir, 'bin'), binNames, manifestFiles, 'bin', true);
 
   computeClaudeAppend(plan, pluginRoot, hermitDir, hatchTarget, errors);
 
@@ -263,7 +332,8 @@ function parseArgs(argv: string[]) {
   return { hermitDir: hermitDir || '.claude-code-hermit', hatchTarget };
 }
 
-export { buildPlan, cmpSemver, changelogSlice, newConfigKeys, markerOnward, changedFiles };
+export { buildPlan, cmpSemver, changelogSlice, newConfigKeys, markerOnward, classifyFiles };
+export type { ClassifiedFile, FileClass };
 
 if (import.meta.main) {
   const { hermitDir, hatchTarget } = parseArgs(process.argv.slice(2));

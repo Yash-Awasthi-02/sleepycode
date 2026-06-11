@@ -29,6 +29,7 @@ const EXPECTED_STATE_FILES = [
   'reflection-state.json',
   'runtime.json',
   'monitors.runtime.json',
+  'template-manifest.json',
 ];
 
 // ----------------- Checks -----------------
@@ -135,6 +136,22 @@ function checkStateFiles() {
         status: 'warn',
         detail: `missing (recreated on next session): ${missing.join(', ')}`,
       };
+    }
+    const manifestPath = path.join(stateDir, 'template-manifest.json');
+    try {
+      const m = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+      if (!m || typeof m.files !== 'object' || Array.isArray(m.files)) {
+        return { id: 'state', status: 'fail', detail: 'template-manifest.json: missing or invalid `files` object' };
+      }
+      const badKeys = Object.entries(m.files).filter(
+        ([, v]: [string, any]) => typeof v?.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(v.sha256)
+      ).map(([k]) => k);
+      if (badKeys.length > 0) {
+        return { id: 'state', status: 'fail', detail: `template-manifest.json: invalid sha256 in: ${badKeys.join(', ')}` };
+      }
+    } catch {
+      // file existence was already checked above; any error here is unexpected
+      return { id: 'state', status: 'fail', detail: 'template-manifest.json: unreadable' };
     }
     return { id: 'state', status: 'ok', detail: `${jsonFiles.length} state file(s) parse cleanly` };
   } catch (e: any) {

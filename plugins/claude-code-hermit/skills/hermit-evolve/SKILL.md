@@ -136,10 +136,18 @@ Also: if an active SHELL.md has a `## Plan` section (legacy plan table), warn th
 
 ### 5. Update templates
 
-- For each basename in the plan's `templates_changed`, copy `${CLAUDE_PLUGIN_ROOT}/state-templates/<name>` over `.claude-code-hermit/templates/<name>`. The plan already byte-compared them — don't re-read contents to diff.
-- If `templates_changed` is empty, skip.
-- Report which templates were updated
-- Note: SHELL.md.template no longer has a `## Plan` section — plan tracking is now handled by native Claude Code Tasks
+`templates_changed` is now a list of classified file objects `{ name, class }` (not bare strings). Each entry represents a file that differs from upstream or is absent. Resolve by class:
+
+- **`missing`**: `templates/<name>` was absent. Copy `${CLAUDE_PLUGIN_ROOT}/state-templates/<name>` → `.claude-code-hermit/templates/<name>`. Report: "Restored missing template: `<name>`."
+- **`unmodified`**: operator never customized it (baseline == on-disk, or no manifest entry). Copy upstream over it silently.
+- **`customized-kept`**: operator edited it and the template hasn't moved. **Keep the operator's copy unchanged.** Collect in a summary line at the end: "Kept N operator-customized template(s): `<name>`, ..."
+- **`conflict`**: both the operator and the template changed since hatch.
+  - **Interactive session** (operator typed the command): present a three-way diff summary and `AskUserQuestion` with options: "Keep mine" / "Take new" / "Merge manually later". Default: keep mine. If "Take new": copy upstream over it and preserve old copy as `<name>.bak`. If "Merge manually": write upstream as `<name>.new` beside the operator's copy, leave the operator's copy live.
+  - **Unattended / always-on** (invoked via channel): write upstream as `<name>.new` beside the operator's copy, keep operator's copy live. Report one channel line: "N template conflict(s) parked as .new — review when convenient: `<name>`, ..."
+
+If `templates_changed` is empty, skip.
+
+After all template resolutions (see manifest-write note at end of Step 5b).
 
 **Never touch:** sessions, proposals, OPERATOR.md, HEARTBEAT.md (operator-editable), or config.json (handled separately).
 
@@ -148,6 +156,8 @@ Only update files in `templates/`:
 - `SHELL.md.template`
 - `SESSION-REPORT.md.template`
 - `PROPOSAL.md.template`
+
+Note: SHELL.md.template no longer has a `## Plan` section — plan tracking is now handled by native Claude Code Tasks.
 
 ### 5a. Migrate obsidian/ surface
 
@@ -159,9 +169,23 @@ If `<project-root>/obsidian/` exists in the target project:
 
 ### 5b. Update boot script wrappers
 
-- For each basename in the plan's `bin_changed`, copy `${CLAUDE_PLUGIN_ROOT}/state-templates/bin/<name>` into `.claude-code-hermit/bin/<name>` (the plan already byte-compared and lists differing or missing files).
-- Ensure all files in `.claude-code-hermit/bin/` are executable
-- If `bin_changed` is empty, skip the copy (still confirm executability).
+`bin_changed` entries carry `boot_critical: true` (all bin/ wrappers are boot wrappers — a stale one can dead-end the hermit). Resolution by class:
+
+- **`missing`**: wrapper was absent. Copy `${CLAUDE_PLUGIN_ROOT}/state-templates/bin/<name>` → `.claude-code-hermit/bin/<name>`. `chmod +x`. Report: "**Restored missing boot wrapper: `<name>`.**"
+- **`unmodified`**: operator never customized it. Copy upstream over it silently.
+- **`customized-kept`**: operator edited it; template hasn't moved. Keep the operator's copy. Summary line: "Kept N operator-customized wrapper(s): `<name>`, ..."
+- **`conflict`** (any context — **no `.new` parking for boot-critical files**): replace with the upstream version (`chmod +x`) and save the operator's copy as `<name>.bak`. Report loudly in the run report and channel (if applicable): "**Boot wrapper `<name>` had local changes — replaced with new version; your copy saved as `<name>.bak`.**"
+
+If `bin_changed` is empty, skip the copy (still confirm executability for all files in `bin/`).
+
+**Bootstrap safety net** (`manifest_bootstrap: true` in the plan): on the first evolve after this feature ships (no manifest yet), any template or bin file that gets overwritten or restored also gets a one-time `<name>.bak` alongside it. This makes the quiet bootstrap recoverable: if an existing customization was already present before the manifest was seeded, it survives in the `.bak`. One noisy set of `.bak` files, once, then quiet thereafter.
+
+**After resolving all templates (Step 5) and all bin/ files (Step 5b)**, write `state/template-manifest.json`:
+- For each file that was copied, replaced, or restored: record `"<prefix>/<name>": { "sha256": "<hash of the new upstream content>", "plugin_version": "<plan.to>" }` in the manifest.
+- For files classified `customized-kept`: leave their existing manifest entry unchanged.
+- If `manifest_bootstrap` was true: seed the full manifest — for every managed file under `templates/` and `bin/`, record the hash of whatever is now on-disk (after any overwrites) plus the current `plugin_version`. This is the one-time baseline seeding.
+- Write the complete updated manifest as `state/template-manifest.json` with `{ "version": 1, "files": { ... } }`.
+- Read the current sha256 of each on-disk file for the manifest (don't trust cached buffers).
 
 ### 6. Update CLAUDE-APPEND block
 

@@ -186,6 +186,14 @@ One writer per state file. No shared mutation bus.
 | `state/cost-index.json`        | cost-tracker.ts only                                | cost-tracker.ts (writeCostSummary, getCumulativeCost fallback), doctor-check.ts |
 | `state/watchdog-state.json`    | hermit-watchdog.ts only                             | doctor-check.ts (consecutive_stale)                           |
 | `state/watchdog-events.jsonl`  | hermit-watchdog.ts only (append)                    | doctor-check.ts (event counts), session-start (restart reason)|
+| `state/template-manifest.json` | hatch (seed) + hermit-evolve Steps 5/5b (update after copy) | evolve-plan.ts (classify), doctor-check.ts (shape check) |
+
+Per-file update policies for managed files under `.claude-code-hermit/`:
+
+- **bot-owned-overwrite**: `state/` runtime files, `config.json` keys added by upgrade — written by the hermit, overwritten on upgrade with no review.
+- **operator-owned-never**: `OPERATOR.md`, `HEARTBEAT.md`, `sessions/`, `proposals/` — hermit never overwrites.
+- **managed-with-merge-gate** (`templates/`): on upgrade, classified against `template-manifest.json` baseline; conflicts parked as `.new` for operator review; `customized-kept` files left untouched.
+- **boot-critical-replace** (`bin/`): conflicts replace with the upstream version (`chmod +x`); operator's copy preserved as `.bak`; stale wrappers can dead-end the hermit so keeping them is never safe.
 
 ---
 
