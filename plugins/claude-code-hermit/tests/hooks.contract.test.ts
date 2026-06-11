@@ -895,6 +895,32 @@ describe('doctor-check', () => {
     expect(c.status).toBe('ok');
     expect(c.detail).toContain('warming up');
   }));
+
+  test('doctor-check heartbeat: liveness present but predates current monitor start → fail (not trusted)', withDir(async (dir) => {
+    seedDoctor(dir, '{"agent_name":"t","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true,"every":"2h"},"routines":[]}');
+    write(hermit(dir, 'state', 'runtime.json'), '{"session_state":"in_progress"}');
+    // Liveness is recent (4h ago, under the 6h threshold) but predates a monitor
+    // restarted 3h ago — it is a leftover from the prior session, not proof of life.
+    const peek = new Date(Date.now() - 4 * 3600 * 1000).toISOString();
+    const started = new Date(Date.now() - 3 * 3600 * 1000).toISOString();
+    write(hermit(dir, 'state', 'heartbeat-liveness.json'), `{"last_peek_at":"${peek}"}`);
+    write(hermit(dir, 'state', 'heartbeat-monitor.runtime.json'), `{"started_at":"${started}"}`);
+    const c = checkById(await doctorReport(dir), 'heartbeat');
+    expect(c.status).toBe('fail');
+    expect(c.detail).toContain('Monitor subprocess spawn');
+  }));
+
+  test('doctor-check heartbeat: liveness missing + started_at past startup grace → fail', withDir(async (dir) => {
+    seedDoctor(dir, '{"agent_name":"t","language":"en","timezone":"UTC","escalation":"balanced","channels":{},"env":{},"heartbeat":{"enabled":true,"every":"2h"},"routines":[]}');
+    write(hermit(dir, 'state', 'runtime.json'), '{"session_state":"in_progress"}');
+    // Started 10m ago — well under the 6h stale threshold but past the short
+    // startup grace, so a missing first tick is a real blocked spawn.
+    const started = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    write(hermit(dir, 'state', 'heartbeat-monitor.runtime.json'), `{"started_at":"${started}"}`);
+    const c = checkById(await doctorReport(dir), 'heartbeat');
+    expect(c.status).toBe('fail');
+    expect(c.detail).toContain('Monitor subprocess spawn');
+  }));
 });
 
 // -------------------------------------------------------

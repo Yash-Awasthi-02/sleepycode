@@ -66,6 +66,8 @@ Start the heartbeat as a persistent CC Monitor subprocess.
 
 Safe to call from a routine — idempotent (legacy cron swept + existing Monitor stopped + state file rewritten).
 
+The monitor's poll interval is fixed at registration from `heartbeat.every`. The `/hermit-doctor` heartbeat check derives its staleness threshold from the current `config.heartbeat.every`, so editing `every` without re-running `start` leaves the live monitor on the old cadence while the doctor judges it against the new one. Re-run `start` after changing `every` to resync.
+
 ### stop
 
 1. Read `state/heartbeat-monitor.runtime.json`. If a `task_id` is present, TaskStop it. Fallback: TaskList → find by description `heartbeat-monitor` and TaskStop.

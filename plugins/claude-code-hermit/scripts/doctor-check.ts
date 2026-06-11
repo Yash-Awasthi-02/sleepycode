@@ -649,32 +649,16 @@ function checkHeartbeat() {
     }
 
     const threshold = 3 * parseDuration(hbCfg.every, 2 * 3600000);
+    // A healthy monitor writes liveness on its first loop iteration (before any
+    // sleep), so a real tick lands within seconds of spawn. The absent-liveness
+    // grace only needs to cover spawn + first precheck — not a full poll interval
+    // — otherwise a spawn-blocked monitor reads "warming up" for hours.
+    const STARTUP_GRACE_MS = 2 * 60 * 1000;
     const now = Date.now();
 
-    const livenessPath = path.join(stateDir, 'heartbeat-liveness.json');
-    let lastPeekAt: number | null = null;
-    try {
-      const liveness = JSON.parse(fs.readFileSync(livenessPath, 'utf-8'));
-      if (typeof liveness.last_peek_at === 'string') {
-        const t = Date.parse(liveness.last_peek_at);
-        if (Number.isFinite(t)) lastPeekAt = t;
-      }
-    } catch { /* missing or unparseable — handled below */ }
-
-    if (lastPeekAt !== null) {
-      const ageMs = now - lastPeekAt;
-      if (ageMs > threshold) {
-        const ageStr = `${Math.round(ageMs / 60000)}m ago`;
-        return {
-          id: 'heartbeat',
-          status: 'fail',
-          detail: `heartbeat not ticking — Monitor subprocess spawn likely blocked (seccomp / nested-userns in container); shell /watch streams are dead too. Last tick: ${ageStr}.`,
-        };
-      }
-      return { id: 'heartbeat', status: 'ok', detail: `heartbeat: ticking (last tick ${Math.round(ageMs / 60000)}m ago)` };
-    }
-
-    // Liveness file absent — check grace period via monitor registration time.
+    // Monitor registration time. Used both to reject a liveness tick left by a
+    // prior session's monitor (a tick older than started_at is stale, not proof
+    // the current monitor is alive) and to bound the startup grace below.
     let startedAt: number | null = null;
     try {
       const monRt = JSON.parse(fs.readFileSync(path.join(stateDir, 'heartbeat-monitor.runtime.json'), 'utf-8'));
@@ -684,11 +668,39 @@ function checkHeartbeat() {
       }
     } catch { /* missing or unparseable */ }
 
-    if (startedAt !== null && (now - startedAt) >= threshold) {
+    const livenessPath = path.join(stateDir, 'heartbeat-liveness.json');
+    let lastPeekAt: number | null = null;
+    try {
+      const liveness = JSON.parse(fs.readFileSync(livenessPath, 'utf-8'));
+      if (typeof liveness.last_peek_at === 'string') {
+        const t = Date.parse(liveness.last_peek_at);
+        if (Number.isFinite(t)) lastPeekAt = t;
+      }
+    } catch { /* missing or unparseable */ }
+
+    const trusted = lastPeekAt !== null && (startedAt === null || lastPeekAt >= startedAt);
+
+    if (trusted) {
+      const ageMs = now - lastPeekAt!;
+      const tickStr = `${Math.round(ageMs / 60000)}m ago`;
+      if (ageMs > threshold) {
+        return {
+          id: 'heartbeat',
+          status: 'fail',
+          detail: `heartbeat not ticking — Monitor subprocess spawn likely blocked (seccomp / nested-userns in container); shell /watch streams are dead too. Last tick: ${tickStr}.`,
+        };
+      }
+      return { id: 'heartbeat', status: 'ok', detail: `heartbeat: ticking (last tick ${tickStr})` };
+    }
+
+    // No trustworthy tick. Flag once the monitor has had longer than the startup
+    // grace to write its first one; otherwise it is still warming up.
+    if (startedAt !== null && (now - startedAt) >= STARTUP_GRACE_MS) {
+      const tickStr = lastPeekAt !== null ? `${Math.round((now - lastPeekAt) / 60000)}m ago (predates current monitor — stale)` : 'never';
       return {
         id: 'heartbeat',
         status: 'fail',
-        detail: `heartbeat not ticking — Monitor subprocess spawn likely blocked (seccomp / nested-userns in container); shell /watch streams are dead too. Last tick: never.`,
+        detail: `heartbeat not ticking — Monitor subprocess spawn likely blocked (seccomp / nested-userns in container); shell /watch streams are dead too. Last tick: ${tickStr}.`,
       };
     }
 

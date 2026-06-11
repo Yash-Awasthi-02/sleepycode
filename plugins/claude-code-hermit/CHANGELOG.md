@@ -4,7 +4,7 @@
 
 ### Added
 
-- **heartbeat liveness check in `/hermit-doctor`** (#346) — `heartbeat-monitor.sh` writes `state/heartbeat-liveness.json` (`last_peek_at`) on every poll iteration; `doctor-check.ts` gains a `heartbeat` check (14 JSON checks total) that fails with a seccomp/container diagnosis when an active session's heartbeat has not ticked in 3× the configured interval. Closes the silent-death hole where a Monitor subprocess blocked by kernel restrictions reported fully healthy. `parseDuration` moved to `scripts/lib/time.ts` (shared with precheck). Report grows to fifteen lines (fourteen JSON + sandbox).
+- **heartbeat liveness check in `/hermit-doctor`** (#346) — `heartbeat-monitor.sh` writes `state/heartbeat-liveness.json` (`last_peek_at`) on every poll iteration; `doctor-check.ts` gains a `heartbeat` check (14 JSON checks total) that fails with a seccomp/container diagnosis when an active session's heartbeat has not ticked in 3× the configured interval, or when no tick lands within a short (~2m) startup grace after the monitor registers. A tick older than the monitor's `started_at` is ignored so a prior session's liveness file can't mask a dead restart. Closes the silent-death hole where a Monitor subprocess blocked by kernel restrictions reported fully healthy. `parseDuration` moved to `scripts/lib/time.ts` (shared with precheck). Report grows to fifteen lines (fourteen JSON + sandbox).
 
 - **deny-patterns: block Edit/Write to installed plugin source** — a hermit can no longer modify its own files under `~/.claude/plugins/marketplaces/` (#351).
 
