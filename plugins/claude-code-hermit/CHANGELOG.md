@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.0] - 2026-06-12
 
 ### Added
 
@@ -94,7 +94,12 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 1. Verify bun is installed before anything else (Step 0b is the hard gate): `bun --version` must be >= 1.3.0. If missing: `curl -fsSL https://bun.sh/install | bash`.
 2. Refresh ALL on-disk boot wrappers (Step 5b's byte-compare will list every `bin/` file as changed — copy each from `state-templates/bin/`). The old wrappers exec `python3` directly and break when the Python scripts are removed from the plugin.
 3. Note for Docker operators: `hermit-status`, `hermit-attach`, and `hermit-docker` run on the HOST and now use bun there — install bun on the host even when the hermit itself runs in the container.
-4. Docker operators: refresh the on-disk `docker-entrypoint.hermit.sh` from the template (re-run `/docker-setup` or let this skill patch it) BEFORE running `hermit-docker update` — `update` rebuilds with the on-disk entrypoint, and the old one shells `python3`, which the new image no longer has. Then `hermit-docker update` rebuilds the image (drops Python, keeps Node for the Claude Code CLI).
+4. Docker operators: surgically replace `docker-entrypoint.hermit.sh` at the project root — copy it from the plugin template:
+   ```
+   cp "$(claude plugin path claude-code-hermit)"/state-templates/docker/docker-entrypoint.hermit.sh.template \
+     ./docker-entrypoint.hermit.sh
+   ```
+   The old entrypoint shells `python3` for credential-expiry checks, mtime watches, and JSON init blocks; the new one uses `bun -e`. Do NOT re-run `/docker-setup` to do this — that wizard regenerates `Dockerfile.hermit` from the new Python-free template and would silently overwrite any operator customizations to it. `Dockerfile.hermit` and `docker-compose.hermit.yml` are not touched by this upgrade; existing hermits keep their full image definition including any custom layers or Python packages. After replacing the entrypoint, run `hermit-docker update` to rebuild the image with it.
 5. Append a schema-marker line to `.claude/cost-log.jsonl`: `{"schema": 2, "timestamp": "<ISO now>", "note": "api_calls + context_usage added; pre-marker entries undercount multi-step turns"}`. This stamps the upgrade boundary so operators do not read the post-upgrade cost jump as a regression. Backfill of pre-marker entries is not performed.
 6. Add `"post_close_clear": true` to `.claude-code-hermit/config.json` (top-level, not nested under `watchdog`). This enables the post-close context reset that ships enabled by default in new hermits. To disable: set `"post_close_clear": false`.
    Note: the reset only fires when `hermit-watchdog run` is invoked on a schedule. Docker hermits get this automatically (the entrypoint runs it every ~5 min). Bare-metal hermits need `hermit-watchdog install` to set up the systemd/launchd timer — without a timer the marker sits until the next watchdog invocation, which may never come on bare metal.
