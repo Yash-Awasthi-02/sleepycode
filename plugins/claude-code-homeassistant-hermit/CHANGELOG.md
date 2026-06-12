@@ -2,18 +2,46 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
-## [Unreleased]
+## [0.2.0] - 2026-06-12
 
 ### Fixed
 
-- **apply/ha-api: write-path error handling (code review)** — `ha-api` reads HTTP response bodies defensively, so a mid-stream failure on an error response no longer loses the status code (apply's 403→YAML-mode and 400→message handling stay reachable) and a success-body failure surfaces as a `HomeAssistantError` instead of a raw throw; `apply` now treats any verify-GET failure (HA error, timeout, body-read) as unverified rather than rethrowing after the POST already landed, and the POST→GET verify requires an object and matches `alias` only when the artifact defines one (no more `undefined === undefined` true-by-default).
-- **mcp-safety-gate: three more fail-open / bypass holes closed (code review)** — (1) `fail()` now guards its stderr write so a closed/broken stderr fd can't escape as exit 1 (= non-blocking) on the block path; (2) a call mixing a safe concrete `entity_id` with an `area_id`/`floor_id`/`label_id`/unresolved `device_id` selector is now blocked instead of allowed (the selector fans out server-side to unevaluated entities); (3) sensitive-domain matching is case-insensitive (`LOCK.front_door`) and malformed empty-domain ids (`.lock`) are rejected — both previously classified ALLOW. Pinned as documented divergences in the golden corpus (Python allowed; TS blocks) plus a closed-fd-2 regression test.
-- **CRITICAL — mcp-safety-gate was fail-open on standard installs** — the Python hook's `from ha_agent_lab.policy import …` never resolved outside CI's `pip install -e` (no PYTHONPATH was ever set by hooks.json), so the gate crashed with exit 1 on every invocation; Claude Code treats non-2 exits as non-blocking, so sensitive lock/alarm MCP calls were ALLOWED for the hook's entire shipped life. The TypeScript port imports policy from the same plugin (no resolution to fail) and additionally fails closed on valid-but-non-object JSON payloads (a second fail-open hole). Equivalence pinned by an 80-case golden corpus replaying the retired Python side by side, plus fast-check fuzz properties (arbitrary stdin can only exit 0 or 2; sensitive ids always block under strict).
+- **CRITICAL — mcp-safety-gate was fail-open on all standard installs** — the Python hook's import never resolved without `pip install -e` (PYTHONPATH was never set by hooks.json), so the gate crashed with exit 1 on every call; Claude Code treats non-2 exits as non-blocking, so lock/alarm MCP calls were ALLOWED for the hook's entire shipped life. The TypeScript port fixes this and additionally fails closed on non-object JSON payloads.
+- **mcp-safety-gate: three more bypass holes closed** — mixed safe/selector calls now blocked (selectors fan out server-side); sensitive-domain matching is case-insensitive; malformed empty-domain ids rejected. All pinned in the 80-case golden corpus.
+- **apply/ha-api: write-path error handling** — defensive body reads so 403/400 handling survives mid-stream failures; verify-GET errors reported as unverified rather than rethrowing after POST landed.
 
 ### Changed
 
-- **full TypeScript port; plugin is 100% Python-free (bun migration, core #18)** — the entire `src/ha_agent_lab/` Python package, `pyproject.toml`, the `.venv`/pip/PEP-668 hatch wizard, and both Python hooks (`mcp-safety-gate.py`, `curl-host-gate.py`) are deleted; `bin/ha-agent-lab` execs `bun src/cli.ts` and both gates run as `.ts` on bun. CLI argv surface, stdout shapes (incl. `json.dumps` byte format), and exit codes verified byte-identical against CPython argparse captures; gate equivalence pinned by an 80-case golden corpus replaying the retired Python gates from git history, plus fast-check fuzz properties. `test-ha.yml` runs `bun test` (364 tests); the corpus harness keeps a test-only python3+PyYAML fixture dependency, installed by CI.
-- **Python-parity layers where formats touch operators** — `src/yaml.ts` normalizing wrapper over `Bun.YAML` (multi-doc rejection, PyYAML-1.1 implicit-scalar quoting on dump, JS-Date rejection; pinned by a 91-test divergence suite vs PyYAML), `src/config.ts` explicit `.env` parser with python-dotenv parity, `src/ha-api.ts` urllib → fetch (async end-to-end, injectable transport, verbatim HA `{"message"}` error surfacing), `src/audits.ts` thread pool → 20-wide async worker pool. One sanctioned representation change: frontmatter `created` is handled as an ISO string end-to-end (audit confirmed no datetime-object consumers).
+- **full TypeScript port; plugin is Python-free (bun migration, core #18)** — `src/ha_agent_lab/` Python package, `pyproject.toml`, `.venv`/pip hatch wizard, and both Python hooks deleted; `bin/ha-agent-lab` execs `bun src/cli.ts`, both gates run as `.ts` on bun. CLI argv, stdout shapes, and exit codes verified byte-identical to CPython via an 80-case golden corpus. 478 bun tests replace the pytest suite.
+- **required_core_version: bumped to >=1.2.0** — tracks core 1.2.0 release.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `hooks/mcp-safety-gate.ts` | TypeScript rewrite; fail-closed, import-safe, 3 bypass holes fixed |
+| `hooks/curl-host-gate.ts` | TypeScript rewrite replacing curl-host-gate.py |
+| `hooks/mcp-safety-gate.py` | Deleted |
+| `hooks/curl-host-gate.py` | Deleted |
+| `bin/ha-agent-lab` | Swapped Python invocation for `bun src/cli.ts` |
+| `src/cli.ts` | TypeScript CLI replacing `src/ha_agent_lab/cli.py` |
+| `src/policy.ts` | Policy engine replacing `src/ha_agent_lab/policy.py` |
+| `src/yaml.ts` | PyYAML-parity YAML wrapper |
+| `src/ha-api.ts` | urllib → fetch, defensive body reads |
+| `src/apply.ts` | Verify-GET error handling fixed |
+| `src/ha_agent_lab/` | Entire Python package deleted |
+| `pyproject.toml` | Deleted |
+| `.claude-plugin/hermit-meta.json` | `required_core_version` and `requires` bumped to `>=1.2.0` |
+| `.claude-plugin/plugin.json` | dependencies bumped to `^1.2.0`; description updated |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Verify core version** — confirm installed `claude-code-hermit` is >=1.2.0. If not, run `claude plugin update claude-code-hermit` first.
+2. **Delete the Python venv** — remove `.venv/` from the HA hermit project directory if it exists; Python is no longer required.
+
+No `config.json` changes required.
 
 ## [0.1.9] - 2026-06-04
 

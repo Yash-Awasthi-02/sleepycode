@@ -49,8 +49,8 @@
     {
       "name": "claude-code-homeassistant-hermit",
       "source": "./plugins/claude-code-homeassistant-hermit",
-      "description": "Home Assistant layer for claude-code-hermit — skills, subagents, safety hook, and Python CLI for an autonomous HA assistant",
-      "version": "0.1.9",
+      "description": "Home Assistant layer for claude-code-hermit — skills, subagents, safety hook, and bun-powered CLI for an autonomous HA assistant",
+      "version": "0.2.0",
       "category": "home-automation",
       "author": {
         "name": "gtapps",
