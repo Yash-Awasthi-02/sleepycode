@@ -46,6 +46,7 @@ Thumbs.db
 # Session local state (settings.local.json is per-developer)
 .claude/settings.local.json
 
+# claude-code-hermit
 # Hermit local state (fully local in this monorepo)
 .claude-code-hermit/OPERATOR.md
 .claude-code-hermit/sessions/
