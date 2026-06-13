@@ -20,7 +20,7 @@ Read the following (gracefully skip any file or glob that doesn't exist; steps a
 4. Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/proposal-metrics-report.ts .claude-code-hermit` and capture stdout. Skip gracefully if unavailable. (Steps 4 and 5 may run concurrently.)
 5. Run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/cost-reflect.ts .claude-code-hermit 30` and capture stdout. This produces a 30-day cost breakdown including a `### Cost by source` section. Skip gracefully if unavailable.
 6. `.claude-code-hermit/config.json` — read `routines[]` (id, schedule, enabled), `monitors[]` (id, enabled), `heartbeat.every`.
-7. `.claude-code-hermit/state/routine-metrics.jsonl` — count `fired` events per `routine_id` where `ts` is within the last 30 days.
+7. `.claude-code-hermit/state/routine-metrics.jsonl` — count entries where `event == "fired"` per `routine_id` where `ts` is within the last 30 days (`routine-metrics.jsonl` uses the `event` field, not `type`).
 8. `.claude-code-hermit/sessions/S-NNN-REPORT.md` files for the last 30 days — read Artifacts and Changed sections plus `proposals_created` and `operator_turns` frontmatter. List filenames in `.claude-code-hermit/compiled/` created in the last 30 days.
 9. `.claude-code-hermit/OPERATOR.md` and `${CLAUDE_PLUGIN_ROOT}/state-templates/OPERATOR.md` — read both.
 10. List dirs under `.claude/skills/` in the target project root and under `${CLAUDE_PLUGIN_ROOT}/skills/`.
