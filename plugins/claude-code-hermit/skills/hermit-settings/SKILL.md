@@ -204,18 +204,20 @@ Update `permission_mode` in config.json.
   ```
   Watchdog (config.json watchdog)
 
-    enabled         false
-    stale_factor    2
-    escalate_after  3
-    operator_grace  15m
+    enabled                false
+    stale_factor           2
+    escalate_after         3
+    operator_grace         15m
+    context_clear_tokens   700000
   ```
 - Ask: "Enable watchdog? (yes / no) [current: <value>]"
 - If yes: show the configurable sub-fields before asking each one:
   ```
   Watchdog sub-fields (press Enter to keep current value):
-    stale_factor    — missed-cycle tolerance multiplier (e.g. 2)          [current]
-    escalate_after  — consecutive stale cycles before escalation (e.g. 3) [current]
-    operator_grace  — silence window before alert fires (e.g. 15m, 1h)    [current]
+    stale_factor           — missed-cycle tolerance multiplier (e.g. 2)                   [current]
+    escalate_after         — consecutive stale cycles before escalation (e.g. 3)          [current]
+    operator_grace         — silence window before alert fires (e.g. 15m, 1h)             [current]
+    context_clear_tokens   — auto-clear context when prompt tokens exceed this (e.g. 700000, 0=off) [current]
   ```
   Then ask each field in sequence.
 - Update `watchdog` object in config.json.

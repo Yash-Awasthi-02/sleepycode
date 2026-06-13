@@ -2,6 +2,26 @@
 
 ## [Unreleased]
 
+### Added
+
+- **watchdog: context-size auto-clear** — sends `/clear` when a hermit-owned turn's prompt-side tokens (`input + cache_write + cache_read`) exceed `watchdog.context_clear_tokens` (default 700 000), preventing scheduled routines from re-reading a bloated context at 5–22× normal cost. Fires independently of `watchdog.enabled`; gated on always-on mode, operator silence ≥ 10 min, and 2-tick pane-hash quiescence. Fixes #373.
+
+### Upgrade Instructions
+
+Add `context_clear_tokens: 700000` to the `watchdog` block in `.claude-code-hermit/config.json`:
+
+```json
+"watchdog": {
+  "enabled": false,
+  "stale_factor": 2,
+  "escalate_after": 3,
+  "operator_grace": "15m",
+  "context_clear_tokens": 700000
+}
+```
+
+To disable: set `"context_clear_tokens": null` (or `0`).
+
 ### Fixed
 
 - **reflect, hermit-evolution: name the `event` field in routine-metrics fire counts** — prevents silent zero counts when a model confuses `routine-metrics.jsonl`'s `event` field with `proposal-metrics.jsonl`'s `type` field; both skills now explicitly say `event == "fired"` (#375).

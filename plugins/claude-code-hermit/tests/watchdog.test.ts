@@ -584,6 +584,234 @@ test('post_close_clear: flag false → no send even with marker',
     expect(fs.existsSync(state(h, 'clear-requested.json'))).toBe(true);
   }));
 
+// -------------------------------------------------------
+// context-clear tests
+// -------------------------------------------------------
+
+const SESSION_ID = 'S-001';
+
+/** Write a cost-log entry under <hermit.dir>/.claude/cost-log.jsonl. */
+function writeCostLog(h: Hermit, entries: { session_id: string; input_tokens: number; cache_write_tokens: number; cache_read_tokens: number; timestamp?: string }[]): void {
+  const dir = path.join(h.dir, '.claude');
+  fs.mkdirSync(dir, { recursive: true });
+  const lines = entries.map(e => JSON.stringify({
+    timestamp: e.timestamp ?? new Date().toISOString(),
+    session_id: e.session_id,
+    input_tokens: e.input_tokens,
+    cache_write_tokens: e.cache_write_tokens,
+    cache_read_tokens: e.cache_read_tokens,
+    output_tokens: 500,
+    total_tokens: e.input_tokens + e.cache_write_tokens + e.cache_read_tokens + 500,
+    estimated_cost_usd: 1.0,
+  })).join('\n') + '\n';
+  fs.writeFileSync(path.join(dir, 'cost-log.jsonl'), lines);
+}
+
+/** Write config with context_clear_tokens enabled and watchdog.enabled: false (pre-enabled gate). */
+function writeContextClearConfig(h: Hermit, threshold = 700000): void {
+  fs.writeFileSync(path.join(h.dir, '.claude-code-hermit', 'config.json'), JSON.stringify({
+    watchdog: { enabled: false, context_clear_tokens: threshold },
+    heartbeat: { enabled: true, every: '2h', active_hours: { start: '00:00', end: '23:59' } },
+  }, null, 2) + '\n');
+}
+
+/** Write runtime.json for an always-on hermit with given session_state. */
+function writeAlwaysOnRuntime(h: Hermit, session_state = 'idle'): void {
+  patchRuntime(h, { session_state, runtime_mode: 'tmux', session_id: SESSION_ID });
+}
+
+/** Write watchdog-state with a specific last_pane_hash_ctx (simulates second tick). */
+function primeContextHash(h: Hermit, hash: string): void {
+  const p = state(h, 'watchdog-state.json');
+  const existing = fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf-8')) : {};
+  fs.writeFileSync(p, JSON.stringify({ ...existing, last_pane_hash_ctx: hash }) + '\n');
+}
+
+test('context_clear: bloated idle + quiescent + operator silent → /clear sent on 2nd tick',
+  withHermit(async (h) => {
+    writeContextClearConfig(h);
+    writeAlwaysOnRuntime(h, 'idle');
+    // Bloated: 850K prompt-side tokens
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 800000 }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    // Fake tmux returns deterministic pane content so hash matches across both ticks
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    // Tick 1: hash recorded, no /clear yet
+    const r1 = await watchdog(h, 'run');
+    expect(r1.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+
+    // Tick 2: same hash → /clear fires
+    const r2 = await watchdog(h, 'run');
+    expect(r2.exitCode).toBe(0);
+    const tmuxLog = fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8');
+    expect(tmuxLog).toContain('/clear');
+    expect(fs.readFileSync(eventsFile(h), 'utf-8')).toContain('context-clear');
+  }));
+
+test('context_clear: fires for in_progress session (evolve case) when quiescent + bloated',
+  withHermit(async (h) => {
+    writeContextClearConfig(h);
+    writeAlwaysOnRuntime(h, 'in_progress');
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 800000 }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    await watchdog(h, 'run'); // tick 1 — prime hash
+    const r2 = await watchdog(h, 'run'); // tick 2 — should clear
+    expect(r2.exitCode).toBe(0);
+    const tmuxLog = fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8');
+    expect(tmuxLog).toContain('/clear');
+  }));
+
+test('context_clear: fires with watchdog.enabled: false (independent of restart path)',
+  withHermit(async (h) => {
+    // config has enabled: false — verifies context-clear runs before the enabled gate
+    writeContextClearConfig(h);
+    writeAlwaysOnRuntime(h, 'idle');
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 800000 }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    await watchdog(h, 'run'); // tick 1
+    const r2 = await watchdog(h, 'run'); // tick 2
+    expect(r2.exitCode).toBe(0);
+    const tmuxLog = fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8');
+    expect(tmuxLog).toContain('/clear');
+  }));
+
+test('context_clear: under threshold → no /clear',
+  withHermit(async (h) => {
+    writeContextClearConfig(h, 700000);
+    writeAlwaysOnRuntime(h, 'idle');
+    // Only 100K tokens — under threshold
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 50000 }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    primeContextHash(h, crypto.createHash('sha256').update('static pane content\n').digest('hex'));
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+  }));
+
+test('context_clear: threshold 0 → disabled, no /clear',
+  withHermit(async (h) => {
+    writeContextClearConfig(h, 0);
+    writeAlwaysOnRuntime(h, 'idle');
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 800000 }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    primeContextHash(h, crypto.createHash('sha256').update('static pane content\n').digest('hex'));
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+  }));
+
+test('context_clear: interactive mode → no /clear',
+  withHermit(async (h) => {
+    writeContextClearConfig(h);
+    patchRuntime(h, { session_state: 'idle', runtime_mode: 'interactive', session_id: SESSION_ID });
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 800000 }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    primeContextHash(h, crypto.createHash('sha256').update('static pane content\n').digest('hex'));
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+  }));
+
+test('context_clear: transition set → no /clear',
+  withHermit(async (h) => {
+    writeContextClearConfig(h);
+    patchRuntime(h, { session_state: 'idle', runtime_mode: 'tmux', session_id: SESSION_ID, transition: 'cleaning' });
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 800000 }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    primeContextHash(h, crypto.createHash('sha256').update('static pane content\n').digest('hex'));
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+  }));
+
+test('context_clear: operator active < 10 min → no /clear',
+  withHermit(async (h) => {
+    writeContextClearConfig(h);
+    writeAlwaysOnRuntime(h, 'idle');
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 800000 }]);
+    // Operator was active 3 min ago
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(3 / 60) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    primeContextHash(h, crypto.createHash('sha256').update('static pane content\n').digest('hex'));
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+  }));
+
+test('context_clear: pane hash changed between ticks → no /clear (active turn)',
+  withHermit(async (h) => {
+    writeContextClearConfig(h);
+    writeAlwaysOnRuntime(h, 'idle');
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 800000 }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    // Store a hash that won't match (simulates pane animation between ticks)
+    primeContextHash(h, 'different-hash-from-prev-tick');
+    writeFakeTmux(h, 0, 'static pane content'); // returns a different hash than stored
+    writeFakePgrep(h, 1);
+
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+  }));
+
+test('context_clear: no matching session_id in cost-log → no /clear',
+  withHermit(async (h) => {
+    writeContextClearConfig(h);
+    writeAlwaysOnRuntime(h, 'idle');
+    // Cost-log has entries for a different session
+    writeCostLog(h, [{ session_id: 'S-999', input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 800000 }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    primeContextHash(h, crypto.createHash('sha256').update('static pane content\n').digest('hex'));
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+  }));
+
+test('context_clear: idempotence — same entry not re-cleared on subsequent ticks',
+  withHermit(async (h) => {
+    writeContextClearConfig(h);
+    writeAlwaysOnRuntime(h, 'idle');
+    const ts = new Date(Date.now() - 3600_000).toISOString(); // fixed timestamp
+    writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 800000, timestamp: ts }]);
+    fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    writeFakeTmux(h, 0, 'static pane content');
+    writeFakePgrep(h, 1);
+
+    // Simulate that this entry was already cleared: last_cleared_cost_ts matches the ts
+    const wdState = { last_pane_hash_ctx: crypto.createHash('sha256').update('static pane content\n').digest('hex'), last_cleared_cost_ts: ts };
+    fs.writeFileSync(state(h, 'watchdog-state.json'), JSON.stringify(wdState) + '\n');
+
+    const r = await watchdog(h, 'run');
+    expect(r.exitCode).toBe(0);
+    expect(fs.existsSync(path.join(h.dir, 'tmux-calls.log'))).toBe(false);
+  }));
+
 // ---------- inActiveHours unit tests ----------
 // 2026-06-11T03:00:00Z → 12:00 Asia/Tokyo (inside 09:00-17:00), 23:00 America/New_York (outside)
 const ACTIVE_WINDOW = { start: '09:00', end: '17:00' };
