@@ -103,19 +103,22 @@ Out-of-session supervisor that detects dead or wedged sessions and restarts them
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `enabled` | boolean | `false` | Enable the watchdog. No-op if false; `bin/hermit-watchdog run` exits immediately. |
+| `enabled` | boolean | `false` | Enable restart/nudge/re-arm machinery. `enabled: false` disables the wedge-detection and restart path only — `context_clear_tokens` and `post_close_clear` still run on every scheduler tick regardless. |
 | `stale_factor` | number | `2` | Heartbeat staleness multiplier. Session is considered stale when `now - mtime(state/.heartbeat) > stale_factor × heartbeat.every`. |
 | `escalate_after` | integer | `3` | Number of consecutive stale watchdog cycles before escalating from nudge to restart. |
 | `operator_grace` | string | `"15m"` | If `last-operator-action.json` shows activity within this window, the watchdog backs off (operator is mid-conversation). Duration format: `"15m"`, `"1h"`. |
+| `context_clear_tokens` | number \| null | `700000` | Auto-send `/clear` when the last hermit-owned turn's prompt-side tokens (`input + cache_write + cache_read`) exceed this threshold. Prevents scheduled routines from re-reading a bloated context on every wake. Set to `null` or `0` to disable. Only fires on always-on hermits (not interactive), when the session is quiescent (pane unchanged across two scheduler ticks) and the operator has been silent ≥ 10 min. |
 
 **Decision flow (one `run` cycle):**
-1. If `enabled: false` → exit (no-op).
-2. Read `runtime.json` shutdown fields. If operator stopped the hermit intentionally (`shutdown_requested_at`/`shutdown_completed_at` set or `session_state == idle`) → exit.
-3. If the tmux session is gone → restart.
-4. If the heartbeat is stale and the operator is quiet and the pane is frozen for `escalate_after` cycles → restart. Before that threshold: nudge (`/claude-code-hermit:heartbeat run`).
-5. If the in-session 4am `heartbeat-restart` routine missed its fire (last fired > 26h ago) → send-keys re-arm fallback.
+1. If `post_close_clear: true` and session-close marker present → send `/clear`, exit.
+2. If context-clear conditions met (prompt tokens over threshold, always-on, quiescent, operator silent) → send `/clear`, exit.
+3. If `enabled: false` → exit (restart/nudge machinery disabled).
+4. Read `runtime.json` shutdown fields. If operator stopped the hermit intentionally (`shutdown_requested_at`/`shutdown_completed_at` set or `session_state == idle`) → exit.
+5. If the tmux session is gone → restart.
+6. If the heartbeat is stale and the operator is quiet and the pane is frozen for `escalate_after` cycles → restart. Before that threshold: nudge (`/claude-code-hermit:heartbeat run`).
+7. If the in-session 4am `heartbeat-restart` routine missed its fire (last fired > 26h ago) → send-keys re-arm fallback.
 
-Every nudge, restart, and re-arm is appended to `state/watchdog-events.jsonl`. Restarts also set `runtime.json.watchdog_restart_reason`; `session-start` announces the restart to the operator channel.
+Every context-clear, post-close-clear, nudge, restart, and re-arm is appended to `state/watchdog-events.jsonl`. Restarts also set `runtime.json.watchdog_restart_reason`; `session-start` announces the restart to the operator channel.
 
 **Install:** `bin/hermit-watchdog install` — systemd user timer on Linux/WSL2, LaunchAgent on macOS, cron line printed as fallback. Docker hermits don't need `install` — the entrypoint already runs the watchdog on its own ~5 min cycle.
 

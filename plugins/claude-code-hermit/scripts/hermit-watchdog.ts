@@ -25,6 +25,7 @@ import { acquireLock, releaseLock } from './lib/lockfile';
 import { utcISOStamp as utcStamp, currentHHMM } from './lib/time';
 import { writeRuntimeJson, readRuntimeJson, STATE_DIR, LIFECYCLE_LOCK } from './lib/runtime';
 import { tmuxSessionAlive, getSessionName as deriveSessionName } from './lib/tmux';
+import { costLogPath } from './lib/cc-compat';
 
 type Json = any;
 
@@ -282,6 +283,97 @@ function maybePostCloseClear(config: Json): void {
   process.exit(0);
 }
 
+// --- Context-size clear ---
+
+/**
+ * Runs before the watchdog.enabled gate — independent of watchdog restart behavior.
+ * Sends /clear when the last hermit-owned turn exceeded a prompt-side token threshold
+ * and the session is quiescent (pane unchanged across two consecutive ticks).
+ * Guards: always-on only, no in-flight transition, operator silent ≥10 min, no shutdown.
+ */
+function maybeContextClear(config: Json): void {
+  const threshold = config.watchdog?.context_clear_tokens;
+  if (typeof threshold !== 'number' || threshold <= 0) return;
+
+  const runtime = readRuntimeJson();
+  if (!runtime) return;
+
+  // Always-on gate: interactive sessions must never be auto-cleared
+  if (runtime.runtime_mode === 'interactive') return;
+
+  // Transition gate: archiving/cleaning recovery is mid-flight — never interfere
+  if (runtime.transition) return;
+
+  // State gate (exclusion model): only bail on watchdog-internal suspect_process
+  const sessionState: string = runtime.session_state ?? '';
+  if (sessionState === 'suspect_process') return;
+
+  // Shutdown gate
+  if (runtime.shutdown_requested_at || runtime.shutdown_completed_at) return;
+
+  const sessionName: string = runtime.tmux_session ?? '';
+  if (!sessionName) return;
+  if (!tmuxSessionAlive(sessionName)) return;
+
+  // Operator-recency backoff: if operator was active < 10 min, skip
+  const opAge = getOperatorLastActionAgeSecs();
+  if (opAge !== null && opAge < 10 * 60) return;
+
+  // Token check: find the last cost-log entry for this hermit session
+  const sessionId: string = runtime.session_id ?? '';
+  if (!sessionId) return;
+
+  const logPath = costLogPath();
+  let lastEntry: Json = null;
+  try {
+    const lines = fs.readFileSync(logPath, 'utf-8').split('\n');
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line) continue;
+      try {
+        const e = JSON.parse(line);
+        if (e && e.session_id === sessionId) lastEntry = e;
+      } catch {}
+    }
+  } catch {
+    return; // cost-log absent — fail safe
+  }
+  if (!lastEntry) return;
+
+  const prompt =
+    (lastEntry.input_tokens ?? 0) +
+    (lastEntry.cache_write_tokens ?? 0) +
+    (lastEntry.cache_read_tokens ?? 0);
+  if (prompt <= threshold) return;
+
+  // Idempotence: bail if this entry was already cleared
+  const watchdogState = readWatchdogState();
+  if (watchdogState.last_cleared_cost_ts && watchdogState.last_cleared_cost_ts === lastEntry.timestamp) return;
+
+  // Quiescence guard: require pane unchanged across two consecutive ticks
+  const currentHash = getPaneHash(sessionName);
+  const prevHash = watchdogState.last_pane_hash_ctx ?? null;
+  if (currentHash === null || currentHash !== prevHash) {
+    // First qualifying tick — record hash and wait for next tick
+    watchdogState.last_pane_hash_ctx = currentHash;
+    writeWatchdogState(watchdogState);
+    return;
+  }
+
+  // Pane stable across two ticks — safe to clear
+  if (!tryAcquireLifecycleLock()) return;
+  try {
+    sendKeys(sessionName, '/clear');
+    watchdogState.last_cleared_cost_ts = lastEntry.timestamp;
+    watchdogState.last_pane_hash_ctx = null; // reset so next bloat cycle re-arms
+    writeWatchdogState(watchdogState);
+    appendEvent('context-clear', `prompt tokens ${prompt} over threshold ${threshold}`);
+  } finally {
+    releaseLock(LIFECYCLE_LOCK);
+  }
+  process.exit(0);
+}
+
 // --- Main decision loop ---
 
 function main(): void {
@@ -294,8 +386,11 @@ function main(): void {
     process.exit(0);
   }
 
-  // 0. Post-close clear — independent of watchdog.enabled; runs on any hermit with a scheduler
+  // 0a. Post-close clear — independent of watchdog.enabled; runs on any hermit with a scheduler
   maybePostCloseClear(config);
+
+  // 0b. Context-size clear — independent of watchdog.enabled; runs on any always-on hermit
+  maybeContextClear(config);
 
   // 1. Config gate
   const watchdogCfg = config?.watchdog ?? {};

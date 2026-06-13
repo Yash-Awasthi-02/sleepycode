@@ -95,6 +95,7 @@ const DEFAULT_CONFIG: Json = {
     stale_factor: 2,
     escalate_after: 3,
     operator_grace: '15m',
+    context_clear_tokens: 700000,
   },
   post_close_clear: true,
 };
