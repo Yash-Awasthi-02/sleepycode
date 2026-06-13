@@ -8,6 +8,10 @@
   and documents the channel shape, starter message, starter threads, moderation
   notes, and invite publishing checklist.
 
+### Fixed
+
+- **session-start: suppress duplicate startup ping after watchdog context-clear (#385)** — when the watchdog sends `/clear` to refresh a hermit's context (post-close-clear or context-size-clear), a scheduled task could re-invoke `session-start` which re-sent the "Hermit online" channel ping even though the session never stopped. The watchdog now writes `context_cleared: true` to `state/runtime.json` before sending `/clear`; session-start step 3 detects and consumes the marker (sets it to `false`) and suppresses the step-8 startup ping for that invocation only.
+
 ## [1.2.2] - 2026-06-13
 
 ### Added
