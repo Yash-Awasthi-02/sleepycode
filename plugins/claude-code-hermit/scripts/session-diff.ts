@@ -94,7 +94,7 @@ function writeSidecar(changedFiles: { file: string; status: string }[]): void {
   fs.renameSync(SIDECAR_TMP, SIDECAR_PATH);
 }
 
-const RUNTIME_JSON = path.resolve(".claude-code-hermit/state/runtime.json");
+const RUNTIME_JSON = path.join(HERMIT_DIR, "state", "runtime.json");
 const DEBOUNCE_MS = 60 * 1000; // 60 seconds
 
 // Exported run() function for use by stop-pipeline.ts.
