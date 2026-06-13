@@ -66,7 +66,13 @@ With `--dry-run`: stop here. Print the plan and exit without touching anything.
 
 ### 5. Run `/release` for core (if in fleet)
 
-Invoke the full `/release claude-code-hermit` skill logic (all steps, including tag and push — we are on main).
+Invoke the full `/release claude-code-hermit` skill logic through the commit step, then:
+
+```bash
+git push origin main
+```
+
+Then run tag and push (`claude plugin tag --push`) and `gh release create`. The branch push must happen before tagging so the release commit is on the remote before the tag points to it.
 
 ### 6. Inject cross-plugin dep sync
 
@@ -91,7 +97,13 @@ These changes will be staged and committed as part of each domain plugin's `/rel
 
 ### 7. Run `/release` for each domain plugin
 
-For each domain plugin in order, invoke the full `/release <slug>` skill logic (all steps, including tag and push). The updated `hermit-meta.json` from step 6 will be included in the files that release commit touches.
+For each domain plugin in order, invoke the full `/release <slug>` skill logic through the commit step, then:
+
+```bash
+git push origin main
+```
+
+Then tag and push (`claude plugin tag --push`) and `gh release create`. Always push the branch before tagging — same rule as step 5. The updated `hermit-meta.json` from step 6 will be included in the files that release commit touches.
 
 ### 8. Report
 
