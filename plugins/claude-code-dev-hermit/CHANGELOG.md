@@ -1,10 +1,25 @@
 # Changelog
 
-## [Unreleased]
+## [0.4.1] - 2026-06-13
 
 ### Fixed
 
 - **CLAUDE-APPEND: fully-qualify dev-quality and dev-pr back-references** — short-form `/dev-quality` and `/dev-pr` in prose left the model with an ambiguous name; updated all occurrences in §Implementation Flow, §Tests Before PR, and §Dev Quick Reference to the namespaced form so injected templates are internally consistent.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/CLAUDE-APPEND.md` | Fully-qualified `/claude-code-dev-hermit:dev-quality` and `/claude-code-dev-hermit:dev-pr` in §Implementation Flow, §Tests Before PR, §Dev Quick Reference |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Update the plugin** — run `claude plugin update claude-code-dev-hermit` to get the refreshed CLAUDE-APPEND template.
+2. **Re-inject CLAUDE-APPEND** — run `/claude-code-dev-hermit:hatch` in any dev hermit project to re-inject the updated template with the fully-qualified skill names.
+
+No `config.json` changes required.
 
 ## [0.4.0] - 2026-06-12
 
