@@ -274,6 +274,8 @@ function maybePostCloseClear(config: Json): void {
 
   if (!tryAcquireLifecycleLock()) return; // another lifecycle action in flight, retry next tick
   try {
+    runtime.context_cleared = true;
+    writeRuntimeJson(runtime);
     sendKeys(sessionName, '/clear');
     try { fs.rmSync(CLEAR_REQUESTED_JSON); } catch {}
     appendEvent('post-close-clear', 'daily-auto-close context reset');
@@ -363,6 +365,8 @@ function maybeContextClear(config: Json): void {
   // Pane stable across two ticks — safe to clear
   if (!tryAcquireLifecycleLock()) return;
   try {
+    runtime.context_cleared = true;
+    writeRuntimeJson(runtime);
     sendKeys(sessionName, '/clear');
     watchdogState.last_cleared_cost_ts = lastEntry.timestamp;
     watchdogState.last_pane_hash_ctx = null; // reset so next bloat cycle re-arms

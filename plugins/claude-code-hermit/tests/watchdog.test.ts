@@ -81,15 +81,21 @@ function patchRuntime(h: Hermit, patch: Record<string, unknown>): void {
   fs.writeFileSync(p, JSON.stringify({ ...readJson(p), ...patch }) + '\n');
 }
 
-/** Fake tmux: sessionAlive 0 = alive, 1 = dead. send-keys/kill-session log to tmux-calls.log. */
-function writeFakeTmux(h: Hermit, sessionAlive: 0 | 1, paneContent = 'tmux pane content'): void {
+/** Fake tmux: sessionAlive 0 = alive, 1 = dead. send-keys/kill-session log to tmux-calls.log.
+ *  runtimeSnapshotPath: if set, the stub copies runtime.json to this path when it sees send-keys .../clear,
+ *  proving the context_cleared marker was written before the /clear keystroke. */
+function writeFakeTmux(h: Hermit, sessionAlive: 0 | 1, paneContent = 'tmux pane content', runtimeSnapshotPath?: string): void {
   const log = path.join(h.dir, 'tmux-calls.log');
   const stub = path.join(h.fakeBin, 'tmux');
+  const runtimePath = state(h, 'runtime.json');
+  const sendKeysExtra = runtimeSnapshotPath
+    ? `[[ "$*" == *"/clear"* ]] && cat "${runtimePath}" > "${runtimeSnapshotPath}"`
+    : 'true';
   fs.writeFileSync(stub, `#!/usr/bin/env bash
 case "$1" in
   has-session) exit ${sessionAlive} ;;
   capture-pane) echo "${paneContent}" ;;
-  send-keys) echo "send-keys $@" >> "${log}" ;;
+  send-keys) echo "send-keys $@" >> "${log}" ; ${sendKeysExtra} ;;
   kill-session) echo "kill-session $@" >> "${log}" ;;
 esac
 `);
@@ -596,7 +602,8 @@ test('post_close_clear: marker + idle + tmux alive + operator silent → /clear 
     // operator idle 30 min ago
     fs.writeFileSync(state(h, 'last-operator-action.json'),
       JSON.stringify({ at: isoAgo(0.5) }) + '\n');
-    writeFakeTmux(h, 0); // tmux session alive
+    const snapshotPath = path.join(h.dir, 'runtime-at-clear.json');
+    writeFakeTmux(h, 0, 'tmux pane content', snapshotPath); // tmux session alive
     writeFakePgrep(h, 1);
     const r = await watchdog(h, 'run');
     expect(r.exitCode).toBe(0);
@@ -604,6 +611,8 @@ test('post_close_clear: marker + idle + tmux alive + operator silent → /clear 
     expect(tmuxLog).toContain('/clear');
     expect(fs.existsSync(state(h, 'clear-requested.json'))).toBe(false);
     expect(fs.readFileSync(eventsFile(h), 'utf-8')).toContain('post-close-clear');
+    const runtimeAtClear = readJson(snapshotPath);
+    expect(runtimeAtClear.context_cleared).toBe(true);
     // last_run stamp precedes the maybePostCloseClear process.exit(0) (finding 2)
     const ws = readWatchdogStateFile(h);
     expect(typeof ws.last_run).toBe('string');
@@ -739,8 +748,9 @@ test('context_clear: bloated idle + quiescent + operator silent → /clear sent 
     // Bloated: 850K prompt-side tokens
     writeCostLog(h, [{ session_id: SESSION_ID, input_tokens: 50000, cache_write_tokens: 0, cache_read_tokens: 800000 }]);
     fs.writeFileSync(state(h, 'last-operator-action.json'), JSON.stringify({ at: isoAgo(1) }) + '\n');
+    const snapshotPath = path.join(h.dir, 'runtime-at-clear.json');
     // Fake tmux returns deterministic pane content so hash matches across both ticks
-    writeFakeTmux(h, 0, 'static pane content');
+    writeFakeTmux(h, 0, 'static pane content', snapshotPath);
     writeFakePgrep(h, 1);
 
     // Tick 1: hash recorded, no /clear yet
@@ -754,6 +764,8 @@ test('context_clear: bloated idle + quiescent + operator silent → /clear sent 
     const tmuxLog = fs.readFileSync(path.join(h.dir, 'tmux-calls.log'), 'utf-8');
     expect(tmuxLog).toContain('/clear');
     expect(fs.readFileSync(eventsFile(h), 'utf-8')).toContain('context-clear');
+    const runtimeAtClear = readJson(snapshotPath);
+    expect(runtimeAtClear.context_cleared).toBe(true);
   }));
 
 test('context_clear: fires for in_progress session (evolve case) when quiescent + bloated',

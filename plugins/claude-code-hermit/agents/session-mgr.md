@@ -38,6 +38,7 @@ This file is the **single source of truth** for lifecycle decisions. All scripts
 | `shutdown_completed_at` | hermit-stop.py / session-close | Set when shutdown completes cleanly |
 | `last_error` | Any writer | `unclean_shutdown`, `heartbeat_stale`, `missing_tmux_session`, `interrupted_archiving` |
 | `waiting_reason` | session-start, heartbeat, channel-responder | One of: `operator_input`, `unclean_shutdown`, `dead_process`, `conservative_pickup`, `unclean_shutdown_no_channel`, `dead_process_no_channel`. The `_no_channel` variants are set by session-start on push-only setups; they rely on `heartbeat.waiting_timeout` to auto-transition the session to `idle`. Cleared (set to `null`) when exiting `waiting` state. |
+| `context_cleared` | hermit-watchdog.ts (sets `true`); session-start (clears to `false`) | Dual-writer consume-on-read flag. The watchdog writes `true` before sending `/clear` (both `maybePostCloseClear` and `maybeContextClear` paths). Session-start reads it at the top of step 3, sets `suppress_startup_ping` if true, then unconditionally writes `false` — so a later genuine boot never inherits the marker. |
 
 **There is no `Status:` field in SHELL.md.** Lifecycle state lives exclusively in `session_state` (runtime.json). Close outcome (`completed`, `partial`, `blocked`) flows through the session-close → session-mgr payload — never extracted from SHELL.md.
 
