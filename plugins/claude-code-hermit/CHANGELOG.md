@@ -5,6 +5,7 @@
 ### Fixed
 
 - **capability-brainstorm: use fully-qualified skill name for proposal-create** — short-form `/proposal-create` fails when the model autonomously invokes a skill; changed to `/claude-code-hermit:proposal-create` so the Skill tool resolves it correctly.
+- **proposal-act/reflect/proposal-create: fully-qualify skill-creator invocations** — short-form `/skill-creator` fails when the model invokes the skill (procedure-capture install, skill-improvement, `NEXT-TASK.md` plan bullets); changed to `/skill-creator:skill-creator` so the Skill tool resolves it.
 
 ### Added
 
