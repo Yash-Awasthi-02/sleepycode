@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- **reflect, hermit-evolution: name the `event` field in routine-metrics fire counts** — prevents silent zero counts when a model confuses `routine-metrics.jsonl`'s `event` field with `proposal-metrics.jsonl`'s `type` field; both skills now explicitly say `event == "fired"` (#375).
+
 ## [1.2.1] - 2026-06-12
 
 ### Fixed
