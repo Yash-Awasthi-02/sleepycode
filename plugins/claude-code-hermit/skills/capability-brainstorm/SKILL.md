@@ -15,32 +15,45 @@ bun ${CLAUDE_PLUGIN_ROOT}/scripts/proposal-metrics-report.ts .claude-code-hermit
 
 Triage-survival < 25% or acceptance < 30% → cut this skill rather than tune it — the signal-to-noise ratio isn't there. `INSUFFICIENT` output means the ≥8-verdict sample hasn't been reached yet; wait and re-check.
 
-## 1. Gather inputs
+## 1. Gather capability signals (harness-context — read before dispatch)
 
-Read all four sources in parallel — they are independent.
+These three sources require the main session's harness context and cannot be delegated:
 
-**Memory**
-Read `MEMORY.md` (the index). For each entry whose title or description keyword-matches the current project domain or recent session topics, read that topic file. Aim for 3–5 relevant files; don't read the full corpus.
-
-**Capabilities** (issue these three reads simultaneously)
-- *Skills:* use the harness available-skills list loaded in your context — that is authoritative. Sibling-scan `${CLAUDE_PLUGIN_ROOT}/../*/.claude-plugin/plugin.json` for plugin presence and version metadata only (not skill lists).
+- *Skills:* use the harness available-skills list loaded in your context — that is authoritative.
 - *MCPs:* call `ListMcpResourcesTool` to enumerate currently online MCP tools.
 - *Channels:* read `config.json` → `channels` keys.
 
-**Compiled artifacts**
-Glob `.claude-code-hermit/compiled/*.md`. For files modified within the last 30 days, read the first 15 lines only (covers frontmatter + opening paragraph). Skip files older than 30 days.
+## 2. Dispatch the eval runner
 
-**Codebase shape**
-Read repo `README.md`, `CLAUDE.md`, and `ls` of the repo root (one level deep, no recursion).
+Pass the capability signals from Step 1 in the dispatch prompt. Dispatch `claude-code-hermit:skill-eval-runner` pointed at `${CLAUDE_PLUGIN_ROOT}/skills/capability-brainstorm/reference.md`. Include in the dispatch prompt:
+- `skills_list`: the harness available-skills list (one skill per line)
+- `mcp_tools`: the `ListMcpResourcesTool` output
+- `channels_keys`: the `channels` key list from config.json
 
-## 2. Generate ideas (max 2)
+The runner reads memory topic files, compiled artifacts, and codebase shape in an isolated context, generates ≤2 ideas (applying the friction + grounding constraints), and returns the structured result.
 
-Think across all four inputs simultaneously. For each candidate idea, apply both constraints before including it:
+**Eval runner return schema** — the runner's return value is a JSON object conforming to this block. The schema is byte-identical in `reference.md` (producer) and here (consumer); a contract test asserts this.
 
-1. **Concrete friction** — state the operator pain in one sentence: what happens today that this would fix or prevent. If you cannot name a specific pain (not "combines A and B usefully"), discard the idea.
-2. **≥2 named grounding items** — cite at least two specific items by name (e.g., `memory:user_dev_workflow.md`, `mcp:Hassio.executar_bom_dia`, `skill:weekly-review`, `plugin:claude-code-fitness-hermit`). These are supporting evidence, not a checklist — the friction is the bar.
+<!-- brainstorm-eval-schema:start -->
+```json
+{
+  "ideas": [
+    {
+      "title": "<short idea title>",
+      "description": "<one-line description>",
+      "friction": "<one-sentence operator pain>",
+      "grounding": ["<item 1>", "<item 2>"],
+      "effort": "hours|days",
+      "evidence_summary": "<one-paragraph friction + grounding for proposal-create>"
+    }
+  ],
+  "discarded": ["<one-line discarded idea>"],
+  "inputs_scanned": ["<title or path of each source scanned>"]
+}
+```
+<!-- brainstorm-eval-schema:end -->
 
-Cap at 2 ideas that pass both constraints. Emit-zero if none do. Record discarded ideas (one line each) for the artifact.
+**Failure policy:** if the runner returns null or malformed JSON, treat as a zero-ideas result — proceed to Steps 3–5 with `ideas: []`, `discarded: []`, `inputs_scanned: []`, and note the failure in the batch message as `0 ideas emitted (analysis-runner failed)`.
 
 ## 3. Create proposals (single-pass via `/claude-code-hermit:proposal-create`)
 

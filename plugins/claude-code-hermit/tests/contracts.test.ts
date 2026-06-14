@@ -1268,3 +1268,102 @@ describe('template-manifest doctor contract', () => {
     expect(s.status).toBe('ok');
   }), 20000);
 });
+
+// ============================================================
+// brief delegation contract (TestBriefDelegationContract)
+//
+// brief dispatches archived-report/cost/proposal reads to the shared
+// skill-eval-runner. Guards against: losing the fully-qualified agent reference
+// and producer/consumer schema drift between reference.md and SKILL.md.
+// ============================================================
+
+describe('brief delegation contract', () => {
+  const skill = read(path.join(SKILLS, 'brief', 'SKILL.md'));
+  const refFile = read(path.join(SKILLS, 'brief', 'reference.md'));
+
+  test('SKILL.md dispatches skill-eval-runner fully-qualified with reference.md', () => {
+    expect(skill).toContain('claude-code-hermit:skill-eval-runner');
+    expect(skill).toContain('skills/brief/reference.md');
+  });
+
+  test('schema block is byte-identical in reference.md and SKILL.md', () => {
+    const block = (text: string) => extractBlock(text, '<!-- brief-eval-schema:start -->', '<!-- brief-eval-schema:end -->');
+    expect(block(refFile)).toBe(block(skill));
+  });
+});
+
+// ============================================================
+// hermit-brain delegation contract (TestHermitBrainDelegationContract)
+//
+// hermit-brain dispatches the session-report / proposal / reflection-state reads
+// to skill-eval-runner to keep those full-body reads off the main session.
+// Guards against: losing the fully-qualified agent reference and
+// producer/consumer schema drift between reference.md and SKILL.md.
+// Generic skill-eval-runner invariants (stays generic, no memory/model override)
+// are already covered by the reflect delegation contract above.
+// ============================================================
+
+describe('hermit-brain delegation contract', () => {
+  const skill = read(path.join(SKILLS, 'hermit-brain', 'SKILL.md'));
+  const refFile = read(path.join(SKILLS, 'hermit-brain', 'reference.md'));
+
+  test('SKILL.md dispatches skill-eval-runner fully-qualified with reference.md', () => {
+    expect(skill).toContain('claude-code-hermit:skill-eval-runner');
+    expect(skill).toContain('skills/hermit-brain/reference.md');
+  });
+
+  test('schema block is byte-identical in reference.md and SKILL.md', () => {
+    const block = (text: string) => extractBlock(text, '<!-- hermit-brain-eval-schema:start -->', '<!-- hermit-brain-eval-schema:end -->');
+    expect(block(refFile)).toBe(block(skill));
+  });
+});
+
+// ============================================================
+// hermit-evolution delegation contract (TestHermitEvolutionDelegationContract)
+//
+// hermit-evolution dispatches the weekly-review / session-report / proposal-metrics
+// reads (and bun script runs) to skill-eval-runner to keep that heavy context
+// off the main session.
+// Guards against: losing the fully-qualified agent reference and
+// producer/consumer schema drift between reference.md and SKILL.md.
+// ============================================================
+
+describe('hermit-evolution delegation contract', () => {
+  const skill = read(path.join(SKILLS, 'hermit-evolution', 'SKILL.md'));
+  const refFile = read(path.join(SKILLS, 'hermit-evolution', 'reference.md'));
+
+  test('SKILL.md dispatches skill-eval-runner fully-qualified with reference.md', () => {
+    expect(skill).toContain('claude-code-hermit:skill-eval-runner');
+    expect(skill).toContain('skills/hermit-evolution/reference.md');
+  });
+
+  test('schema block is byte-identical in reference.md and SKILL.md', () => {
+    const block = (text: string) => extractBlock(text, '<!-- hermit-evolution-eval-schema:start -->', '<!-- hermit-evolution-eval-schema:end -->');
+    expect(block(refFile)).toBe(block(skill));
+  });
+});
+
+// ============================================================
+// capability-brainstorm delegation contract (TestCapabilityBrainstormDelegationContract)
+//
+// capability-brainstorm dispatches the memory / compiled-artifact / codebase reads
+// (and idea generation) to skill-eval-runner. Harness-context signals (skills list,
+// MCPs, channels) are gathered in main and passed via the dispatch prompt.
+// Guards against: losing the fully-qualified agent reference and
+// producer/consumer schema drift between reference.md and SKILL.md.
+// ============================================================
+
+describe('capability-brainstorm delegation contract', () => {
+  const skill = read(path.join(SKILLS, 'capability-brainstorm', 'SKILL.md'));
+  const refFile = read(path.join(SKILLS, 'capability-brainstorm', 'reference.md'));
+
+  test('SKILL.md dispatches skill-eval-runner fully-qualified with reference.md', () => {
+    expect(skill).toContain('claude-code-hermit:skill-eval-runner');
+    expect(skill).toContain('skills/capability-brainstorm/reference.md');
+  });
+
+  test('schema block is byte-identical in reference.md and SKILL.md', () => {
+    const block = (text: string) => extractBlock(text, '<!-- brainstorm-eval-schema:start -->', '<!-- brainstorm-eval-schema:end -->');
+    expect(block(refFile)).toBe(block(skill));
+  });
+});

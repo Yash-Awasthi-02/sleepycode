@@ -10,26 +10,25 @@ Synthesize a compact analytical snapshot of the hermit's current knowledge state
 
 If this skill was invoked from a channel-arrived message (the inbound prompt contains a `<channel source="...">` tag), reply via that channel's reply tool. Otherwise emit to conversation.
 
-## Scope
+## Step 1 — Dispatch the eval runner
 
-Read the following (gracefully skip any file that doesn't exist):
+Dispatch `claude-code-hermit:skill-eval-runner` pointed at `${CLAUDE_PLUGIN_ROOT}/skills/hermit-brain/reference.md`. The runner reads the session reports, proposals, SHELL.md, and reflection state in an isolated context and returns the assembled snapshot — keeping those full-body reads off this session's inherited context.
 
-1. `.claude-code-hermit/sessions/SHELL.md` — current session context, tags, blockers
-2. `.claude-code-hermit/sessions/S-*-REPORT.md` — glob all, sort descending by filename, read the 5 most recent; parse `status`, `tags`, `proposals_created` frontmatter
-3. `.claude-code-hermit/proposals/PROP-*.md` — glob all; for each read `id`, `title`, `status`, `accepted_date`, `resolved_date`, `tags` from frontmatter
-4. `.claude-code-hermit/state/reflection-state.json` — `last_reflection`, `queue` (pending micro-proposals and reflect candidates)
+**Eval runner return schema** — the runner's return value is a JSON object conforming to this block. The schema is byte-identical in `reference.md` (producer) and here (consumer); a contract test asserts this.
 
-## Analysis
+<!-- hermit-brain-eval-schema:start -->
+```json
+{
+  "report": "<assembled ≤1500-char report, section structure above>"
+}
+```
+<!-- hermit-brain-eval-schema:end -->
 
-**Fragile zones:** From the last 5 session reports, gather the `tags` array from sessions with `status: partial` or `status: blocked`. Also gather `tags` from proposals with `status: dismissed` or `status: blocked`. Surface the top 2–3 tag clusters that appear repeatedly across fragile outcomes. If no blocked/partial sessions exist: "No fragile zones detected."
+**Failure policy:** if the runner returns null or malformed JSON, fail-open — deliver a one-line "hermit-brain: snapshot unavailable (analysis-runner failed)" via the Step 0 target and stop.
 
-**Stale proposals:** From proposals, find those with `status: accepted` and `resolved_date` absent or `null`. Sort by `accepted_date` ascending (oldest first). Show up to 3. Compute days open = today minus `accepted_date`. If none: "No accepted proposals awaiting resolution."
+## Step 2 — Deliver
 
-**Recent learnings:** From `reflection-state.json`, read `queue` entries with `status: accepted` or `status: pending` and surface the most recent 3 question/observation fields. If the queue is empty or absent, scan the current SHELL.md Progress Log for notable Findings entries (lines beginning with `-` under `## Findings`). Surface top 3. If nothing: "No recent learnings — reflect hasn't run yet."
-
-## Output
-
-Reply in ≤1500 chars. Use exactly this section structure:
+Deliver the runner's `report` verbatim (≤1500 chars) via the Step 0 target. The runner already omits empty sections; do not re-synthesize. For reference, the report uses this section structure:
 
 ```
 ### Fragile zones
@@ -44,5 +43,3 @@ Reply in ≤1500 chars. Use exactly this section structure:
 - [learning]
 (or: No recent learnings — reflect hasn't run yet.)
 ```
-
-Omit sections that have no data rather than showing a heading with an empty body. Keep each bullet to one line.
