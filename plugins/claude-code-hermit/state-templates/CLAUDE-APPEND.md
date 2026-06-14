@@ -28,6 +28,7 @@
 - `reflection-judge` (Sonnet) — post-reflect validator: verifies cross-session evidence citations exist before proposals are queued
 - `hermit-config-validator` (Haiku) — lightweight config.json validator: checks required keys, types, routine times, channel structure, env naming. Use after hermit-settings, hermit-evolve, or any config mutation.
 - `quality-gate-judge` (Haiku) — decides whether `/claude-code-hermit:simplify` should run at step (e.5) of `/proposal-act` accept flow; reads proposal body + touched files, returns RUN/SKIP verdict. Only invoked when `quality_gate.tier: "balanced"`.
+- `evolve-runner` (Sonnet) — runs the hermit-evolve upgrade (steps 0–9) in an isolated context so upgrades don't pollute the session; escalates undecidable migration choices back to the main loop.
 
 ## Watches
 

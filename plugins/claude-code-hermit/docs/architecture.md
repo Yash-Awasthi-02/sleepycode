@@ -79,9 +79,10 @@ SHELL.md tasks,  status,   S-NNN-REPORT.md,
 
 ## Layer 3: Agent Layer
 
-| Agent         | Model  | Max Turns | Role                                 |
-| ------------- | ------ | --------- | ------------------------------------ |
-| `session-mgr` | Sonnet | 15        | Session lifecycle, progress tracking |
+| Agent           | Model  | Max Turns | Role                                            |
+| --------------- | ------ | --------- | ----------------------------------------------- |
+| `session-mgr`   | Sonnet | 15        | Session lifecycle, progress tracking            |
+| `evolve-runner` | Sonnet | 50        | Runs the hermit-evolve upgrade in isolation     |
 
 Tools: Read, Write, Edit, Bash, Glob, Grep. No web access. Uses `memory: project` for accumulated knowledge across sessions.
 

@@ -1,19 +1,31 @@
 ---
 name: hermit-evolve
-description: Evolves hermit configuration and templates after a plugin update. Detects version gaps, presents new features, walks through new settings. Run after updating the plugin.
+description: Evolves hermit configuration and templates after a plugin update. Detects version gaps and runs the upgrade (migrations, templates, new settings) in an isolated subagent. Run after updating the plugin.
 ---
 
 # Evolve Hermit
 
 Upgrade the project's hermit configuration after a plugin update.
 
-## Unattended mode
+## Execution routing
 
-Active when invoked with the positional argument `unattended` (e.g. `/claude-code-hermit:hermit-evolve unattended`), or as a fallback when running in an always-on session invoked via channel. In this mode the upgrade must complete without operator input:
+Every run of this skill (interactive or unattended) delegates steps 0–9 to the `claude-code-hermit:evolve-runner` subagent, so the upgrade's transient churn (changelog slice, migration execution, file diffs) never lands in the calling session. The main loop keeps only step 10 (summary + operator notification).
 
-- **Never call `AskUserQuestion` at any step** — including the migration steps (2b, 7) that execute `### Upgrade Instructions`. Each step's unattended behavior is stated inline below.
-- For any interactive choice with a safe non-destructive default (new settings, file deletions, `## Plan` strip), take the default silently and report it in the Step 10 channel notification.
-- For a genuine either/or with no safe default, **defer**: leave state untouched and log a channel line `"migration step deferred for operator review: <desc>"`. Never guess.
+> **Tool note:** `claude-code-hermit:evolve-runner` is a **subagent** — invoke it via the Agent tool, never the Skill tool. The `plugin:name` form it shares with skills does not imply the Skill tool.
+
+- **If you are running AS the `evolve-runner` subagent**, skip this section and execute steps 0–9 directly (you are the delegate — do not re-dispatch).
+- **Otherwise (main loop, any mode):**
+  1. **Determine the mode** and remember it for step 10: positional argument `unattended`, or running in an always-on session invoked via channel ⇒ *unattended*; else *interactive*.
+  2. **Bake the absolute plugin root** to thread to the subagent (it cannot resolve it itself — the bare env var `$CLAUDE_PLUGIN_ROOT` is **not** set at Bash runtime, and the value is empty inside subagents). Derive it from this skill's **Base directory**, which the harness injects in the skill invocation context as `<plugin_root>/skills/hermit-evolve`: strip the trailing `/skills/hermit-evolve` to get `plugin_root`. This works in both installed and `--plugin-dir` modes. (In installed mode this equals the harness's `${CLAUDE_PLUGIN_ROOT}` substitution, which step 1 relies on; the Base-directory derivation is the mode-independent source.) **Guard:** confirm `test -f "<plugin_root>/skills/hermit-evolve/SKILL.md"`. If it fails, **abort** — log `"hermit-evolve aborted: plugin root unresolved; cannot dispatch evolve-runner."` and stop. Do not dispatch with a broken path.
+  3. **Dispatch** the `claude-code-hermit:evolve-runner` subagent via the Agent tool. Pass the baked absolute plugin root and the report contract (below). Do **not** execute steps 0–9 yourself.
+  4. **Go to step 10** with the subagent's returned report.
+
+## Delegated mode
+
+Steps 0–9 below are executed by the `evolve-runner` subagent, which has no `AskUserQuestion` and cannot pause to ask. Each step's **"Delegated mode:"** note states the non-interactive behavior. The rule in every case: never guess on a destructive choice, never block.
+
+- For any interactive choice with a safe non-destructive default (new settings, file deletions, `## Plan` strip, template conflicts), take the default silently and report it.
+- For a genuine either/or with **no safe default** (an `### Upgrade Instructions` migration step in 2b/7), **defer**: skip that step and record a verbatim deferred-migration block in the report (see the report contract in step 10). Never guess. Step 10 resolves it — interactive asks the operator, unattended relays it to the channel.
 
 ## Plan
 
@@ -93,8 +105,8 @@ Within `changelog_slice` (already ordered oldest-first), each version entry may 
 
 1. Find the `### Upgrade Instructions` section within each version's entry
 2. If found, execute every instruction in that section — these are the authoritative migration steps
-3. Present version-specific operator notes as you go
-4. If a step is interactive (asks the operator a question): in normal mode, ask it before proceeding. **In unattended mode, do not ask** — apply the non-destructive default (e.g. a delete/cleanup offer → keep the file) or defer per the Unattended mode rules, and note it for the Step 10 channel report.
+3. Collect any version-specific operator notes for the step-10 report (delegated mode has no operator to present to live)
+4. **Delegated mode:** if a step is interactive (poses an either/or), do not ask. Apply the non-destructive default (e.g. a delete/cleanup offer → keep the file) and note it for step 10. If the step has **no safe default**, **defer** — skip it and record a verbatim deferred-migration block per the Delegated mode rules.
 
 The CHANGELOG.md `### Upgrade Instructions` sections are the single source of truth for migrations — do not skip or merely display them. The same pattern applies to sibling-hermit upgrades in Step 7.
 
@@ -102,38 +114,24 @@ The CHANGELOG.md `### Upgrade Instructions` sections are the single source of tr
 
 The plan's `new_config_keys` array lists every key in the current `config.json.template` that is missing from the project's config, each as `{path, default}` — a dotted `path` for a nested leaf, or a fully-absent parent carrying its whole default subtree. Operator-set values are never listed, so acting on these never overwrites them.
 
-### 4. Ask about new settings
+### 4. Apply new settings
 
-For each entry in the plan's `new_config_keys`, check the interactive allowlist below. If the entry's `path` is interactive, ask the operator. **Every other key — including template-only keys not enumerated below — is added silently with its `default` from the plan.** Batch interactive questions into a single numbered list.
+**Delegated mode:** add **every** entry in the plan's `new_config_keys` silently with its `default` from the plan — operator-set values are never listed by the plan, so this never overwrites a choice. There is no prompting (the subagent can't `AskUserQuestion`). The former identity/preference keys below are almost always already set by evolve time, so they rarely appear; when one does, it takes the plan `default` and the operator adjusts via `/hermit-settings`. Collect every silently-set key for the step-10 report. If `new_config_keys` is empty, skip this step.
 
-**Unattended mode:** do not ask — set every interactive key silently to its plan `default` (`language`/`timezone` keep their auto-detected default), and list the silently-set keys in the Step 10 channel notification ("adjust via /hermit-settings").
-
-**Interactive keys** (ask operator if missing):
-- `agent_name` (0.0.1), `language` (0.0.1, auto-detect from `$LANG`), `timezone` (0.0.1, auto-detect), `escalation` (0.0.1), `idle_behavior` (0.0.9)
-- `sign_off` (0.0.1) — only if `agent_name` is set
-- `remote` (0.0.1): default `true`
-
-**Silent keys** (add with default if missing):
-- `always_on` (0.0.1): `false` | `auto_session` (0.0.1): `true`
-- `model` (0.0.1): `"sonnet"` | `permission_mode` (0.0.1): `"auto"`
+Special-default keys (apply the noted default when the key is in `new_config_keys`):
+- `language` (0.0.1) / `timezone` (0.0.1): when missing, the subagent **auto-detects** the value (`$LANG` / system timezone via `date +%Z`/`timedatectl`) and writes that, rather than the static plan default. (These are 0.0.1 keys, set at hatch, so they are almost never missing at evolve time.)
+- `remote` (0.0.1): `true` · `agent_name` (0.0.1) / `sign_off` (0.0.1) / `escalation` (0.0.1) / `idle_behavior` (0.0.9): plan default (operator tunes via `/hermit-settings`).
+- `always_on` (0.0.1): `false` | `auto_session` (0.0.1): `true` | `model` (0.0.1): `"sonnet"` | `permission_mode` (0.0.1): `"auto"`
 - `tmux_session_name` (0.0.1): `"hermit-{project_name}"` | `chrome` (0.0.1): `false` | `push_notifications` (1.1.2): `true`
 - `channels` (0.0.1): `{}` | `monitors` (0.3.14): `[]`
 - `heartbeat.waiting_timeout` (0.3.0): `null` | `heartbeat.stale_threshold` (0.0.9): `"2h"`
-- `routines` (0.0.9): `[]`
-- `scheduled_checks` (0.3.1): `[]`
+- `routines` (0.0.9): `[]` | `scheduled_checks` (0.3.1): `[]`
 - `env` (0.0.7): `{"AGENT_HOOK_PROFILE":"standard","COMPACT_THRESHOLD":"75","CLAUDE_AUTOCOMPACT_PCT_OVERRIDE":"65","MAX_THINKING_TOKENS":"10000"}`
 - `docker` (0.0.7): `{"packages":[],"recommended_plugins":[]}`
 - `compact` (0.0.7): `{"monitoring_threshold":30,"monitoring_keep":20,"summary_threshold":30,"summary_keep":15}`
 - `knowledge` (0.4.0): `{"raw_retention_days":14,"compiled_budget_chars":2500,"working_set_warn":20}`
 
-**Prompts** — use the exact same `AskUserQuestion` structures as hatch Phase 2 (see `skills/hatch/SKILL.md`):
-- `agent_name`: AskUserQuestion with options (Atlas / Hermit / Skip) + Other for custom input
-- `language` + `timezone`: single batched AskUserQuestion, auto-detected value as first option
-- `escalation`: AskUserQuestion with options (Balanced / Conservative / Autonomous)
-- `sign_off`: AskUserQuestion with options ({name} out. / -- {initial}. / Skip) — only if agent_name was set
-- `idle_behavior`: AskUserQuestion with options (Discover / Wait)
-
-Tell the operator: "New settings available in this version:" then present only the questions for keys that are actually missing from their config. If no interactive keys are missing, skip this step.
+The actual write happens in step 9 (merge into config, missing-only); this step just records which keys to set.
 
 ### 4-task. Write task list ID to settings.local.json
 
@@ -142,7 +140,7 @@ If `CLAUDE_CODE_TASK_LIST_ID` is not already set in `.claude/settings.local.json
 1. Derive: `hermit-{project_basename}` (lowercase, alphanumeric + hyphens)
 2. Read `.claude/settings.local.json`, merge into `env` block, write back
 
-Also: if an active SHELL.md has a `## Plan` section (legacy plan table), warn the operator: "Close active sessions before upgrading, or the old plan table will be orphaned." Strip the `## Plan` section from the active SHELL.md if operator confirms. **Unattended mode: warn only — never strip.**
+Also: if an active SHELL.md has a `## Plan` section (legacy plan table), note it for the step-10 report: "Close active sessions before upgrading, or the old plan table will be orphaned." **Delegated mode: warn only — never strip** (stripping needs operator confirmation, which the subagent can't get).
 
 ### 5. Update templates
 
@@ -152,8 +150,7 @@ Also: if an active SHELL.md has a `## Plan` section (legacy plan table), warn th
 - **`unmodified`**: operator never customized it (baseline == on-disk, or no manifest entry). Copy upstream over it silently.
 - **`customized-kept`**: operator edited it and the template hasn't moved. **Keep the operator's copy unchanged.** Collect in a summary line at the end: "Kept N operator-customized template(s): `<name>`, ..."
 - **`conflict`**: both the operator and the template changed since hatch.
-  - **Interactive session** (operator typed the command): present a three-way diff summary and `AskUserQuestion` with options: "Keep mine" / "Take new" / "Merge manually later". Default: keep mine. If "Take new": copy upstream over it and preserve old copy as `<name>.bak`. If "Merge manually": write upstream as `<name>.new` beside the operator's copy, leave the operator's copy live.
-  - **Unattended mode**: write upstream as `<name>.new` beside the operator's copy, keep operator's copy live. Report one channel line: "N template conflict(s) parked as .new — review when convenient: `<name>`, ..."
+  - **Delegated mode** (always — non-boot templates): write upstream as `<name>.new` beside the operator's copy, keep the operator's copy live (lossless; conflict resolution needs a prompt the subagent can't issue). Collect for the step-10 report: "N template conflict(s) parked as .new — review when convenient: `<name>`, ..."
 
 If `templates_changed` is empty, skip.
 
@@ -251,7 +248,7 @@ Same logic as init step 8, but target the file determined by `hatch_target` (res
 - `hatch_target == "local"` → `.claude/settings.local.json`
 - `hatch_target == "committed"` → `.claude/settings.json`
 
-Check the target settings file for the plugin's required permissions (`git diff/status/log`, per-script `bun` entries, the SessionStart `bash -c` hook, and `Edit`/`Write` on `.claude-code-hermit/**`). The required entries are: `cost-tracker.ts`, `suggest-compact.ts`, `run-with-profile.ts`, `evaluate-session.ts`, `append-metrics.ts`, `generate-summary.ts`, `cron-tz-shift.ts`, `archive-shell.ts`, `evolve-plan.ts`. If any are missing, show the operator which ones and ask for confirmation before adding. **Unattended mode: add the missing entries without asking** (a missing `bun` permission breaks hooks, so this is non-optional), and report them loudly in the run report + Step 10 channel notification. Only add missing entries — never remove existing ones. If all are already present, skip silently. Also remove stale permissions from previous versions if found in the target file:
+Check the target settings file for the plugin's required permissions (`git diff/status/log`, per-script `bun` entries, the SessionStart `bash -c` hook, and `Edit`/`Write` on `.claude-code-hermit/**`). The required entries are: `cost-tracker.ts`, `suggest-compact.ts`, `run-with-profile.ts`, `evaluate-session.ts`, `append-metrics.ts`, `generate-summary.ts`, `cron-tz-shift.ts`, `archive-shell.ts`, `evolve-plan.ts`. **Delegated mode: add any missing entries without asking** (a missing `bun` permission breaks hooks, so this is non-optional), and collect them for the step-10 report. Only add missing entries — never remove existing ones. If all are already present, skip silently. Also remove stale permissions from previous versions if found in the target file:
 
 - `Bash(python3:*)`, `Bash(node:*)` — replaced by scoped bun entries
 - `Edit(.claude/.claude-code-hermit/**)`, `Write(.claude/.claude-code-hermit/**)` — replaced by `.claude-code-hermit/**` (v0.0.6 path change)
@@ -259,46 +256,50 @@ Check the target settings file for the plugin's required permissions (`git diff/
 ### 9. Write updated config
 
 - **Re-read `.claude-code-hermit/config.json` now** — Step 2b migrations may have written keys since the pre-pass ran.
-- For each entry in `new_config_keys` (plus interactive answers from Step 4), set `path` to its value **only if that path is still missing** in the freshly-read config. Never overwrite an existing operator or migration-set value.
+- For each entry in `new_config_keys` (with the defaults applied in Step 4), set `path` to its value **only if that path is still missing** in the freshly-read config. Never overwrite an existing operator or migration-set value.
 - Update `_hermit_versions["claude-code-hermit"]` to the current plugin version (the plan's `to`)
 - For hermits: only update versions for hermits already present as keys in `_hermit_versions` — never add new keys here
 - Write to `.claude-code-hermit/config.json`
 
 ### 10. Report
 
-Print a summary:
+**Step 10 runs in the main loop** (not the subagent), consuming the `evolve-runner`'s returned report. The subagent's report is the single source for what follows.
+
+**Report contract** — the subagent's final message is exactly this; non-deferred runs carry no deferred block, so the common payload is tiny:
 
 ```
-Upgrade complete: vOLD -> vNEW
-
-New settings configured:
-  Agent name:  Atlas
-  Language:    pt
-  Timezone:    Europe/Lisbon
-  Escalation:  balanced
-  Sign-off:    Atlas out.
-
-Templates updated:
-  SHELL.md.template (refreshed)
-  SESSION-REPORT.md.template (unchanged)
-  PROPOSAL.md.template (unchanged)
-
-CLAUDE.md:
-  Session discipline block updated
-
-Hermits:
-  example-hermit: v0.2.0 -> v0.3.0 (updated)
-
-Run /claude-code-hermit:hermit-settings to adjust any settings.
+Upgrade: vOLD -> vNEW | already up to date | blocked: <reason>
+Settings added: <keys | none>
+Templates: <refreshed/restored/kept-N/conflicts-parked-N | none>
+Bin wrappers: <restored/replaced(.bak) | none>
+Docker entrypoint: <refreshed | conflict-replaced(<backup path>) | n/a>
+Docker rebuild: <needed + order | no>
+CLAUDE-APPEND: <updated | unchanged>
+Sibling hermits: <name vOLD->vNEW ... | none>
+Permissions added: <entries | none>
+Deferred for operator: <none | one or more verbatim blocks, each:>
+  --- deferred-migration ---
+  source: <plugin>@<version>
+  instruction: |
+    <exact verbatim ### Upgrade Instructions step text — copied, not summarized>
+  options: <the either/or choices presented>
+  skipped: <the safe/no-op branch taken, or "skipped pending operator">
+  --- end ---
 ```
 
-Adjust the summary based on what actually changed. Omit sections where nothing changed.
+**Failure fallback.** If the Agent call returned null/empty (subagent died — same partial-state risk as an in-loop failure), report "evolve delegation failed — run `/claude-code-hermit:hermit-evolve` manually" and fire that as the channel notification. Stop.
 
-**Docker rebuild notice.** If the plan's `docker_entrypoint` was a `conflict`/`unmodified` that you refreshed in Step 5c, OR `docker_templates` (from F2) is non-empty, append a `Docker:` section telling the operator a rebuild is needed and in what order:
+**Print the summary** from the report fields. Omit lines where nothing changed. End with "Run /claude-code-hermit:hermit-settings to adjust any settings." if settings were added.
 
-- Entrypoint refreshed (Step 5c) → "Docker entrypoint refreshed. Rebuild to apply: `.claude-code-hermit/bin/hermit-docker update`."
-- `docker_templates` entries with `status: "changed"` (compose/Dockerfile moved upstream) → "Docker template(s) changed upstream: `<names>`. These render with your config, so refresh them FIRST, then rebuild — in this order: (1) re-run `/claude-code-hermit:docker-setup` (it backs up and re-renders), (2) THEN `hermit-docker update`. Rebuilding first bakes the stale on-disk files into the image." Lead with the compose file; the entrypoint is already handled by Step 5c.
-- `docker_templates` entries with `status: "unknown"` → "Docker template baseline not recorded (deployed before this version). Run `/claude-code-hermit:docker-setup` once to arm the drift signal; until then a rebuild can't be drift-checked."
-- Never auto-rebuild. In unattended mode this whole section is report-only and rides the channel notification below.
+**Resolve deferrals by mode.** If "Deferred for operator" is non-empty:
+- **Interactive:** for each deferred-migration block, present its `instruction` + `options` to the operator via `AskUserQuestion`, then apply the chosen branch inline (this is the only place changelog/migration text re-enters the main loop, and only for the rare deferred step).
+- **Unattended:** relay each deferred block to the channel verbatim ("migration deferred for operator review: <source> — <instruction>"). Do not apply.
+- **Version-bump caveat (both modes):** the subagent already bumped `_hermit_versions` to `<to>` in step 9, having *skipped* the deferred migration. We keep that bump — withholding it would replay the whole oldest-first slice next evolve and double-apply non-idempotent migrations. So if an interactive apply **fails or the operator declines**, report loudly (summary + channel): "version already bumped to v`<to>`; migration `<source>` was NOT applied; apply manually: `<instruction>`" — otherwise a rerun-says-up-to-date would silently hide it. On success, report it applied.
 
-After printing the summary, notify the operator per CLAUDE-APPEND.md § Operator Notification with a condensed one-line message such as `"Hermit upgraded: vOLD → vNEW. N settings added, M templates refreshed."` Omit segments where nothing changed. **In unattended mode, append the deferred/auto-applied segments** to this notification: settings set to defaults (Step 4), permission entries added without confirmation (Step 8), and any migration steps deferred for operator review (Steps 2b/7) — so the operator can follow up via `/hermit-settings`.
+**Docker rebuild notice.** From the report's `Docker entrypoint` / `Docker rebuild` fields, append a `Docker:` section when a rebuild is needed:
+- Entrypoint refreshed → "Docker entrypoint refreshed. Rebuild to apply: `.claude-code-hermit/bin/hermit-docker update`."
+- Compose/Dockerfile changed upstream → "Docker template(s) changed upstream. Refresh FIRST, then rebuild: (1) re-run `/claude-code-hermit:docker-setup`, (2) THEN `hermit-docker update`. Rebuilding first bakes stale on-disk files into the image."
+- Baseline not recorded → "Docker template baseline not recorded. Run `/claude-code-hermit:docker-setup` once to arm the drift signal."
+- Never auto-rebuild.
+
+**Notify the operator** per CLAUDE-APPEND.md § Operator Notification with a condensed one-line message such as `"Hermit upgraded: vOLD → vNEW. N settings added, M templates refreshed."` Omit segments where nothing changed. **Append the deferred/auto-applied segments**: settings set to defaults (Step 4), permission entries added (Step 8), template conflicts parked as `.new` (Step 5), and any deferred migrations — so the operator can follow up via `/hermit-settings`.

@@ -80,6 +80,15 @@ function split3(content: string, sep: string): string[] {
   return parts;
 }
 
+/** Read the YAML frontmatter block (between the two `---` delimiters) of an agent definition. */
+function agentFrontmatter(name: string): string {
+  const p = path.join(AGENTS, `${name}.md`);
+  expect(fs.existsSync(p)).toBe(true);
+  const parts = split3(read(p), '---\n');
+  expect(parts.length).toBe(3); // agent file missing closing --- of frontmatter
+  return parts[1];
+}
+
 // ============================================================
 // Hook output tests (TestHookOutputs)
 // ============================================================
@@ -947,17 +956,9 @@ describe('hermit-routines model contract', () => {
 describe('gate-agent memory contract', () => {
   const GATE_AGENTS = ['proposal-triage', 'reflection-judge'];
 
-  function frontmatter(name: string): string {
-    const p = path.join(AGENTS, `${name}.md`);
-    expect(fs.existsSync(p)).toBe(true);
-    const parts = split3(read(p), '---\n');
-    expect(parts.length).toBe(3); // agent file missing closing --- of frontmatter
-    return parts[1];
-  }
-
   test('gate agents declare memory: project', () => {
     for (const name of GATE_AGENTS) {
-      expect(frontmatter(name)).toContain('memory: project');
+      expect(agentFrontmatter(name)).toContain('memory: project');
     }
   });
 
@@ -965,7 +966,7 @@ describe('gate-agent memory contract', () => {
     // A silent revert of the tool grant breaks curation just as badly as
     // dropping the memory key, so guard it explicitly.
     for (const name of GATE_AGENTS) {
-      const head = frontmatter(name);
+      const head = agentFrontmatter(name);
       expect(head).toContain('disallowedTools:');
       const idx = head.indexOf('disallowedTools:');
       const tools = head.slice(0, idx);
@@ -975,6 +976,62 @@ describe('gate-agent memory contract', () => {
         expect(disallowed).not.toContain(`- ${tool}\n`);
       }
     }
+  });
+});
+
+// ============================================================
+// hermit-evolve delegation contract (TestEvolveRunnerRoutingContract)
+//
+// hermit-evolve delegates steps 0–9 to the evolve-runner subagent. Guards
+// against: the agent reference losing its namespace (bare names fail with
+// "Agent type not found"), the recursion guard being dropped (subagent would
+// re-dispatch), and evolve-runner gaining tools it must not have (Agent →
+// recursion; web/channel → the subagent must not notify, step 10 owns that).
+// ============================================================
+
+describe('hermit-evolve delegation contract', () => {
+  const skill = read(path.join(SKILLS, 'hermit-evolve', 'SKILL.md'));
+
+  test('SKILL.md dispatches evolve-runner fully-qualified', () => {
+    expect(skill).toContain('claude-code-hermit:evolve-runner');
+  });
+
+  test('SKILL.md keeps the recursion guard', () => {
+    // The subagent reads this same SKILL.md; without this line it would
+    // re-enter the routing branch and dispatch another evolve-runner.
+    expect(skill).toContain('running AS the `evolve-runner` subagent');
+    expect(skill).toContain('execute steps 0–9 directly');
+  });
+
+  test('evolve-runner omits Agent, web, and channel/MCP tools', () => {
+    const head = agentFrontmatter('evolve-runner');
+    expect(head).toContain('disallowedTools:');
+    const idx = head.indexOf('disallowedTools:');
+    const granted = head.slice(0, idx);
+    // Agent must not be granted (recursion); web tools must not be granted.
+    for (const tool of ['Agent', 'WebSearch', 'WebFetch']) {
+      expect(granted).not.toContain(`- ${tool}\n`);
+    }
+    // No channel/MCP tools — the subagent must not notify.
+    expect(granted).not.toContain('mcp__');
+  });
+
+  test('evolve-runner declares no memory (non-gate agent)', () => {
+    expect(agentFrontmatter('evolve-runner')).not.toContain('memory:');
+  });
+
+  test('report contract is identical in evolve-runner.md and SKILL.md', () => {
+    // The report format is duplicated: the agent emits it, step 10 parses it.
+    // Drift between the two copies would desync producer and consumer.
+    const block = (text: string): string => {
+      const start = text.indexOf('Upgrade: vOLD -> vNEW');
+      const end = text.indexOf('--- end ---', start);
+      expect(start).toBeGreaterThanOrEqual(0);
+      expect(end).toBeGreaterThan(start);
+      return text.slice(start, end + '--- end ---'.length);
+    };
+    const agent = read(path.join(AGENTS, 'evolve-runner.md'));
+    expect(block(agent)).toBe(block(skill));
   });
 });
 
