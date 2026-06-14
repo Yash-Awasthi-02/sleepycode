@@ -1111,6 +1111,32 @@ describe('reflect delegation contract', () => {
 });
 
 // ============================================================
+// weekly-review delegation contract (TestWeeklyReviewDelegationContract)
+//
+// weekly-review dispatches the topic-page semantic check (Step 3) to
+// skill-eval-runner to keep full topic-page bodies off the main session.
+// Guards against: losing the fully-qualified agent reference, and
+// producer/consumer schema drift between reference.md and SKILL.md.
+// Generic skill-eval-runner invariants (stays generic, no memory/model override)
+// are already covered by the reflect delegation contract above.
+// ============================================================
+
+describe('weekly-review delegation contract', () => {
+  const skill = read(path.join(SKILLS, 'weekly-review', 'SKILL.md'));
+  const refFile = read(path.join(SKILLS, 'weekly-review', 'reference.md'));
+
+  test('SKILL.md dispatches skill-eval-runner fully-qualified with reference.md', () => {
+    expect(skill).toContain('claude-code-hermit:skill-eval-runner');
+    expect(skill).toContain('skills/weekly-review/reference.md');
+  });
+
+  test('schema block is byte-identical in reference.md and SKILL.md', () => {
+    const block = (text: string) => extractBlock(text, '<!-- weekly-review-eval-schema:start -->', '<!-- weekly-review-eval-schema:end -->');
+    expect(block(refFile)).toBe(block(skill));
+  });
+});
+
+// ============================================================
 // External-origin quarantine contract (TestExternalOriginQuarantineContract)
 //
 // Guards against the ROP-001 class of drift where a security rule is added to
@@ -1263,4 +1289,133 @@ describe('template-manifest doctor contract', () => {
     expect(s).toBeDefined();
     expect(s.status).toBe('ok');
   }), 20000);
+});
+
+// ============================================================
+// brief delegation contract (TestBriefDelegationContract)
+//
+// brief dispatches archived-report/cost/proposal reads to the shared
+// skill-eval-runner. Guards against: losing the fully-qualified agent reference
+// and producer/consumer schema drift between reference.md and SKILL.md.
+// ============================================================
+
+describe('brief delegation contract', () => {
+  const skill = read(path.join(SKILLS, 'brief', 'SKILL.md'));
+  const refFile = read(path.join(SKILLS, 'brief', 'reference.md'));
+
+  test('SKILL.md dispatches skill-eval-runner fully-qualified with reference.md', () => {
+    expect(skill).toContain('claude-code-hermit:skill-eval-runner');
+    expect(skill).toContain('skills/brief/reference.md');
+  });
+
+  test('schema block is byte-identical in reference.md and SKILL.md', () => {
+    const block = (text: string) => extractBlock(text, '<!-- brief-eval-schema:start -->', '<!-- brief-eval-schema:end -->');
+    expect(block(refFile)).toBe(block(skill));
+  });
+});
+
+// ============================================================
+// hermit-brain delegation contract (TestHermitBrainDelegationContract)
+//
+// hermit-brain dispatches the session-report / proposal / reflection-state reads
+// to skill-eval-runner to keep those full-body reads off the main session.
+// Guards against: losing the fully-qualified agent reference and
+// producer/consumer schema drift between reference.md and SKILL.md.
+// Generic skill-eval-runner invariants (stays generic, no memory/model override)
+// are already covered by the reflect delegation contract above.
+// ============================================================
+
+describe('hermit-brain delegation contract', () => {
+  const skill = read(path.join(SKILLS, 'hermit-brain', 'SKILL.md'));
+  const refFile = read(path.join(SKILLS, 'hermit-brain', 'reference.md'));
+
+  test('SKILL.md dispatches skill-eval-runner fully-qualified with reference.md', () => {
+    expect(skill).toContain('claude-code-hermit:skill-eval-runner');
+    expect(skill).toContain('skills/hermit-brain/reference.md');
+  });
+
+  test('schema block is byte-identical in reference.md and SKILL.md', () => {
+    const block = (text: string) => extractBlock(text, '<!-- hermit-brain-eval-schema:start -->', '<!-- hermit-brain-eval-schema:end -->');
+    expect(block(refFile)).toBe(block(skill));
+  });
+});
+
+// ============================================================
+// hermit-evolution delegation contract (TestHermitEvolutionDelegationContract)
+//
+// hermit-evolution dispatches the weekly-review / session-report / proposal-metrics
+// reads (and bun script runs) to skill-eval-runner to keep that heavy context
+// off the main session.
+// Guards against: losing the fully-qualified agent reference and
+// producer/consumer schema drift between reference.md and SKILL.md.
+// ============================================================
+
+describe('hermit-evolution delegation contract', () => {
+  const skill = read(path.join(SKILLS, 'hermit-evolution', 'SKILL.md'));
+  const refFile = read(path.join(SKILLS, 'hermit-evolution', 'reference.md'));
+
+  test('SKILL.md dispatches skill-eval-runner fully-qualified with reference.md', () => {
+    expect(skill).toContain('claude-code-hermit:skill-eval-runner');
+    expect(skill).toContain('skills/hermit-evolution/reference.md');
+  });
+
+  test('schema block is byte-identical in reference.md and SKILL.md', () => {
+    const block = (text: string) => extractBlock(text, '<!-- hermit-evolution-eval-schema:start -->', '<!-- hermit-evolution-eval-schema:end -->');
+    expect(block(refFile)).toBe(block(skill));
+  });
+});
+
+// ============================================================
+// capability-brainstorm delegation contract (TestCapabilityBrainstormDelegationContract)
+//
+// capability-brainstorm dispatches the memory / compiled-artifact / codebase reads
+// (and idea generation) to skill-eval-runner. Harness-context signals (skills list,
+// MCPs, channels) are gathered in main and passed via the dispatch prompt.
+// Guards against: losing the fully-qualified agent reference and
+// producer/consumer schema drift between reference.md and SKILL.md.
+// ============================================================
+
+describe('capability-brainstorm delegation contract', () => {
+  const skill = read(path.join(SKILLS, 'capability-brainstorm', 'SKILL.md'));
+  const refFile = read(path.join(SKILLS, 'capability-brainstorm', 'reference.md'));
+
+  test('SKILL.md dispatches skill-eval-runner fully-qualified with reference.md', () => {
+    expect(skill).toContain('claude-code-hermit:skill-eval-runner');
+    expect(skill).toContain('skills/capability-brainstorm/reference.md');
+  });
+
+  test('schema block is byte-identical in reference.md and SKILL.md', () => {
+    const block = (text: string) => extractBlock(text, '<!-- brainstorm-eval-schema:start -->', '<!-- brainstorm-eval-schema:end -->');
+    expect(block(refFile)).toBe(block(skill));
+  });
+});
+
+// ============================================================
+// reference.md plugin-root contract (TestReferencePluginRootContract)
+//
+// The skill-eval-runner reads each reference.md via the Read tool, where the
+// `${CLAUDE_PLUGIN_ROOT}` token is NOT substituted (it is only text-substituted
+// in skill markdown loaded by the harness in installed mode, and is empty as a
+// Bash variable). Any executable path in a reference.md must therefore use the
+// `<plugin_root>` value passed in the dispatch prompt, never `${CLAUDE_PLUGIN_ROOT}/`.
+// Mirrors the #395 regression guard for hermit-routines. A plain `${CLAUDE_PLUGIN_ROOT}`
+// mention (the warning telling the runner not to use it) is allowed; only the
+// path form `${CLAUDE_PLUGIN_ROOT}/` is forbidden.
+// ============================================================
+
+describe('reference.md plugin-root contract', () => {
+  const refFiles = fs.readdirSync(SKILLS)
+    .map((d) => path.join(SKILLS, d, 'reference.md'))
+    .filter((p) => fs.existsSync(p));
+
+  test('at least one reference.md exists', () => {
+    expect(refFiles.length).toBeGreaterThan(0);
+  });
+
+  for (const refPath of refFiles) {
+    const rel = path.relative(SKILLS, refPath);
+    test(`${rel} uses no \${CLAUDE_PLUGIN_ROOT}/ path (must use <plugin_root>)`, () => {
+      expect(read(refPath)).not.toContain('${CLAUDE_PLUGIN_ROOT}/');
+    });
+  }
 });
