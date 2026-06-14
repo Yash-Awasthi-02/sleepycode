@@ -15,12 +15,17 @@ Generates the weekly review for the current ISO week.
 
 2. Report the result. On success, output the review filename. If a **Knowledge Health** section appears in the review output, summarize the issues to the operator.
 
-3. Semantic check of topic pages (read-only, no script). Read every `compiled/topic-*.md` and look for:
-   - claims contradicted by another topic page or by a more recent session report
-   - stale claims — old `updated` date on a subject with recent session activity
-   - broken `[[wikilinks]]` — targets that match no compiled page or memory entry
+3. **Dispatch the topic-page semantic check** to the isolated-context runner — its full-body reads stay off this session's context. Dispatch `claude-code-hermit:skill-eval-runner` pointed at `${CLAUDE_PLUGIN_ROOT}/skills/weekly-review/reference.md`. The runner reads every `compiled/topic-*.md`, checks for contradictions, stale claims, and broken `[[wikilinks]]` (capped at 3 findings), and returns:
 
-   Cap at 3 findings, one line each. If any, include them in the channel summary (step 5) under a `Topic pages:` line. If none, or no topic pages exist, skip silently.
+<!-- weekly-review-eval-schema:start -->
+```json
+{
+  "topic_findings": [ "<one-line finding>" ]
+}
+```
+<!-- weekly-review-eval-schema:end -->
+
+   **Failure policy:** if the runner returns null or malformed JSON, fail-open — carry `topic_findings: []` and continue. Carry `topic_findings` forward to the channel summary (step 5): render a `Topic pages:` line only when non-empty, omit it entirely when `[]` (no topic pages or no findings → skip silently).
 
 4. Build the weekly evolution block from the freshly-written review file:
    - Read `.claude-code-hermit/compiled/review-weekly-<current-week>.md` frontmatter (just written in step 1).

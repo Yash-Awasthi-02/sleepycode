@@ -1089,6 +1089,32 @@ describe('reflect delegation contract', () => {
 });
 
 // ============================================================
+// weekly-review delegation contract (TestWeeklyReviewDelegationContract)
+//
+// weekly-review dispatches the topic-page semantic check (Step 3) to
+// skill-eval-runner to keep full topic-page bodies off the main session.
+// Guards against: losing the fully-qualified agent reference, and
+// producer/consumer schema drift between reference.md and SKILL.md.
+// Generic skill-eval-runner invariants (stays generic, no memory/model override)
+// are already covered by the reflect delegation contract above.
+// ============================================================
+
+describe('weekly-review delegation contract', () => {
+  const skill = read(path.join(SKILLS, 'weekly-review', 'SKILL.md'));
+  const refFile = read(path.join(SKILLS, 'weekly-review', 'reference.md'));
+
+  test('SKILL.md dispatches skill-eval-runner fully-qualified with reference.md', () => {
+    expect(skill).toContain('claude-code-hermit:skill-eval-runner');
+    expect(skill).toContain('skills/weekly-review/reference.md');
+  });
+
+  test('schema block is byte-identical in reference.md and SKILL.md', () => {
+    const block = (text: string) => extractBlock(text, '<!-- weekly-review-eval-schema:start -->', '<!-- weekly-review-eval-schema:end -->');
+    expect(block(refFile)).toBe(block(skill));
+  });
+});
+
+// ============================================================
 // External-origin quarantine contract (TestExternalOriginQuarantineContract)
 //
 // Guards against the ROP-001 class of drift where a security rule is added to

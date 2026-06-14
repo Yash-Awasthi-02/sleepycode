@@ -13,6 +13,8 @@
 
 ### Changed
 
+- **weekly-review: topic-page semantic check runs in an isolated-context subagent** — Step 3's full-body topic-page reads are dispatched to `skill-eval-runner` via a new `skills/weekly-review/reference.md`. The runner reads every `compiled/topic-*.md` and returns `{ topic_findings }` (≤3 findings); all channel send and side effects stay in the main session. A `weekly-review delegation contract` in `tests/contracts.test.ts` guards against schema drift.
+
 - **reflect: file analysis runs in a shared isolated-context subagent** — Resolution Check, routine health, and procedure-capture detection are dispatched to a new `skill-eval-runner` agent (a generic, reference-driven runner any skill can reuse by pointing it at its own `reference.md`). The runner reads only files and returns structured JSON; all writes, frontmatter patches, and proposal routing stay in the main session. Eliminates the 3-verbatim-report read from the main session's inherited context, cutting per-reflect input tokens on always-on hermits. A `reflect delegation contract` in `tests/contracts.test.ts` asserts the schema block is byte-identical between `reference.md` (producer) and `SKILL.md` (consumer), preventing drift.
 
 - **heartbeat: EVALUATE runs in an isolated-context subagent** — the checklist evaluation is dispatched as a fresh-context Agent subagent instead of running inline in the main session. The eval reads only files and needs none of the inherited main-session context; moving it to isolated context significantly reduces per-wake token cost. The main session handles all writes (alert-state, SHELL.md Monitoring) and notifications after receiving the subagent's structured JSON result, keeping cost attribution and channel access on the main turn.
