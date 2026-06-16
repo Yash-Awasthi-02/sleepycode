@@ -7,6 +7,30 @@
 - **CLAUDE-APPEND: correct the subagent-delegation framing (#406)** — §Technical Constraints in `CLAUDE-APPEND.md` and `CLAUDE-APPEND-SAFETY.md` no longer claims "subagents cannot invoke skills" (false). It now states the delegation contract: subagents can invoke skills and nest, but a delegated sub-step returns a verdict + optional `operator_message`, and the main session owns `AskUserQuestion` and operator notification. `/dev-quality` and the `HOW-TO-USE` parallel-work note keep their main-session rule without the false rationale.
 - **min CC version: floor bumped to `>=2.1.172`** — aligns the dev-hermit install gate with core (core #389); the corrected CLAUDE-APPEND framing references nested-subagent dispatch, which requires it.
 
+### Fixed
+
+- **CLAUDE-APPEND/dev-pr: bless `/dev-pr`'s own push in §Git Safety** — the absolute "Never `git push`" rule made auto-mode agents refuse `/dev-pr`'s Gate 1 push; carve-out scopes the prohibition to ad-hoc pushes (#404).
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `state-templates/CLAUDE-APPEND-SAFETY.md` | Appended carve-out clause to §Git Safety "Never git push" bullet |
+| `state-templates/CLAUDE-APPEND.md` | Same |
+| `docs/GIT-SAFETY.md` | Same (plain-text variant) |
+| `docs/WORKFLOW.md` | Same (short-form style, human-facing doc) |
+| `skills/dev-pr/SKILL.md` | One-line Gate 1 note: push is the sanctioned action, do not pause |
+| `tests/hatch-mode.test.ts` | Added regression assertions: carve-out present + no short-form `/dev-pr` in injected templates |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Update the plugin** — run `claude plugin update claude-code-dev-hermit` to get the refreshed templates.
+2. **Re-inject CLAUDE-APPEND** — run `/claude-code-dev-hermit:hatch` in any dev hermit project to re-inject the updated template with the carve-out.
+
+No `config.json` changes required.
+
 ## [0.4.1] - 2026-06-13
 
 ### Fixed
