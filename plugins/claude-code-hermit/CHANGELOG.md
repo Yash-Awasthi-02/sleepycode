@@ -4,7 +4,7 @@
 
 ### Changed
 
-- **proposal-act: dispatch step (e) implementation to a general-purpose subagent (#402)** — keeps multi-file implementation noise out of the always-on main session; only a compact structured report (status, touched files, tests run, escalation) returns. e.5 quality gate, e.6 verification, and resolve stay in main. Skill-authoring (`## Skill Improvement`, `## Skill Draft`) and routine proposals are unaffected.
+- **proposal-act: dispatch the whole accept-flow tail to a general-purpose subagent (#402)** — implement, quality gate (`/simplify`), and verification all run in one isolated subagent context; only a compact structured report returns. Main keeps just the `resolve` lifecycle mutation and operator/channel notification. Skill-authoring (`## Skill Improvement` with skill-creator, `## Skill Draft`) and routine proposals stay in main and are unaffected; a `## Skill Improvement` proposal with skill-creator absent now runs the falsification gate and dispatches as a normal code edit.
 
 ## [1.2.4] - 2026-06-14
 
