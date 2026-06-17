@@ -256,6 +256,7 @@ const ledgerPath = path.join(stateDir, 'state', 'observations.jsonl');
 // prune-observations' 30-day window, so persistent drift re-surfaces ~monthly on the next
 // reflect run rather than never. Mechanical drift is always own-work; writing happens
 // before the freshness gate so a first-sighting row triggers RUN on the same invocation.
+let wroteNewRows = false;
 try {
   // runtime.session_id is commonly null (written at startup, cleared on shutdown) — treat null as 'unknown'
   const sessionId = (runtime.session_id ?? 'unknown') as string;
@@ -294,6 +295,7 @@ try {
 
   if (newRows.length > 0) {
     fs.appendFileSync(ledgerPath, newRows.join('\n') + '\n', 'utf-8');
+    wroteNewRows = true;
   }
 } catch { /* fail-open */ }
 
@@ -301,7 +303,10 @@ try {
 // Only precheck-written (startup-drift) rows self-trigger because they are written above,
 // before this gate runs. Rows written *during* a run (reflect-noticed, cost-spike) have
 // ts ≤ last_run_at on the next tick and do NOT self-trigger — they surface opportunistically.
-try {
+if (wroteNewRows) {
+  // Rows just appended carry ts = now > last_run_at by construction — skip the re-read.
+  phases.observations_fresh = true;
+} else try {
   const content = fs.readFileSync(ledgerPath, 'utf-8').trim();
   if (content) {
     // null last_run_at (fresh hermit) → cutoff = 0 → any valid ts triggers
