@@ -199,6 +199,24 @@ Setting `keep` equal to `threshold` effectively disables compaction for that sec
 
 ---
 
+## `reflection`
+
+Optional. Tunes how the self-improvement pipeline graduates patterns from the observations ledger.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `graduation_min_sessions` | integer | `1` | Minimum number of distinct sessions a pattern must appear in before it graduates from `state/observations.jsonl` to a proposal candidate. 1 = surfaces after the first session (default); 2 = requires recurrence across two separate sessions (pre-v1.2.6 behavior). |
+
+```json
+"reflection": {
+  "graduation_min_sessions": 1
+}
+```
+
+Set to `2` if the operator channel gets noisy. Applies to both the observations-ledger graduation gate and the procedure-capture recurrence bar. Validated by `validate-config.ts` when present. Modify with `/hermit-settings reflection`.
+
+---
+
 ## `scheduled_checks`
 
 Automatic invocations of installed plugin skills. Config stores operator intent; runtime state lives in `state/reflection-state.json` under the `scheduled_checks` key.

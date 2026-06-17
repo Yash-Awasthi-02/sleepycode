@@ -12,6 +12,7 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { currentHHMM } from './lib/time';
 import { readFrontmatter, isEmptyAutoArchive } from './lib/frontmatter';
+import { findStorageDrift, findSchemaDrift } from './lib/drift';
 
 type Json = any;
 
@@ -244,6 +245,79 @@ if (pluginRoot && daysSince(runtime.last_raw_archive_at) >= 7) {
     } catch { /* fail-open */ }
   } catch { /* fail-open */ }
 }
+
+const ledgerPath = path.join(stateDir, 'state', 'observations.jsonl');
+
+// --- Drift capture: write storage/schema drift rows to observations ledger ---
+// Each distinct (pattern, session_id) pair gets one row (dedup-on-write).
+// Mechanical drift is always own-work; writing happens before the freshness gate
+// so newly-written rows trigger RUN on the same precheck invocation.
+try {
+  // runtime.session_id is commonly null (written at startup, cleared on shutdown) — treat null as 'unknown'
+  const sessionId = (runtime.session_id ?? 'unknown') as string;
+
+  // Load existing (pattern, session_id) pairs to dedup-on-write
+  const existingPairs = new Set<string>();
+  try {
+    for (const line of fs.readFileSync(ledgerPath, 'utf-8').trim().split('\n').filter(Boolean)) {
+      try {
+        const row = JSON.parse(line);
+        if (row.pattern && row.session_id !== undefined) {
+          existingPairs.add(`${row.pattern}\t${row.session_id ?? 'unknown'}`);
+        }
+      } catch {}
+    }
+  } catch {}
+
+  const newRows: string[] = [];
+  const nowIso = new Date().toISOString();
+
+  // Storage drift
+  for (const hit of findStorageDrift(stateDir)) {
+    const m = hit.match(/\.claude-code-hermit\/(.+?)\//);
+    const slug = m ? `storage-drift:${m[1]}` : null;
+    if (!slug) continue;
+    const key = `${slug}\t${sessionId}`;
+    if (!existingPairs.has(key)) {
+      existingPairs.add(key);
+      newRows.push(JSON.stringify({ ts: nowIso, pattern: slug, session_id: sessionId, source: 'startup-drift', origin: 'own-work' }));
+    }
+  }
+
+  // Schema drift
+  for (const { type } of findSchemaDrift(stateDir)) {
+    const slug = `schema-drift:${type}`;
+    const key = `${slug}\t${sessionId}`;
+    if (!existingPairs.has(key)) {
+      existingPairs.add(key);
+      newRows.push(JSON.stringify({ ts: nowIso, pattern: slug, session_id: sessionId, source: 'startup-drift', origin: 'own-work' }));
+    }
+  }
+
+  if (newRows.length > 0) {
+    fs.appendFileSync(ledgerPath, newRows.join('\n') + '\n', 'utf-8');
+  }
+} catch { /* fail-open */ }
+
+// --- Freshness gate: flip EMPTY→RUN when ledger has rows newer than last_run_at ---
+// Only precheck-written (startup-drift) rows self-trigger because they are written above,
+// before this gate runs. Rows written *during* a run (reflect-noticed, cost-spike) have
+// ts ≤ last_run_at on the next tick and do NOT self-trigger — they surface opportunistically.
+try {
+  const content = fs.readFileSync(ledgerPath, 'utf-8').trim();
+  if (content) {
+    // null last_run_at (fresh hermit) → cutoff = 0 → any valid ts triggers
+    const cutoff = lastRunAt ? new Date(lastRunAt).getTime() : 0;
+    const hasFresh = content.split('\n').filter(Boolean).some(line => {
+      try {
+        const row = JSON.parse(line);
+        const rowTime = new Date(row.ts).getTime();
+        return !isNaN(rowTime) && rowTime > cutoff;
+      } catch { return false; }
+    });
+    if (hasFresh) phases.observations_fresh = true;
+  }
+} catch { /* fail-open: scan error → skip trigger, don't force RUN */ }
 
 if (Object.keys(phases).length > 0) emit('RUN|' + JSON.stringify(phases));
 
