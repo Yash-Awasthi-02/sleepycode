@@ -8,9 +8,15 @@
 - **reflect: `skill-correction:*` graduation routing** — graduated `skill-correction:<name>` ledger patterns resolve to a Tier 2 skill-improvement candidate: brief found → `## Skill Improvement` section with `source_artifact:` pointing to the procedure brief; no brief → plain Tier 2. Both routes carry `Artifact: state/observations.jsonl` and proceed via triage then micro-approval queue.
 - **proposal-act: `source_artifact:` anchor for skill-creator improve** — before invoking `skill-creator:skill-creator`, parses the `source_artifact:` line from `## Skill Improvement`; if the brief path is readable, passes its content as input context. Missing or unreadable: proceeds without it (no REJECT).
 
+### Added
+
+- **heartbeat: configurable eval model (`heartbeat.model`, default `haiku`)** — cuts the EVALUATE subagent cost ~70% on sonnet sessions. Override to `"sonnet"` or `"opus"` for richer checklist evaluation, or set to `null` to inherit the session model. Dispatch now uses `claude-code-hermit:skill-eval-runner` explicitly with the configured model. Step 5 gains a fail-open JSON guard: malformed or incomplete subagent returns skip the state merge and emit `HEARTBEAT_OK` rather than corrupting `alert-state.json`.
+
 ### Fixed
 
+- **session-mgr: report filename is invariant** (#418) — archive steps now explicitly state that the report file is always `${session_id}-REPORT.md`; if it already exists, overwrite in place. Prevents the archiving model from improvising a dated `S-NNN-REPORT-YYYYMMDD-HHMM.md` duplicate when the canonical file is already present (e.g. re-archive of a previously operator-closed session).
 - **hermit-evolve: confirm the `_hermit_versions` bump on disk (#426)** — step 9 now performs the version bump via a deterministic `scripts/evolve-finalize.ts` instead of an LLM hand-edit. The runner reports the re-read on-disk version (`core.confirmed`) instead of `plan.to`. A dropped bump now surfaces as `Upgrade: blocked` instead of falsely reporting success and re-nagging the upgrade banner every session.
+- **recall: reap stray timestamped report stubs on upgrade** (#430) — existing `S-NNN-REPORT-YYYYMMDD-HHMM.md` stubs (created before #427) bypass strict consumers but pollute `/recall`'s broad scan; hermit-evolve now deletes them on next upgrade.
 
 ### Files affected
 
@@ -21,6 +27,9 @@
 | `skills/proposal-act/SKILL.md` | Parse `source_artifact:` anchor; pass procedure brief to skill-creator improve |
 | `docs/architecture.md` | Add `observations.jsonl` state ownership row; startup-drift source value |
 | `tests/skill-correction-ledger.test.ts` | New: 25 tests covering capture contract, ledger round-trip, graduation routing, anchor-parse |
+| `state-templates/config.json.template` | Add `heartbeat.model: "haiku"` to heartbeat block |
+| `skills/heartbeat/SKILL.md` | Step 4: read `heartbeat.model`, dispatch via `skill-eval-runner` with explicit model; step 5: fail-open JSON guard before state merge |
+| `scripts/validate-config.ts` | Validate `heartbeat.model` against `[opus, sonnet, haiku]` in the heartbeat block |
 | `scripts/evolve-finalize.ts` | New: deterministic `_hermit_versions` writer — atomic read-modify-write, on-disk confirm, fail-loud exit |
 | `skills/hermit-evolve/SKILL.md` | Step 8: add `evolve-finalize.ts` to required permissions; step 9: run finalizer, report `core.confirmed` |
 | `agents/evolve-runner.md` | Step-9 delegated note + version-bump rule; report `vNEW` from `core.confirmed`; blocked on mismatch |
@@ -35,6 +44,14 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 2. Add `Bash(bun */scripts/evolve-finalize.ts*)` permission — hermit-evolve step 8 adds it automatically if missing.
 
 No `config.json` changes required.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. Update the plugin — run `claude plugin update claude-code-hermit`.
+2. Add `"model": "haiku"` to the `heartbeat` block in `.claude-code-hermit/config.json`. Open the file and insert `"model": "haiku"` alongside the existing `heartbeat` fields (e.g. after `"clean_recheck_cooldown"`). This cuts EVALUATE subagent cost ~70% on sonnet sessions. To keep prior behavior (session model), set `"model": null` or omit the field. To use richer evaluation, set `"model": "sonnet"` or `"model": "opus"`.
+3. **Reap stray timestamped report stubs.** In `.claude-code-hermit/sessions/`, glob `S-*-REPORT-*.md` — the timestamped-suffix variants only. Delete each match with `rm` (no `-f`). Report the count removed; if none matched, report "0 stray report stubs".
 
 ## [1.2.6] - 2026-06-17
 
