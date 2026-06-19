@@ -7,9 +7,6 @@
 - **session-close: third debrief question for skill-correction telemetry** — close debrief now asks whether a skill produced defective output this session; a positive answer appends a `skill-correction:<name>` ledger row to `state/observations.jsonl` (fail-open, gated to operator-close only). The `## Lessons` line carries the what/why; the ledger row is a bare recurrence counter.
 - **reflect: `skill-correction:*` graduation routing** — graduated `skill-correction:<name>` ledger patterns resolve to a Tier 2 skill-improvement candidate: brief found → `## Skill Improvement` section with `source_artifact:` pointing to the procedure brief; no brief → plain Tier 2. Both routes carry `Artifact: state/observations.jsonl` and proceed via triage then micro-approval queue.
 - **proposal-act: `source_artifact:` anchor for skill-creator improve** — before invoking `skill-creator:skill-creator`, parses the `source_artifact:` line from `## Skill Improvement`; if the brief path is readable, passes its content as input context. Missing or unreadable: proceeds without it (no REJECT).
-
-### Added
-
 - **heartbeat: configurable eval model (`heartbeat.model`, default `haiku`)** — cuts the EVALUATE subagent cost ~70% on sonnet sessions. Override to `"sonnet"` or `"opus"` for richer checklist evaluation, or set to `null` to inherit the session model. Dispatch now uses `claude-code-hermit:skill-eval-runner` explicitly with the configured model. Step 5 gains a fail-open JSON guard: malformed or incomplete subagent returns skip the state merge and emit `HEARTBEAT_OK` rather than corrupting `alert-state.json`.
 
 ### Fixed
@@ -28,7 +25,7 @@
 | `docs/architecture.md` | Add `observations.jsonl` state ownership row; startup-drift source value |
 | `tests/skill-correction-ledger.test.ts` | New: 25 tests covering capture contract, ledger round-trip, graduation routing, anchor-parse |
 | `state-templates/config.json.template` | Add `heartbeat.model: "haiku"` to heartbeat block |
-| `skills/heartbeat/SKILL.md` | Step 4: read `heartbeat.model`, dispatch via `skill-eval-runner` with explicit model; step 5: fail-open JSON guard before state merge |
+| `skills/heartbeat/SKILL.md` | Step 4: read `heartbeat.model`, dispatch via `skill-eval-runner` with explicit model; step 5: fail-open JSON guard |
 | `scripts/validate-config.ts` | Validate `heartbeat.model` against `[opus, sonnet, haiku]` in the heartbeat block |
 | `scripts/evolve-finalize.ts` | New: deterministic `_hermit_versions` writer — atomic read-modify-write, on-disk confirm, fail-loud exit |
 | `skills/hermit-evolve/SKILL.md` | Step 8: add `evolve-finalize.ts` to required permissions; step 9: run finalizer, report `core.confirmed` |
@@ -42,16 +39,8 @@ Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
 
 1. Update the plugin — run `claude plugin update claude-code-hermit`.
 2. Add `Bash(bun */scripts/evolve-finalize.ts*)` permission — hermit-evolve step 8 adds it automatically if missing.
-
-No `config.json` changes required.
-
-### Upgrade Instructions
-
-Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
-
-1. Update the plugin — run `claude plugin update claude-code-hermit`.
-2. Add `"model": "haiku"` to the `heartbeat` block in `.claude-code-hermit/config.json`. Open the file and insert `"model": "haiku"` alongside the existing `heartbeat` fields (e.g. after `"clean_recheck_cooldown"`). This cuts EVALUATE subagent cost ~70% on sonnet sessions. To keep prior behavior (session model), set `"model": null` or omit the field. To use richer evaluation, set `"model": "sonnet"` or `"model": "opus"`.
-3. **Reap stray timestamped report stubs.** In `.claude-code-hermit/sessions/`, glob `S-*-REPORT-*.md` — the timestamped-suffix variants only. Delete each match with `rm` (no `-f`). Report the count removed; if none matched, report "0 stray report stubs".
+3. Add `"model": "haiku"` to the `heartbeat` block in `.claude-code-hermit/config.json` (e.g. after `"clean_recheck_cooldown"`). Cuts EVALUATE subagent cost ~70% on sonnet sessions. To keep prior behavior (session model), set `"model": null` or omit the field.
+4. Reap stray timestamped report stubs — in `.claude-code-hermit/sessions/`, delete any `S-*-REPORT-*.md` files that have a timestamped suffix (the variant only, not the canonical `S-NNN-REPORT.md`).
 
 ## [1.2.6] - 2026-06-17
 
