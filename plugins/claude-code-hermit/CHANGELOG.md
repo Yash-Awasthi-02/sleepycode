@@ -1,10 +1,26 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.8] - 2026-06-20
 
 ### Fixed
 
-- **SubagentStop hook: capture async-dispatched subagent costs** (#435) — new `scripts/subagent-cost.ts` on `SubagentStop` logs `subagent:true` cost rows for async agent dispatches (heartbeat eval runner, routine dispatchers). Async completions arrive as XML task-notifications with no usage in the main transcript; Stop-time cost-tracker never saw them. Verified on 3 live haiku hermits: zero heartbeat rows since v1.2.7's async dispatch. Reads the subagent transcript from `agent_transcript_path` and logs only when the parent transcript carries an `async_launched` marker for the `agent_id` — sync dispatches lack it and stay owned by cost-tracker, so no double-count. Requires CC >= v2.1.143. Past losses not backfilled.
+- **subagent-cost: capture async subagent costs** (#435) — new `scripts/subagent-cost.ts` on `SubagentStop`; reads the agent transcript and logs cost rows only for async-launched dispatches (heartbeat eval runner, routine dispatchers). Sync dispatches remain in cost-tracker; no double-count. Requires CC >= v2.1.143.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `hooks/hooks.json` | Add `SubagentStop` hook entry |
+| `scripts/subagent-cost.ts` | New: async subagent cost capture on stop |
+| `scripts/lib/cc-compat.ts` | New: centralized accessors for CC-owned transcript formats |
+| `scripts/cost-tracker.ts` | Guard to avoid double-counting async-launched agents |
+| `tests/subagent-cost.test.ts` | New: 34 tests covering async cost capture contract |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. No further migration steps required.
+
+No `config.json` changes required.
 
 ## [1.2.7] - 2026-06-19
 

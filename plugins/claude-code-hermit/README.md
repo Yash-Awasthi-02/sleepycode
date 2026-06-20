@@ -1,7 +1,7 @@
 <p align="center">
   <a href="../../LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="MIT License" /></a>
   <a href="https://code.claude.com/docs/en/plugins"><img src="https://img.shields.io/badge/Claude%20Code-plugin-orange.svg" alt="Claude Code Plugin" /></a>
-  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.2.7-green.svg" alt="Version 1.2.7" /></a>
+  <a href="CHANGELOG.md"><img src="https://img.shields.io/badge/version-1.2.8-green.svg" alt="Version 1.2.8" /></a>
   <img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/gtapps/claude-code-hermit/_gh_traffic_stats/.github/badges/clones.json" alt="Downloads" />
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg" alt="PRs Welcome" />
   <a href="https://discord.gg/54sJqAxhUh"><img src="https://img.shields.io/badge/Discord-Join-5865F2?logo=discord&logoColor=white" alt="Join" /></a>
@@ -9,14 +9,14 @@
 
 # claude-code-hermit
 
-Claude Code plugin that turns it into a 24/7 AI assistant. **Self-learning**, **Pro-Active**, **Cost-aware**, **Observable**, **One Claude subscription, multiple hermits**.
+Claude Code plugin that turns a instance into a 24/7 AI assistant. **Orchestrates**, **Self-improves**, **Pro-Active**, **Cost-aware**, **Observable**, **One Claude subscription, multiple hermits**.
 
 <p align="center">
   <img src="assets/cover.png" alt="Always-on Claude Code Agent" />
 </p>
 
 
-**A hermit is a Claude Code session that doesn't end**: It wires the native primitives (`/loop`, `CronCreate`, `Channels`, `Monitor`, `Auto-memory`, `native Tasks`, etc) into an **always-on agent** that keeps its own state, routines, and memory across restarts, and reaches you on Discord, Telegram, or the Claude app when something needs a decision. It runs on your existing subscription, and one subscription runs several hermits.
+**A hermit is a Claude Code session that doesn't end**: It wires the native primitives (`/loop`, `CronCreate`, `Channels`, `Monitor`, `Auto-memory`, `native Tasks`, `Sub Agents`, etc) into an **always-on agent** that orchestrates, keeps its own state, routines, knowledge and reaches you on Discord, Telegram, or the Claude app when something needs a decision. It can run on your existing subscription, and one subscription runs several hermits.
 
 ```
 # Install
@@ -30,14 +30,13 @@ claude plugin install claude-code-hermit@claude-code-hermit --scope local
 /claude-code-hermit:docker-setup
 ```
 
-**One Claude subscription, multiple hermits** — each with its own memory, cost history, and routines.
-
 ---
 
 ## What you get
 
-Just Claude Code everything is yours to shape: channels (Discord/Telegram), MCP servers, routines, watches, the heartbeat checklist. Hermit adds persistence, a learning loop, and a quick setup to wire everything.
+Just Claude Code and everything is yours to shape: channels (Discord/Telegram), MCP servers, routines, watches, the heartbeat checklist. Hermit adds persistence, a learning loop, and a quick setup to wire everything.
 
+- **Orchestrator** instructed to delegate tasks & exploration to other agents, main context stays clean for token efficiency.
 - **Heartbeat** gates `/loop` behind a filesystem-only precheck so it stops paying the model every tick, sweeping your checklist for **zero tokens**.
 - **Routines** wrap `CronCreate` jobs that expire in 7 days and fire in the machine's timezone: they self-rearm daily, run on your wall clock, and are managed by `/hermit-routines`.
 - **`/watch`** wraps `Monitor` streams that die with the session: it auto-starts from config (or plain language) and routes findings to your notifications, silent when quiet.
