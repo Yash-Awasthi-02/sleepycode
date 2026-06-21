@@ -558,13 +558,13 @@ describe('archive-raw', () => {
 });
 
 // -------------------------------------------------------
-// update-alert-state.ts (subprocess — argv + file-write CLI contract)
+// update-alert-state.ts (subprocess — stdin payload + file-write CLI contract)
 // -------------------------------------------------------
 
 describe('update-alert-state', () => {
   async function updateAlertState(dir: string, payload: string) {
     const stateFile = hermit(dir, 'state', 'alert-state.json');
-    const r = await runScript('update-alert-state.ts', { args: [stateFile, payload] });
+    const r = await runScript('update-alert-state.ts', { args: [stateFile], stdin: payload });
     expect(r.exitCode).toBe(0);
     return readJson(stateFile);
   }
@@ -634,7 +634,8 @@ describe('update-alert-state', () => {
   test('update-alert-state (missing state file — fail-open, exits 0)', withDir(async (dir) => {
     const stateFile = hermit(dir, 'state', 'alert-state.json');
     const r = await runScript('update-alert-state.ts', {
-      args: [stateFile, '{"new_entries":{"k":{"severity":"low"}},"updated_entries":{},"resolved_keys":[],"last_clean_eval_at":null,"self_eval_updates":{}}'],
+      args: [stateFile],
+      stdin: '{"new_entries":{"k":{"severity":"low"}},"updated_entries":{},"resolved_keys":[],"last_clean_eval_at":null,"self_eval_updates":{}}',
     });
     expect(r.exitCode).toBe(0);
     const d = readJson(stateFile);
@@ -643,9 +644,39 @@ describe('update-alert-state', () => {
 
   test('update-alert-state (bad JSON payload — exits 1, no write)', withDir(async (dir) => {
     const stateFile = hermit(dir, 'state', 'alert-state.json');
-    const r = await runScript('update-alert-state.ts', { args: [stateFile, 'not-json'] });
+    const r = await runScript('update-alert-state.ts', { args: [stateFile], stdin: 'not-json' });
     expect(r.exitCode).toBe(1);
     expect(fs.existsSync(stateFile)).toBe(false);
+  }));
+
+  test('update-alert-state (apostrophe in free-text value round-trips intact)', withDir(async (dir) => {
+    // Regression: apostrophes broke single-quoted argv passing.
+    write(hermit(dir, 'state', 'alert-state.json'),
+      '{"alerts":{},"self_eval":{},"total_ticks":7}');
+    const d = await updateAlertState(dir, JSON.stringify({
+      new_entries: { 'stale-session': { severity: 'low', note: "the session's been idle" } },
+      updated_entries: {},
+      resolved_keys: [],
+      last_clean_eval_at: null,
+      self_eval_updates: { 'last-note': "prod's disk > 80%" },
+    }));
+    expect(d.alerts['stale-session'].note).toBe("the session's been idle");
+    expect(d.self_eval['last-note']).toBe("prod's disk > 80%");
+    expect(d.total_ticks).toBe(7);
+  }));
+
+  test('update-alert-state (embedded double-quote and newline round-trip intact)', withDir(async (dir) => {
+    write(hermit(dir, 'state', 'alert-state.json'),
+      '{"alerts":{},"self_eval":{},"total_ticks":1}');
+    const note = 'said "hi"\nthen left';
+    const d = await updateAlertState(dir, JSON.stringify({
+      new_entries: { 'k': { note } },
+      updated_entries: {},
+      resolved_keys: [],
+      last_clean_eval_at: null,
+      self_eval_updates: {},
+    }));
+    expect(d.alerts['k'].note).toBe(note);
   }));
 });
 
