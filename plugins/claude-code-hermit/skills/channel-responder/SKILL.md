@@ -109,9 +109,15 @@ Before running any heavy sub-step — an archive traversal, a multi-file search,
     - If bare `yes`/`no` and multiple pending entries: reply listing the pending IDs and ask the operator to specify (e.g. `"MP-20260422-0 yes"`). Do not resolve yet.
   - **On resolved entry:**
     - Read `question` from the entry before modifying.
-    - **"yes"** on tier 1 → execute the change at next idle, log outcome in SHELL.md, set `status: "approved"`. Append `micro-resolved` event via `append-metrics.ts`: `{"ts":"<now ISO>","type":"micro-resolved","micro_id":"<id>","action":"approved","question":"<question>"}`
-    - **"yes"** on tier 2 → create PROP-NNN via `/claude-code-hermit:proposal-create`, queue for next idle, set `status: "approved"`. Append `micro-resolved` event with `"action":"approved"`.
-    - **"no"** → set `status: "rejected"`. Append `micro-resolved` event with `"action":"rejected","question":"<question>"`.
+    - **"yes"** on tier 1 → execute the change at next idle, log outcome in SHELL.md, set `status: "approved"`. Append `micro-resolved` event via stdin heredoc (question is operator text and may contain apostrophes):
+      ```bash
+      bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/proposal-metrics.jsonl <<'HERMIT_METRICS_JSON'
+      {"ts":"<now ISO>","type":"micro-resolved","micro_id":"<id>","action":"approved","question":"<question>"}
+      HERMIT_METRICS_JSON
+      ```
+    - **"yes"** on tier 2 → create PROP-NNN via `/claude-code-hermit:proposal-create`, queue for next idle, set `status: "approved"`. Append `micro-resolved` event (same stdin heredoc form, `"action":"approved"`).
+    - **"no"** → set `status: "rejected"`. Append `micro-resolved` event (stdin heredoc, `"action":"rejected","question":"<question>"`).
+
     - Remove the resolved entry from `pending`. Write the file.
     - **Ambiguous response** → ask for clarification once, do not resolve yet.
   - If no pending micro-proposals: classify as normal message (fall through to categories below).

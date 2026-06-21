@@ -108,9 +108,9 @@ Queuing procedure:
 1. Generate ID: `MP-YYYYMMDD-N` where N increments within the same day (0, 1, 2). Check existing `micro-queued` events in `proposal-metrics.jsonl` for today to determine N.
 2. Append `micro-queued` event to `proposal-metrics.jsonl` first (so a partial failure leaves a recoverable orphaned event, not a silent ghost entry):
    ```bash
-   bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts \
-     .claude-code-hermit/state/proposal-metrics.jsonl \
-     '{"ts":"<now ISO>","type":"micro-queued","micro_id":"MP-YYYYMMDD-N","tier":1,"question":"<full question text>"}'
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/proposal-metrics.jsonl <<'HERMIT_METRICS_JSON'
+   {"ts":"<now ISO>","type":"micro-queued","micro_id":"MP-YYYYMMDD-N","tier":1,"question":"<full question text>"}
+   HERMIT_METRICS_JSON
    ```
 3. Read `state/micro-proposals.json`. Append a new entry to `pending` with `id: "MP-YYYYMMDD-N"`, `tier: <1|2>`, `status: "pending"`, `follow_up_count: 0`, `ts: "<now ISO>"`, `question: "<full question text>"`. Write the file.
 4. Notify the operator with the question.

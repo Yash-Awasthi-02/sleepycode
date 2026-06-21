@@ -14,7 +14,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { runScript, PLUGIN_ROOT, SCRIPTS_DIR } from './helpers/run';
+import { runScript, PLUGIN_ROOT, SCRIPTS_DIR, MONOREPO_ROOT } from './helpers/run';
 import { setupWorkdir, fixturesDir, type Workdir } from './helpers/workdir';
 
 // In-process imports — pure libs with no import-time CWD dependence.
@@ -678,6 +678,118 @@ describe('update-alert-state', () => {
     }));
     expect(d.alerts['k'].note).toBe(note);
   }));
+});
+
+// -------------------------------------------------------
+// append-metrics.ts (subprocess — dual-mode stdin/argv contract)
+// Regression: #442 — free-text pattern/question values with apostrophes
+// must survive shell delivery. Dual-mode: argv for enum/slug/numeric,
+// stdin heredoc for any free-text payload.
+// -------------------------------------------------------
+
+describe('append-metrics (dual-mode)', () => {
+  async function appendMetricsArgv(ledger: string, event: string) {
+    return runScript('append-metrics.ts', { args: [ledger, event] });
+  }
+  async function appendMetricsStdin(ledger: string, event: string) {
+    return runScript('append-metrics.ts', { args: [ledger], stdin: event });
+  }
+
+  test('append-metrics (stdin: apostrophe in pattern survives)', withDir(async (dir) => {
+    // Regression: apostrophes broke single-quoted argv passing (issue #442).
+    // Stdin heredoc form must deliver the value verbatim.
+    const ledger = hermit(dir, 'state', 'observations.jsonl');
+    const event = JSON.stringify({ ts: '2026-06-22T00:00:00Z', pattern: "bob's pattern", session_id: 'S-1', source: 'reflect-noticed', origin: 'own-work' });
+    const r = await appendMetricsStdin(ledger, event);
+    expect(r.exitCode).toBe(0);
+    const line = JSON.parse(fs.readFileSync(ledger, 'utf-8').trim());
+    expect(line.pattern).toBe("bob's pattern");
+  }));
+
+  test('append-metrics (stdin: apostrophe in question survives)', withDir(async (dir) => {
+    const ledger = hermit(dir, 'state', 'proposal-metrics.jsonl');
+    const event = JSON.stringify({ ts: '2026-06-22T00:00:00Z', type: 'micro-queued', micro_id: 'MP-20260622-0', tier: 1, question: "what's the plan?" });
+    const r = await appendMetricsStdin(ledger, event);
+    expect(r.exitCode).toBe(0);
+    const line = JSON.parse(fs.readFileSync(ledger, 'utf-8').trim());
+    expect(line.question).toBe("what's the plan?");
+  }));
+
+  test('append-metrics (stdin: embedded double-quote and dollar sign survive)', withDir(async (dir) => {
+    // Dollar signs in pattern must not expand (no $X -> empty) under stdin delivery.
+    const ledger = hermit(dir, 'state', 'observations.jsonl');
+    const event = JSON.stringify({ ts: '2026-06-22T00:00:00Z', pattern: 'cost_spike: $5.00 vs 7d median $3.50', session_id: 'S-1', source: 'cost-spike' });
+    const r = await appendMetricsStdin(ledger, event);
+    expect(r.exitCode).toBe(0);
+    const line = JSON.parse(fs.readFileSync(ledger, 'utf-8').trim());
+    expect(line.pattern).toBe('cost_spike: $5.00 vs 7d median $3.50');
+  }));
+
+  test('append-metrics (argv and stdin produce identical ledger lines)', withDir(async (dir) => {
+    // Dual-mode parity: the two delivery paths must write the same bytes.
+    const ledgerA = hermit(dir, 'state', 'a.jsonl');
+    const ledgerB = hermit(dir, 'state', 'b.jsonl');
+    const event = JSON.stringify({ ts: '2026-06-22T00:00:00Z', type: 'resolved', proposal_id: 'PROP-001' });
+    await appendMetricsArgv(ledgerA, event);
+    await appendMetricsStdin(ledgerB, event);
+    expect(fs.readFileSync(ledgerA, 'utf-8')).toBe(fs.readFileSync(ledgerB, 'utf-8'));
+  }));
+
+  test('append-metrics (argv mode still works — back-compat)', withDir(async (dir) => {
+    const ledger = hermit(dir, 'state', 'proposal-metrics.jsonl');
+    const event = JSON.stringify({ ts: '2026-06-22T00:00:00Z', type: 'resolved', proposal_id: 'PROP-001' });
+    const r = await appendMetricsArgv(ledger, event);
+    expect(r.exitCode).toBe(0);
+    const line = JSON.parse(fs.readFileSync(ledger, 'utf-8').trim());
+    expect(line.proposal_id).toBe('PROP-001');
+  }));
+
+  test('append-metrics (stdin: bad JSON — exits 1, no write)', withDir(async (dir) => {
+    const ledger = hermit(dir, 'state', 'observations.jsonl');
+    const r = await appendMetricsStdin(ledger, 'not-json');
+    expect(r.exitCode).toBe(1);
+    expect(fs.existsSync(ledger)).toBe(false);
+  }));
+
+  // Lint guard: no literal single-quoted argv append-metrics call may carry a
+  // free-text field (question/note/message/text). Those must use stdin heredoc.
+  // Enum/id/count/slug/numeric fields (type, proposal_id, source, pattern) remain
+  // on argv and are intentionally excluded from this check.
+  test('append-metrics (lint: no single-quoted argv call with free-text field)', () => {
+    const skillsRoot = path.join(PLUGIN_ROOT, 'skills');
+    const devSkillsRoot = path.join(MONOREPO_ROOT, 'plugins', 'claude-code-dev-hermit', 'skills');
+    const roots = [skillsRoot, ...(fs.existsSync(devSkillsRoot) ? [devSkillsRoot] : [])];
+
+    const freeTextKeys = ['question', 'note', 'message', 'text'];
+    const violations: string[] = [];
+
+    for (const root of roots) {
+      if (!fs.existsSync(root)) continue;
+      const skillFiles = fs.readdirSync(root)
+        .map(s => path.join(root, s, 'SKILL.md'))
+        .filter(f => fs.existsSync(f));
+
+      for (const file of skillFiles) {
+        const lines = fs.readFileSync(file, 'utf-8').split('\n');
+        lines.forEach((line, i) => {
+          if (!line.includes('append-metrics.ts')) return;
+          // Match: append-metrics.ts ... '<json-containing-free-text-key>'
+          const single = line.match(/append-metrics\.ts\s+\S+\s+'(\{[^']+\})'/);
+          if (!single) return;
+          const payload = single[1];
+          for (const key of freeTextKeys) {
+            if (payload.includes(`"${key}"`)) {
+              violations.push(`${file}:${i + 1} — "${key}" in single-quoted argv (use stdin heredoc)`);
+            }
+          }
+        });
+      }
+    }
+
+    if (violations.length > 0) {
+      throw new Error(`append-metrics free-text-in-argv violations:\n${violations.join('\n')}`);
+    }
+  });
 });
 
 // -------------------------------------------------------
