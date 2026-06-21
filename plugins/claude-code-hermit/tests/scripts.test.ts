@@ -751,18 +751,54 @@ describe('append-metrics (dual-mode)', () => {
     expect(fs.existsSync(ledger)).toBe(false);
   }));
 
-  // Lint guard: no literal single-quoted argv append-metrics call may carry a
-  // free-text field (question/note/message/text). Those must use stdin heredoc.
+  // Lint guard: no single-quoted argv append-metrics call may carry a free-text
+  // field (question/note/message/text). Those must use stdin heredoc.
   // Enum/id/count/slug/numeric fields (type, proposal_id, source, pattern) remain
   // on argv and are intentionally excluded from this check.
+  //
+  // Multi-line aware: bash backslash-continuation (the only multi-line argv form
+  // used in skills) is merged into one logical line before matching, so a free-text
+  // field split across `append-metrics.ts \` + path + `'{...}'` lines is still caught.
+  // Heredoc calls never match — their single-quoted token is the `'HERMIT_METRICS_JSON'`
+  // delimiter, not a `'{...}'` payload.
+  const FREE_TEXT_KEYS = ['question', 'note', 'message', 'text'];
+
+  function scanArgvFreeText(content: string, label = 'inline'): string[] {
+    const physical = content.split('\n');
+    // Merge trailing-backslash continuations into logical lines, keeping each
+    // logical line's first physical line number so violations stay locatable.
+    const logical: { text: string; line: number }[] = [];
+    for (let i = 0; i < physical.length; i++) {
+      let text = physical[i];
+      const start = i;
+      while (text.endsWith('\\') && i + 1 < physical.length) {
+        text = text.slice(0, -1) + ' ' + physical[++i].trimStart();
+      }
+      logical.push({ text, line: start + 1 });
+    }
+
+    const violations: string[] = [];
+    for (const { text, line } of logical) {
+      if (!text.includes('append-metrics.ts')) continue;
+      // Match: append-metrics.ts <path> '<json-containing-free-text-key>'
+      const single = text.match(/append-metrics\.ts\s+\S+\s+'(\{[^']+\})'/);
+      if (!single) continue;
+      const payload = single[1];
+      for (const key of FREE_TEXT_KEYS) {
+        if (payload.includes(`"${key}"`)) {
+          violations.push(`${label}:${line} — "${key}" in single-quoted argv (use stdin heredoc)`);
+        }
+      }
+    }
+    return violations;
+  }
+
   test('append-metrics (lint: no single-quoted argv call with free-text field)', () => {
     const skillsRoot = path.join(PLUGIN_ROOT, 'skills');
     const devSkillsRoot = path.join(MONOREPO_ROOT, 'plugins', 'claude-code-dev-hermit', 'skills');
     const roots = [skillsRoot, ...(fs.existsSync(devSkillsRoot) ? [devSkillsRoot] : [])];
 
-    const freeTextKeys = ['question', 'note', 'message', 'text'];
     const violations: string[] = [];
-
     for (const root of roots) {
       if (!fs.existsSync(root)) continue;
       const skillFiles = fs.readdirSync(root)
@@ -770,25 +806,42 @@ describe('append-metrics (dual-mode)', () => {
         .filter(f => fs.existsSync(f));
 
       for (const file of skillFiles) {
-        const lines = fs.readFileSync(file, 'utf-8').split('\n');
-        lines.forEach((line, i) => {
-          if (!line.includes('append-metrics.ts')) return;
-          // Match: append-metrics.ts ... '<json-containing-free-text-key>'
-          const single = line.match(/append-metrics\.ts\s+\S+\s+'(\{[^']+\})'/);
-          if (!single) return;
-          const payload = single[1];
-          for (const key of freeTextKeys) {
-            if (payload.includes(`"${key}"`)) {
-              violations.push(`${file}:${i + 1} — "${key}" in single-quoted argv (use stdin heredoc)`);
-            }
-          }
-        });
+        violations.push(...scanArgvFreeText(fs.readFileSync(file, 'utf-8'), file));
       }
     }
 
     if (violations.length > 0) {
       throw new Error(`append-metrics free-text-in-argv violations:\n${violations.join('\n')}`);
     }
+  });
+
+  test('append-metrics (lint: scan catches multi-line argv, ignores heredoc)', () => {
+    // Payloads use apostrophe-free placeholders, mirroring real skill templates —
+    // a literal apostrophe inside single-quoted argv is itself broken bash (the very
+    // bug this guard prevents), so the guard keys off the field name, not the value.
+    // Positive: a 3-line backslash-continuation call carrying "question" is caught.
+    const multiLineArgv = [
+      "bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts \\",
+      "  .claude-code-hermit/state/proposal-metrics.jsonl \\",
+      `  '{"ts":"<now ISO>","type":"micro-queued","question":"<full question text>"}'`,
+    ].join('\n');
+    expect(scanArgvFreeText(multiLineArgv)).toHaveLength(1);
+
+    // Negative: the same free-text payload delivered via heredoc is not a violation.
+    const heredoc = [
+      "bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/proposal-metrics.jsonl <<'HERMIT_METRICS_JSON'",
+      `{"ts":"<now ISO>","type":"micro-queued","question":"<full question text>"}`,
+      "HERMIT_METRICS_JSON",
+    ].join('\n');
+    expect(scanArgvFreeText(heredoc)).toHaveLength(0);
+
+    // Negative: a multi-line argv call with only enum/slug fields is fine.
+    const enumArgv = [
+      "bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts \\",
+      "  .claude-code-hermit/state/proposal-metrics.jsonl \\",
+      `  '{"ts":"<now ISO>","type":"triage-verdict","verdict":"CREATE"}'`,
+    ].join('\n');
+    expect(scanArgvFreeText(enumArgv)).toHaveLength(0);
   });
 });
 
