@@ -1,5 +1,10 @@
 # Changelog — laravel-forge-hermit
 
+## [Unreleased]
+
+### Fixed
+- **hatch: correct Forge API token URL** — was `/user-profile/api`, now `/profile/api` (also corrected in `forge.php` "no orgs found" error).
+
 ## [0.0.1] — 2026-06-22
 
 ### Added
