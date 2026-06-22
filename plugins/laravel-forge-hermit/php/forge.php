@@ -102,7 +102,7 @@ function requireOrg(string $org, Forge $forge): string {
     $count = count($orgs);
     if ($count === 1) return $orgs[0]->slug;
     if ($count === 0) {
-        fwrite(STDERR, "No organizations found for this token. Check the token at https://forge.laravel.com/user-profile/api.\n");
+        fwrite(STDERR, "No organizations found for this token. Check the token at https://forge.laravel.com/profile/api.\n");
         exit(1);
     }
     fwrite(STDERR, "Multiple organizations found. Set FORGE_ORG in .env to one of:\n");

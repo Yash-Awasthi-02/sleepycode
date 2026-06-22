@@ -99,7 +99,7 @@ Tell the operator:
 > FORGE_ORG=your-org-slug        # optional if you have exactly one org
 > ```
 >
-> Get your token at https://forge.laravel.com/user-profile/api. Reply 'done' when set, or 'skip' to continue (credential check happens in Step 5)."
+> Get your token at https://forge.laravel.com/profile/api. Reply 'done' when set, or 'skip' to continue (credential check happens in Step 5)."
 
 Use `AskUserQuestion`: "(done / skip)"
 
@@ -119,7 +119,7 @@ Append any missing patterns via Edit.
 Run: `php ${CLAUDE_PLUGIN_ROOT}/php/forge.php check`
 
 - **`missing`** → tell the operator to add `FORGE_API_TOKEN` to `.env` and re-run Step 4.
-- **`invalid`** → token found but API rejected it; tell the operator to check the token at https://forge.laravel.com/user-profile/api.
+- **`invalid`** → token found but API rejected it; tell the operator to check the token at https://forge.laravel.com/profile/api.
 - **`unreachable`** → token present but the API could not be reached (network/egress blocked). In Docker, verify the DNS allowlist in DOCKER.md (`forge.laravel.com`). Re-run once connectivity is confirmed.
 - **`ok`** → continue.
 
