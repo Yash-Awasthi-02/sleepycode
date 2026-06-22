@@ -46,6 +46,11 @@ never block:
 - **`### Upgrade Instructions` migrations (steps 2b, 7):** execute every non-interactive instruction. If a
   step poses a genuine either/or with **no safe non-destructive default**, do **not** guess — record it
   as a deferred-migration block (below) and **skip that step only**. This is the sole escalation path.
+- **Surgical docker-template migrations:** an Upgrade Instruction may patch a wizard-rendered docker
+  template (`Dockerfile.hermit`) and re-record its `template-manifest.json` baseline. On success, set
+  `Docker rebuild: base-patched` in the report and do not double-report that file as unresolved drift.
+  When the CHANGELOG step's anchor line is absent (operator-customized base), follow the standard
+  deferred-migration path: skip this step only and continue.
 - **Version bump (step 9):** run `evolve-finalize.ts` and parse its stdout JSON. Use `core.confirmed` as
   `vNEW` in the report — NOT `plan.to`. If the script exits non-zero, `core.matched` is false, or `errors`
   is non-empty, return `Upgrade: blocked: config version bump failed — <joined error messages>` and omit
@@ -66,7 +71,7 @@ Settings added: <keys | none>
 Templates: <refreshed/restored/kept-N/conflicts-parked-N | none>
 Bin wrappers: <restored/replaced(.bak) | none>
 Docker entrypoint: <refreshed | conflict-replaced(<backup path>) | n/a>
-Docker rebuild: <needed + order | no>
+Docker rebuild: <needed + order | base-patched | no>
 CLAUDE-APPEND: <updated | unchanged>
 Sibling hermits: <name vOLD->vNEW ... | none>
 Permissions added: <entries | none>

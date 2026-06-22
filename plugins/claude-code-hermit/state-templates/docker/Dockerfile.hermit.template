@@ -1,4 +1,4 @@
-FROM ubuntu:24.04
+FROM ubuntu:26.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 {{PACKAGES_BLOCK}}
 
-# Match host UID for volume permissions. Ubuntu 24.04 ships a default
+# Match host UID for volume permissions. Ubuntu 26.04 ships a default
 # 'ubuntu' user at UID 1000 — remove it first.
 ARG HOST_UID=1000
 ARG CLAUDE_CODE_VERSION=latest

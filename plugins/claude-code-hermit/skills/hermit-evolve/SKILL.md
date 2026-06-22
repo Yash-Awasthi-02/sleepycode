@@ -110,6 +110,8 @@ Within `changelog_slice` (already ordered oldest-first), each version entry may 
 
 The CHANGELOG.md `### Upgrade Instructions` sections are the single source of truth for migrations — do not skip or merely display them. The same pattern applies to sibling-hermit upgrades in Step 7.
 
+**Surgical docker-template migrations.** An Upgrade Instruction may surgically patch a wizard-rendered docker template (`Dockerfile.hermit`) and re-record its `template-manifest.json` baseline. When it does, it sets the report's `Docker rebuild` field to `base-patched`. Treat the corresponding `docker_templates` drift entry as resolved — do **not** surface it as unresolved upstream drift in Step 10.
+
 ### 3. New config keys
 
 The plan's `new_config_keys` array lists every key in the current `config.json.template` that is missing from the project's config, each as `{path, default}` — a dotted `path` for a nested leaf, or a fully-absent parent carrying its whole default subtree. Operator-set values are never listed, so acting on these never overwrites them.
@@ -279,7 +281,7 @@ Settings added: <keys | none>
 Templates: <refreshed/restored/kept-N/conflicts-parked-N | none>
 Bin wrappers: <restored/replaced(.bak) | none>
 Docker entrypoint: <refreshed | conflict-replaced(<backup path>) | n/a>
-Docker rebuild: <needed + order | no>
+Docker rebuild: <needed + order | base-patched | no>
 CLAUDE-APPEND: <updated | unchanged>
 Sibling hermits: <name vOLD->vNEW ... | none>
 Permissions added: <entries | none>
@@ -304,6 +306,7 @@ Deferred for operator: <none | one or more verbatim blocks, each:>
 
 **Docker rebuild notice.** From the report's `Docker entrypoint` / `Docker rebuild` fields, append a `Docker:` section when a rebuild is needed:
 - Entrypoint refreshed → "Docker entrypoint refreshed. Rebuild to apply: `.claude-code-hermit/bin/hermit-docker update`."
+- `Docker rebuild: base-patched` → "Docker base image updated. Rebuild to apply: `.claude-code-hermit/bin/hermit-docker update`. Do **not** re-run `/docker-setup` — your Dockerfile customizations are preserved." When this value is present, **suppress** the "Compose/Dockerfile changed upstream" bullet below for `Dockerfile.hermit` (the migration already handled it).
 - Compose/Dockerfile changed upstream → "Docker template(s) changed upstream. Refresh FIRST, then rebuild: (1) re-run `/claude-code-hermit:docker-setup`, (2) THEN `hermit-docker update`. Rebuilding first bakes stale on-disk files into the image."
 - Baseline not recorded → "Docker template baseline not recorded. Run `/claude-code-hermit:docker-setup` once to arm the drift signal."
 - Never auto-rebuild.
