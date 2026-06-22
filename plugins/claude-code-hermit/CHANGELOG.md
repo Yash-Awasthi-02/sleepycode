@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.9] - 2026-06-22
 
 ### Added
 
@@ -19,12 +19,21 @@
 
 | File | Change |
 |------|--------|
+| `scripts/update-alert-state.ts` | New script: deterministic alert-state merge via stdin |
+| `scripts/append-metrics.ts` | Dual-mode: stdin for free-text, argv for enum/id payloads |
+| `state-templates/CLAUDE-APPEND.md` | Auto-mode denial alert section added |
+| `skills/heartbeat/SKILL.md` | Delegates alert-state write to `update-alert-state.ts` |
+| `skills/reflect/SKILL.md` | `append-metrics` call sites updated to stdin heredoc |
+| `skills/reflect-scheduled-checks/SKILL.md` | `append-metrics` call sites updated to stdin heredoc |
+| `skills/channel-responder/SKILL.md` | `append-metrics` call sites updated to stdin heredoc |
+| `skills/brief/SKILL.md` | `append-metrics` call sites updated to stdin heredoc |
 | `state-templates/docker/Dockerfile.hermit.template` | `FROM ubuntu:26.04`; version comment updated |
 | `docs/always-on.md` | Ubuntu version references updated to 26.04 |
 | `docs/troubleshooting.md` | Ubuntu version reference updated to 26.04 |
-| `tests/docker-baseline-content.test.ts` | Add `FROM ubuntu:26.04` regression assertion |
 | `skills/hermit-evolve/SKILL.md` | Step 2b note; Step 10 `base-patched` bullet + suppression rule |
 | `agents/evolve-runner.md` | `Docker rebuild: base-patched` contract; delegated-rule note |
+| `tests/docker-baseline-content.test.ts` | Add `FROM ubuntu:26.04` regression assertion |
+| `tests/scripts.test.ts` | Tests for `update-alert-state.ts` and dual-mode `append-metrics.ts` |
 
 ### Upgrade Instructions
 
