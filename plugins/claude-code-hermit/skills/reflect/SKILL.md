@@ -15,7 +15,13 @@ If `$ARGUMENTS` contains `--quick` (invoked as `/claude-code-hermit:reflect --qu
 - **Skip the precheck** entirely — the cadence gate does not apply.
 - **Bind `$PHASE = adult`** — skip the compute phase eval.
 - **Skip the cost_spike read, proposal scan, Resolution Check, and Component Health section.** Only the live SHELL.md scan + judge + outcomes path runs.
-- Read SHELL.md `## Findings` and `## Blockers` for actionable patterns. **Only Tier-1 + `Evidence Source: current-session` candidates are eligible** — see § Three-Condition Rule, condition 1. Candidates that would need archived-session evidence or belong to Tier 2/3 are deferred to the next scheduled reflect — append one ledger entry per deferred candidate (`bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/observations.jsonl '{"ts":"<now ISO>","pattern":"<candidate-title-slug>","session_id":"<S-NNN>","source":"quick-deferral"}'`) so the signal survives session archival and can graduate by recurrence (§ Outcomes). **Exception:** a `current-session` candidate with `Evidence Origin: external-content` (see § Proposal Tier Classification) is **not** deferred — send it to the judge and let the Tier-3 escalation route it to `proposal-create`.
+- Read SHELL.md `## Findings` and `## Blockers` for actionable patterns. **Only Tier-1 + `Evidence Source: current-session` candidates are eligible** — see § Three-Condition Rule, condition 1. Candidates that would need archived-session evidence or belong to Tier 2/3 are deferred to the next scheduled reflect — append one ledger entry per deferred candidate via stdin heredoc:
+  ```bash
+  bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/observations.jsonl <<'HERMIT_METRICS_JSON'
+  {"ts":"<now ISO>","pattern":"<candidate-title-slug>","session_id":"<S-NNN>","source":"quick-deferral"}
+  HERMIT_METRICS_JSON
+  ```
+  so the signal survives session archival and can graduate by recurrence (§ Outcomes). **Exception:** a `current-session` candidate with `Evidence Origin: external-content` (see § Proposal Tier Classification) is **not** deferred — send it to the judge and let the Tier-3 escalation route it to `proposal-create`.
 - For each candidate that passes the evidence integrity rule, run `claude-code-hermit:proposal-triage`. Collect candidates where triage returned CREATE, then make a single `claude-code-hermit:reflection-judge` call for those candidates (see § Evidence Validation for input/output format). Route each ACCEPT/DOWNGRADE verdict through the standard Outcomes path (micro-approval queue for Tier 1/2, `/claude-code-hermit:proposal-create` for Tier 3).
 - Append one Progress Log line: `[HH:MM] reflect (quick, post-routine) — N candidates; verdicts: accept=A downgrade=D suppress=S; outcomes: <list or "none">`. When suppress>0, append the same `; suppressed: [<slug>: <code>, ...]` suffix the scheduled path uses (see § Progress Log Entry) so quick-run suppressions reach the weekly digest.
 - **Do not call `update-reflection-state.ts`** — quick runs are event-driven, not cadence ticks. Mutating `last_run_at` would suppress the next scheduled reflect. Consequence: judge verdicts from quick runs do not accumulate into the Component Health counters (`judge_accept` / `judge_suppress`); on daemons with frequent `reflect_after` use, those counters will under-represent total judge activity. This is intentional — cadence preservation wins.
@@ -86,7 +92,13 @@ If `$ARGUMENTS` contains `--quick` (invoked as `/claude-code-hermit:reflect --qu
 <!-- reflect-eval-schema:end -->
 
    **Apply `resolution_actions`** (housekeeping writes; exempt from the evidence integrity rule):
-   - `action == "auto-resolve"`: write `frontmatter_patch` fields to the proposal's YAML frontmatter; run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/proposal-metrics.jsonl '<metrics_event>'`; append `shell_findings_line` to SHELL.md `## Findings`.
+   - `action == "auto-resolve"`: write `frontmatter_patch` fields to the proposal's YAML frontmatter; run `append-metrics.ts` via stdin heredoc (metrics_event is model-authored JSON and may contain apostrophes):
+     ```bash
+     bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/proposal-metrics.jsonl <<'HERMIT_METRICS_JSON'
+     <metrics_event>
+     HERMIT_METRICS_JSON
+     ```
+     append `shell_findings_line` to SHELL.md `## Findings`.
    - `action == "nudge"`: append `shell_findings_line` to SHELL.md `## Findings`. (Nudge debounce is handled inside the runner — `action: "nudge"` already passed the 7-day guard.)
    - `action == "skip"`: no action.
 
@@ -285,7 +297,13 @@ After reflecting and validating with `claude-code-hermit:reflection-judge`, choo
 
    `routine_candidates` from the eval runner are Tier 1; any pre-rendered `shell_findings_line` (diagnostic entries) goes to SHELL.md `## Findings` directly — no judge/triage needed for diagnostics, only for disable/retime action candidates.
 
-Sub-threshold observations (interesting but failing the Three-Condition Rule — typically single-occurrence) do not surface to the operator in steady state. Append them to the observations ledger with a short stable pattern label: `bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/observations.jsonl '{"ts":"<now ISO>","pattern":"<short pattern label>","session_id":"<S-NNN>","source":"reflect-noticed","origin":"own-work"}'` — they graduate via the step 3b recurrence promotion. Include `"origin":"external-content"` instead of `"own-work"` when the observation derives from a SHELL.md finding carrying an `[origin: external]` marker (copy the marker deterministically, don't infer from content). Reuse the exact label when re-observing a known pattern; grouping is by string equality. Do not generate observations for their own sake; only append when a genuine pattern is noticed.
+Sub-threshold observations (interesting but failing the Three-Condition Rule — typically single-occurrence) do not surface to the operator in steady state. Append them to the observations ledger with a short stable pattern label via stdin heredoc (pattern labels are free text and may contain apostrophes):
+```bash
+bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/observations.jsonl <<'HERMIT_METRICS_JSON'
+{"ts":"<now ISO>","pattern":"<short pattern label>","session_id":"<S-NNN>","source":"reflect-noticed","origin":"own-work"}
+HERMIT_METRICS_JSON
+```
+they graduate via the step 3b recurrence promotion. Include `"origin":"external-content"` instead of `"own-work"` when the observation derives from a SHELL.md finding carrying an `[origin: external]` marker (copy the marker deterministically, don't infer from content). Reuse the exact label when re-observing a known pattern; grouping is by string equality. Do not generate observations for their own sake; only append when a genuine pattern is noticed.
 
 Reflect-generated inferences (cost spikes, token-count shapes, timing patterns) **never** use bypass Evidence Sources (`scheduled-check/*` or `operator-request`). They either (a) carry a verifiable `Artifact:` citation to a machine-written state file and take the artifact-cited path now (see § Evidence integrity rule), or (b) land in the observations ledger and graduate by recurrence, at which point step 3b promotes them with `Evidence Source: archived-session` and the ledger `Artifact:` citation.
 
@@ -349,7 +367,12 @@ Dedup: do not re-append the same candidate if an entry with the same title/id al
 
 1. Generate ID: `MP-YYYYMMDD-N` where N increments within the same day (0, 1, 2). Check existing `micro-queued` events in `proposal-metrics.jsonl` for today to determine N.
 2. Read `state/micro-proposals.json`. Append a new entry to `pending` with `id: "MP-YYYYMMDD-N"`, `tier: <1|2>`, `status: "pending"`, `follow_up_count: 0`, `ts: "<now ISO>"`, `question: "<full question text>"`. Write the file.
-3. Append `micro-queued` event to `proposal-metrics.jsonl` via `append-metrics.ts`: `{"ts":"<now ISO>","type":"micro-queued","micro_id":"MP-YYYYMMDD-N","tier":1,"question":"<full question text>"}`
+3. Append `micro-queued` event to `proposal-metrics.jsonl` via stdin heredoc (question is free text and may contain apostrophes):
+   ```bash
+   bun ${CLAUDE_PLUGIN_ROOT}/scripts/append-metrics.ts .claude-code-hermit/state/proposal-metrics.jsonl <<'HERMIT_METRICS_JSON'
+   {"ts":"<now ISO>","type":"micro-queued","micro_id":"MP-YYYYMMDD-N","tier":1,"question":"<full question text>"}
+   HERMIT_METRICS_JSON
+   ```
 4. Notify the operator with the question in the form: `MP-YYYYMMDD-N (tier <N>): <question>` — Reply `"MP-YYYYMMDD-N yes"` or `"MP-YYYYMMDD-N no"` (bare `yes`/`no` accepted when only one entry is pending).
 
 ## State Update

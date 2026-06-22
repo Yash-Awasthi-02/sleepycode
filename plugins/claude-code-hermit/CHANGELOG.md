@@ -6,6 +6,10 @@
 
 - **heartbeat: dedicated update-alert-state.ts** — deterministic alert-state merge replacing the model-performed write; mirrors reflect's update-reflection-state pattern. Payload is delivered on stdin via a quoted heredoc so free-text alert content (apostrophes, quotes) can't break the command.
 
+### Fixed
+
+- **reflect/append-metrics: free-text JSON events delivered via stdin heredoc** — apostrophes in pattern labels and question strings no longer corrupt the metrics ledger (same shell-quoting class as #441). `append-metrics.ts` is now dual-mode: argv for enum/id/count/slug payloads, stdin for free-text. Call sites in reflect, reflect-scheduled-checks, channel-responder, and brief updated accordingly.
+
 ## [1.2.8] - 2026-06-20
 
 ### Fixed
