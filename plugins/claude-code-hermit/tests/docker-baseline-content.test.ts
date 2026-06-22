@@ -194,6 +194,15 @@ describe('Entrypoint: placeholder-free session name resolution', () => {
   });
 });
 
+// -------------------------------------------------------
+// Dockerfile: base image (regression guard — prevent accidental downgrade)
+// -------------------------------------------------------
+describe('Dockerfile: base image', () => {
+  test('Dockerfile: FROM ubuntu:26.04', () => {
+    expect(dockerfile).toContain('FROM ubuntu:26.04');
+  });
+});
+
 describe('Entrypoint: Python retired, PATH covers bun', () => {
   test('entrypoint: no python3 invocations remain', () => {
     expect(entrypoint).not.toContain('python3');

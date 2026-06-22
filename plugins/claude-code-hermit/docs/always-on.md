@@ -35,7 +35,7 @@ The wizard scans your project for dependencies, asks about auth, and generates f
 
 | File                          | Purpose                                               |
 | ----------------------------- | ----------------------------------------------------- |
-| `Dockerfile.hermit`           | Ubuntu 24.04, Node 24, Bun, Claude Code, project packages, host UID matching |
+| `Dockerfile.hermit`           | Ubuntu 26.04, Node 24, Bun, Claude Code, project packages, host UID matching |
 | `docker-entrypoint.hermit.sh` | Onboarding bypass, MCP approval, permission patch, channel symlinks, graceful SIGTERM handling, PID 1 keepalive |
 | `docker-compose.hermit.yml`   | Named volume, bind mounts, env vars, healthcheck, restart policy, kernel-enforced hardening (`no-new-privileges`, `cap_drop: ALL`, `pids_limit`) |
 | `.env`                        | Auth token (appended if file already exists)           |
@@ -233,7 +233,7 @@ Adjust with `/hermit-settings env`.
 
 | Issue | Fix |
 | --- | --- |
-| Ubuntu 24.04 default user conflicts at UID 1000 | `userdel -r ubuntu` before `useradd` — handled by Dockerfile |
+| Ubuntu 26.04 default user conflicts at UID 1000 | `userdel -r ubuntu` before `useradd` — handled by Dockerfile |
 | Volume paths must match host | `${PWD}:${PWD}`, not `/app` or `/project` |
 | OAuth credentials expired | Re-run `.claude-code-hermit/bin/hermit-docker login` and restart with `hermit-docker restart` |
 | Entrypoint exits after tmux spawns | Entrypoint polls `tmux has-session` to keep PID 1 alive. SIGTERM trap handles graceful close. |
