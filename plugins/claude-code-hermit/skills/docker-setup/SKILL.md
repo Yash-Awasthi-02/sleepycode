@@ -26,7 +26,7 @@ If the output is `container`, **stop immediately** — do not proceed to step 1.
 
 ### 1. Prerequisites
 
-Run the pre-flight probe once and parse its JSON: `bun ${CLAUDE_PLUGIN_ROOT}/scripts/docker-preflight.ts`. It returns `{ dockerVersion, configExists, isWSL, existing: {dockerfile, entrypoint, compose}, gitconfigExists, memory: {pathKey, seedExists} }`. Hold the result — Steps 4 and 5 reuse `gitconfigExists` and `memory` instead of re-probing. Apply these gates:
+Run the pre-flight probe once and parse its JSON: `bun ${CLAUDE_PLUGIN_ROOT}/scripts/docker-preflight.ts "$(pwd)"` — pass `"$(pwd)"` so the auto-memory path key is keyed off the shell's logical path, matching Claude Code even through a symlinked project root. It returns `{ dockerVersion, configExists, isWSL, existing: {dockerfile, entrypoint, compose}, gitconfigExists, memory: {pathKey, seedExists} }`. Hold the result — Steps 4 and 5 reuse `gitconfigExists` and `memory` instead of re-probing. Apply these gates:
 
 1. If `dockerVersion` is null: "Docker isn't installed — grab it from https://docs.docker.com/get-docker/ and come back!"
 2. If `configExists` is false: "Run `/claude-code-hermit:hatch` first, then come back."

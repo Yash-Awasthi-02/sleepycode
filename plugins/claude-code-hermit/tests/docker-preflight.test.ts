@@ -16,8 +16,8 @@ afterEach(() => {
   }
 });
 
-async function run(cwd: string) {
-  const r = await runScript('docker-preflight.ts', { cwd });
+async function run(projectRoot: string) {
+  const r = await runScript('docker-preflight.ts', { args: [projectRoot] });
   expect(r.exitCode).toBe(0);
   return JSON.parse(r.stdout);
 }
@@ -32,8 +32,9 @@ describe('docker-preflight.ts', () => {
     expect(out.configExists).toBe(false);
     expect(out.existing).toEqual({ dockerfile: false, entrypoint: false, compose: false });
     expect(typeof out.gitconfigExists).toBe('boolean');
-    // path key mirrors `pwd | sed 's|/|-|g'` (leading dash retained).
-    expect(out.memory.pathKey).toBe(fs.realpathSync(dir).replace(/\//g, '-'));
+    // path key is derived from the project root passed in (mirrors `pwd | sed 's|/|-|g'`,
+    // leading dash retained) — keyed off the supplied logical path, not a resolved one.
+    expect(out.memory.pathKey).toBe(dir.replace(/\//g, '-'));
     expect(typeof out.memory.seedExists).toBe('boolean');
   });
 

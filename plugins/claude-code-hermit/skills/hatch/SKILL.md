@@ -163,7 +163,7 @@ Step 1.5 already ran the language/timezone detection silently. Reuse those value
 
 #### Phase 3 — Behavior (AskUserQuestion batch, 3 questions)
 
-Ask all three in a single `AskUserQuestion` call (first option listed is the default):
+Ask all three in a single `AskUserQuestion` call (the option marked `(default)` is the Recommended pre-selection):
 
 | Header | Question | Options (`label`: description) |
 |---|---|---|
@@ -255,7 +255,7 @@ questions: [
   > - **Interactive (just trying it):** run `/claude-code-hermit:channel-setup` for token + pairing, then restart with `claude --channels plugin:<channel>@claude-plugins-official` so the channel is active in your session.
   > - Full guide: https://code.claude.com/docs/en/channels
 
-**Channel follow-ups (only if Discord or Telegram was selected above — AskUserQuestion batch, 2 questions; first option listed is the default):**
+**Channel follow-ups (only if Discord or Telegram was selected above — AskUserQuestion batch, 2 questions; the option marked `(default)` is the Recommended pre-selection):**
 
 | Header | Question | Options (`label`: description) |
 |---|---|---|
