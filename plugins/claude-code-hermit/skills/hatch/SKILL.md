@@ -852,7 +852,7 @@ questions: [
 
 Record `agent_name` (null if Skip), `language`, `timezone`.
 
-### Quick Turn 3 — Sign-off + Deployment + Channel batch
+### Quick Turn 3 — Sign-off + Deployment + Channel + Idle batch
 
 If a name was given in Turn 2, ask 3 questions (with sign-off). Otherwise ask 2 (drop sign-off).
 
@@ -885,11 +885,19 @@ questions: [
       { label: "Discord" },
       { label: "Telegram" }
     ]
+  },
+  {
+    header: "Idle",
+    question: "What should hermit do when idle between tasks?",
+    options: [
+      { label: "Discover", description: "Maintenance and reflection (default)" },
+      { label: "Wait", description: "Passive — only check for new tasks and messages" }
+    ]
   }
 ]
 ```
 
-Record `sign_off`, `deployment` (one of `docker` / `tmux` / `interactive`), `channel` (one of `none` / `discord` / `telegram`).
+Record `sign_off`, `deployment` (one of `docker` / `tmux` / `interactive`), `channel` (one of `none` / `discord` / `telegram`), `idle_behavior` (one of `discover` / `wait`).
 
 `push_notifications` is left at the template default (`true`) — no follow-up question. Push is dormant whenever a channel is reachable (the runtime guard in CLAUDE-APPEND.md sends channel-first) and fires only as fallback when a channel is unreachable or absent.
 
@@ -911,7 +919,7 @@ Print a labeled summary in this shape:
 ```
 Quick setup will apply:
   Identity:    {agent_name}, {language}, {timezone}, sign-off={sign_off}
-  Behavior:    escalation=balanced, idle=discover, remote=on
+  Behavior:    escalation=balanced, idle={idle_behavior}, remote=on
   Deployment:  {deployment}, permission={derived}, deny={derived hardened|minimal}
   Plugins:     all 4 installed
   Routines:    morning 08:30, evening 22:30, heartbeat 04:00
@@ -952,7 +960,7 @@ Quick replaces Step 4 entirely and applies these defaults silently at the shared
 
 | Source | Field | Quick value |
 |---|---|---|
-| Advanced Phase 3 equivalent | escalation, remote, idle_behavior | template defaults (balanced, true, discover) — don't override |
+| Advanced Phase 3 equivalent | escalation, remote | template defaults (balanced, true) — don't override |
 | Advanced Phase 4 equivalent | plugins + scheduled_checks | install all 4; write 3 scheduled_checks entries per Phase 4 mapping |
 | Advanced Phase 4b equivalent | `.baseline-pending` marker | same eligibility check as Advanced |
 | Advanced Phase 5 equivalent | channels.<name>.* | state_dir + enabled + dm_channel_id=null; omit allowed_users + morning_brief |
