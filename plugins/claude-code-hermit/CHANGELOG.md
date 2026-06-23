@@ -5,6 +5,9 @@
 ### Added
 - **cost-reflect: per-model cost breakdown** — adds a "Cost by model" section so mixed-model (Sonnet main + Haiku subagent) operators can attribute spend per model without reading raw logs. Section is omitted for single-model windows.
 
+### Fixed
+- **hermit-docker login: re-authenticate on expired token** — gate the "already authenticated" short-circuit on credential freshness (`claudeAiOauth.expiresAt < Date.now()`), not just presence; an expired OAuth token now opens the login REPL instead of falsely reporting success.
+
 ## [1.2.10] - 2026-06-23
 
 ### Added
