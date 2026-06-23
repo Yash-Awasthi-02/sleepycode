@@ -142,19 +142,7 @@ Initialize state files (inline — shape-insensitive or append-only):
 - Copy `HEARTBEAT.md.template` → `.claude-code-hermit/HEARTBEAT.md` (the operator's editable checklist)
 - **Enumerate** all files under `${CLAUDE_SKILL_DIR}/../../state-templates/bin/` (do not hardcode the list). Copy each one into `.claude-code-hermit/bin/`. Ensure all are executable (`chmod +x`). Current set: hermit-attach, hermit-docker, hermit-run, hermit-start, hermit-status, hermit-stop, hermit-update, hermit-watchdog.
 - Copy `knowledge-schema.md.template` → `.claude-code-hermit/knowledge-schema.md` (the operator's behavioral schema for domain outputs).
-- **Seed `state/template-manifest.json`** via `manifest-seed.ts` — it records the sha256 pristine-baseline that the `hermit-evolve` drift signals depend on. **Do not hand-compute the hashes** (an LLM cannot sha256 reliably; the script makes them correct by construction). Read the current plugin version from `${CLAUDE_SKILL_DIR}/../../.claude-plugin/plugin.json`, then run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/manifest-seed.ts .claude-code-hermit` with this JSON on stdin:
-  ```json
-  {
-    "pluginVersion": "<version>",
-    "entries": [
-      { "key": "templates/SHELL.md.template", "file": "${CLAUDE_PLUGIN_ROOT}/state-templates/SHELL.md.template" },
-      { "key": "templates/SESSION-REPORT.md.template", "file": "${CLAUDE_PLUGIN_ROOT}/state-templates/SESSION-REPORT.md.template" },
-      { "key": "templates/PROPOSAL.md.template", "file": "${CLAUDE_PLUGIN_ROOT}/state-templates/PROPOSAL.md.template" },
-      { "keyPrefix": "bin", "dir": "${CLAUDE_PLUGIN_ROOT}/state-templates/bin" }
-    ]
-  }
-  ```
-  The `bin` entry enumerates the **source** `state-templates/bin/` (the authoritative core set), never the project's `.claude-code-hermit/bin/` (which can hold operator/add-on files). The script writes `{ "version": 1, "files": { ... } }` and on re-init preserves foreign keys (add-on hermit entries) while overwriting only the keys it re-seeds; it refuses to overwrite a present-but-corrupt manifest. **Ordering:** run this *after* Step 8 has merged the plugin permissions, so the `bun */scripts/manifest-seed.ts*` permission already exists when the call fires. The copied files are stable, so seeding later in the flow does not change the recorded hashes.
+- **Seed `state/template-manifest.json`** via `manifest-seed.ts` — records the sha256 pristine-baseline the `hermit-evolve` drift signals depend on. **Deferred to the end of Step 8** (see the seeding sub-step there): the call needs the `bun */scripts/manifest-seed.ts*` permission that Step 8 merges. The source template files are stable, so running it after the permission merge records the same hashes it would record now. Do not run it here.
 
 ### 3. Hermit activation prompt (Advanced branch only)
 
@@ -640,7 +628,7 @@ Merge these into the target file:
 **Why each one:**
 
 - `git diff`, `git status`, `git log` — session-diff.ts hook auto-populates `## Changed` in SHELL.md
-- `bun */scripts/<name>.ts` — Stop hooks (cost-tracker, suggest-compact, session-diff, evaluate-session) and precheck scripts (heartbeat-precheck, reflect-precheck), scoped to plugin scripts only. Includes `manifest-seed.ts`, which Step 2 runs (after this step) to write the template-manifest baseline
+- `bun */scripts/<name>.ts` — Stop hooks (cost-tracker, suggest-compact, session-diff, evaluate-session) and precheck scripts (heartbeat-precheck, reflect-precheck), scoped to plugin scripts only. Includes `manifest-seed.ts`, which the seeding sub-step below runs to write the template-manifest baseline (deferred from Step 2 so the permission is in place first)
 - `bash -c 'AGENT_DIR=...` — SessionStart hook that loads session context on every startup
 - `Edit`, `Write` on `.claude-code-hermit/**` — heartbeat appends to SHELL.md, increments config.json tick counter, and skills update session state without prompting
 
@@ -652,6 +640,24 @@ Merge these into the target file:
 4. If permissions need to be added: show the operator the list of permissions to add and ask with `AskUserQuestion` (header: "Hook perms") — options: **Yes — add** (merge so hooks run without prompting, default) / **No — skip** (you'll be prompted during sessions).
 5. If the operator confirms: merge into the existing `permissions.allow` array (never remove existing entries), write back to the target settings file
 6. If the operator declines: skip, and note: "You may be prompted to approve hook commands during sessions. Run `/claude-code-hermit:hermit-settings permissions` to add them later."
+
+**Seed `state/template-manifest.json`** (deferred from Step 2 — now that the `bun */scripts/manifest-seed.ts*` permission is in place). It records the sha256 pristine-baseline that the `hermit-evolve` drift signals depend on. **Do not hand-compute the hashes** (an LLM cannot sha256 reliably; the script makes them correct by construction). Read the current plugin version from `${CLAUDE_SKILL_DIR}/../../.claude-plugin/plugin.json`, then run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/manifest-seed.ts .claude-code-hermit` with this JSON on stdin:
+
+```json
+{
+  "pluginVersion": "<version>",
+  "entries": [
+    { "key": "templates/SHELL.md.template", "file": "${CLAUDE_PLUGIN_ROOT}/state-templates/SHELL.md.template" },
+    { "key": "templates/SESSION-REPORT.md.template", "file": "${CLAUDE_PLUGIN_ROOT}/state-templates/SESSION-REPORT.md.template" },
+    { "key": "templates/PROPOSAL.md.template", "file": "${CLAUDE_PLUGIN_ROOT}/state-templates/PROPOSAL.md.template" },
+    { "keyPrefix": "bin", "dir": "${CLAUDE_PLUGIN_ROOT}/state-templates/bin" }
+  ]
+}
+```
+
+The `bin` entry enumerates the **source** `state-templates/bin/` (the authoritative core set), never the project's `.claude-code-hermit/bin/` (which can hold operator/add-on files). The script writes `{ "version": 1, "files": { ... } }` and on re-init preserves foreign keys (add-on hermit entries) while overwriting only the keys it re-seeds; it refuses to overwrite a present-but-corrupt manifest. The source files it hashes are stable, so seeding here does not change the recorded hashes.
+
+The bare `.claude-code-hermit` argv is cwd-relative, which is safe here: `hatch` runs from the project root and never invokes `docker compose` or `tmux`, so cwd does not drift (unlike `/docker-setup` Step 7b.6, which anchors to an absolute `<PROJECT_ROOT>` for that reason).
 
 ### 9. Generate deny patterns (AskUserQuestion, single question)
 

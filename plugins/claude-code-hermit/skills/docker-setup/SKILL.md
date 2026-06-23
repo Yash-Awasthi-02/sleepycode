@@ -337,13 +337,13 @@ Now that `docker.packages` (Step 7b.packages), `docker.recommended_plugins` (Ste
 
 Use the placeholder rules from Step 4 verbatim.
 
-**Record docker template baselines in the manifest** (arms the `hermit-evolve` drift signals) via `manifest-seed.ts` — **do not hand-compute the hashes**. Read the current plugin version from `${CLAUDE_SKILL_DIR}/../../.claude-plugin/plugin.json`, then run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/manifest-seed.ts .claude-code-hermit` with this JSON on stdin:
+**Record docker template baselines in the manifest** (arms the `hermit-evolve` drift signals) via `manifest-seed.ts` — **do not hand-compute the hashes**. Read the current plugin version from `${CLAUDE_SKILL_DIR}/../../.claude-plugin/plugin.json`. Anchor the state-dir argv and the entrypoint file path to the **absolute project root** (verified in Step 1), not a cwd-relative path — cwd can drift after the `docker compose` / `tmux` calls earlier in this skill. Using `<PROJECT_ROOT>` for that absolute path, run `bun ${CLAUDE_PLUGIN_ROOT}/scripts/manifest-seed.ts <PROJECT_ROOT>/.claude-code-hermit` with this JSON on stdin:
 
 ```json
 {
   "pluginVersion": "<version>",
   "entries": [
-    { "key": "docker/docker-entrypoint.hermit.sh", "file": "docker-entrypoint.hermit.sh" },
+    { "key": "docker/docker-entrypoint.hermit.sh", "file": "<PROJECT_ROOT>/docker-entrypoint.hermit.sh" },
     { "key": "docker/docker-compose.hermit.yml.template", "file": "${CLAUDE_PLUGIN_ROOT}/state-templates/docker/docker-compose.hermit.yml.template" },
     { "key": "docker/Dockerfile.hermit.template", "file": "${CLAUDE_PLUGIN_ROOT}/state-templates/docker/Dockerfile.hermit.template" }
   ]
@@ -351,7 +351,7 @@ Use the placeholder rules from Step 4 verbatim.
 ```
 
 The **file each key hashes is deliberate**:
-- `docker/docker-entrypoint.hermit.sh` hashes the **on-disk rendered** entrypoint at the project root — it is copied verbatim, so its hash equals the upstream template's. The bare `docker-entrypoint.hermit.sh` path resolves against the cwd, which is the project root throughout this skill (same as the `.claude-code-hermit` argv). This baseline lets `hermit-evolve` Step 5c manage the entrypoint as a boot-critical file (keep operator edits, refresh when upstream moves).
+- `docker/docker-entrypoint.hermit.sh` hashes the **on-disk rendered** entrypoint at the project root — it is copied verbatim, so its hash equals the upstream template's. It is anchored to `<PROJECT_ROOT>` (absolute) so it resolves correctly regardless of the current working directory. This baseline lets `hermit-evolve` Step 5c manage the entrypoint as a boot-critical file (keep operator edits, refresh when upstream moves).
 - The two `.template` keys hash the **upstream templates**, never the rendered output — they render with placeholder substitution, so rendered ≠ upstream forever. This lets `hermit-evolve` Step 10 report upstream drift (`status: changed`) without false positives from substitution.
 
 The script preserves every other manifest key (the `templates/`/`bin/` baselines `hatch` seeded, sibling-hermit keys) and refuses to overwrite a present-but-corrupt manifest.
