@@ -177,10 +177,17 @@ case "$CMD" in
     PARSED=$(echo "$AUTH_STATUS" | bun -e "const d=JSON.parse(require('fs').readFileSync(0,'utf8')); console.log(d.loggedIn ?? 'false'); console.log(d.email ?? 'unknown');" 2>/dev/null || printf 'false\nunknown')
     LOGGED_IN="${PARSED%%$'\n'*}"
     EMAIL="${PARSED#*$'\n'}"
-    if [ "$LOGGED_IN" = "True" ] || [ "$LOGGED_IN" = "true" ]; then
+    # Token freshness — mirrors docker-entrypoint.hermit.sh §0b (expiresAt vs Date.now()).
+    # Duplicated intentionally: the two scripts are cp'd independently with no sourcing path.
+    # Outputs: "ok" (valid or no expiresAt field), "expired" (access token lapsed), "unknown" (read/parse error).
+    FRESH=$(cd "$PROJECT_DIR" && "${DC[@]}" exec -T "$SERVICE" sh -c \
+      'bun -e "try{const f=(process.env.CLAUDE_CONFIG_DIR||\"/home/claude/.claude\")+\"/.credentials.json\";const e=(JSON.parse(require(\"fs\").readFileSync(f,\"utf8\")).claudeAiOauth??{}).expiresAt;if(!e){console.log(\"ok\")}else{const ms=Number(e);if(Number.isNaN(ms))throw 0;console.log(ms<Date.now()?\"expired\":\"ok\")}}catch{console.log(\"unknown\")}"' \
+      2>/dev/null || echo "unknown")
+    if { [ "$LOGGED_IN" = "True" ] || [ "$LOGGED_IN" = "true" ]; } && [ "$FRESH" = "ok" ]; then
       echo "[hermit] Already authenticated as ${EMAIL}."
       echo "[hermit] To switch accounts: hermit-docker bash → claude auth logout, then re-run hermit-docker login."
     else
+      [ "$FRESH" = "expired" ] && echo "[hermit] Stored login for ${EMAIL} has expired. Re-authenticating."
       echo "[hermit] Opening Claude Code REPL for login..."
       echo "[hermit] → Type /login and press Enter"
       echo "[hermit] → Open the URL in your browser and complete OAuth"
