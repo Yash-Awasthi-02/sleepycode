@@ -4,11 +4,25 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-## [Unreleased]
+## [0.0.9] - 2026-06-23
 
 ### Fixed
 
 - **hatch: domain resume after core hatch** — Step 1 now prints the re-run instruction before invoking core as the terminal action, so the operator sees it. Removes the "then continue" assumption that silently dropped Step 2.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `skills/hatch/SKILL.md` | Domain resume: print instruction before core hatch, then stop instead of continuing |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Refresh the fitness hermit plugin** — `/claude-code-hermit:hermit-evolve` pulls the updated skill.
+
+No `config.json` changes required.
 
 ## [0.0.8] - 2026-06-12
 
