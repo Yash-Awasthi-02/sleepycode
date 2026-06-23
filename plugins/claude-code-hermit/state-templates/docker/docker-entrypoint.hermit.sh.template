@@ -157,6 +157,22 @@ else
   audit_install() { :; }
 fi
 
+# Enable a plugin, suppressing only the benign "already enabled" non-zero exit
+# (`claude plugin install --scope` auto-enables, so the self-heal enable usually
+# hits that). Any other failure is logged — visible in `docker compose logs` —
+# but non-fatal. `claude plugin list` shows disabled plugins too, so a presence
+# grep can't catch a failed enable; this warning is the actual signal.
+enable_plugin() {
+  local out
+  if out=$(claude plugin enable "$1" --scope "$2" 2>&1); then
+    return 0
+  fi
+  case "$out" in
+    *"already enabled"*) return 0 ;;
+    *) echo "[docker-entrypoint] Warning: failed to enable ${1} (scope ${2}): ${out}" ;;
+  esac
+}
+
 # --- 1. Bypass onboarding, pre-approve MCP servers, patch permission_mode ---
 CLAUDE_JSON="${CLAUDE_CONFIG_DIR}/.claude.json"
 CC_VERSION=$(claude --version 2>/dev/null | grep -oP '[\d.]+' | head -1 || echo "0.0.0")
@@ -289,7 +305,7 @@ if ! claude plugin list 2>/dev/null | grep -qF 'claude-code-hermit@claude-code-h
 fi
 
 # Idempotent enable — runs every boot to self-heal if plugin was disabled.
-claude plugin enable claude-code-hermit@claude-code-hermit --scope project 2>/dev/null || true
+enable_plugin claude-code-hermit@claude-code-hermit project
 
 # Official marketplace (needed by channel plugins)
 NEEDS_OFFICIAL=false
@@ -319,7 +335,7 @@ if [ "$NEEDS_OFFICIAL" = true ] && [ -n "$CHANNELS" ]; then
     target="${plugin}@claude-plugins-official"
     if echo "$INSTALLED_PLUGINS" | grep -qF "$target"; then
       # Idempotent re-enable covers the "listed but disabled" case.
-      claude plugin enable "$target" --scope local || true
+      enable_plugin "$target" local
       continue
     fi
     echo "[docker-entrypoint] Installing channel plugin: ${plugin}"
@@ -328,9 +344,8 @@ if [ "$NEEDS_OFFICIAL" = true ] && [ -n "$CHANNELS" ]; then
       continue
     fi
     audit_install "claude-plugins-official" "$plugin" "local"
-    # install --scope already auto-enables; this self-heal may report "already enabled"
-    # (non-zero) — non-fatal, fall through to verification.
-    claude plugin enable "$target" --scope local || true
+    # Self-heal enable; warns only on a genuine failure (see enable_plugin).
+    enable_plugin "$target" local
     # Post-install verification — re-query list and confirm the entry landed.
     # Catches the "CLI exits 0 but nothing was fetched" silent-failure mode.
     if ! claude plugin list | grep -qF "$target"; then
@@ -454,11 +469,17 @@ for (const entry of plugins) {
     continue;
   }
   audit(marketplace, plugin, scope);
-  // install --scope already auto-enables; the enable below self-heals the "listed but
-  // disabled" case. "already enabled" (status !== 0) is benign — not logged as a warning.
-  result = spawnSync("claude", ["plugin", "enable", installTarget, "--scope", scope], INHERIT);
+  // Self-heal enable — mirrors shell enable_plugin(): suppress the benign "already enabled"
+  // exit, warn on a genuine failure. Output captured (stdin still ignored) to match the message.
+  result = spawnSync("claude", ["plugin", "enable", installTarget, "--scope", scope],
+    { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8" });
   if (result.error) {
     console.log(`[docker-entrypoint] Warning: claude not found enabling ${plugin} — plugin installed but enable skipped; will self-heal on next restart`);
+  } else if (result.status !== 0) {
+    const enableOut = (result.stdout ?? "") + (result.stderr ?? "");
+    if (!enableOut.includes("already enabled")) {
+      console.log(`[docker-entrypoint] Warning: failed to enable ${plugin} — run: claude plugin enable ${installTarget}`);
+    }
   }
 }
 JSEOF

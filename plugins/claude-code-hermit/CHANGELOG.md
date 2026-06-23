@@ -5,6 +5,7 @@
 ### Fixed
 
 - **docker-entrypoint: marketplace registration via `list --json`, not dir existence** — `marketplace_registered()` helper reads `known_marketplaces.json`; fixes "No marketplaces configured" when dir exists but isn't registered (partial add, fresh named volume, bind-mount). Decoupled hermit install from marketplace-add so prior install failures self-heal on next boot.
+- **docker-entrypoint: genuine plugin-enable failures are logged** — boot-time enable goes through an `enable_plugin` helper that suppresses only the benign "already enabled" exit and warns on any other failure. Previously `|| true` swallowed every non-zero enable, and the post-install check greps `plugin list` for presence (which includes disabled plugins), so a failed enable left a plugin present-but-disabled with no signal.
 
 ### Upgrade Instructions
 

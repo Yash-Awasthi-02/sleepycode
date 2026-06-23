@@ -234,4 +234,12 @@ describe('Entrypoint: marketplace registration uses list --json, not dir existen
   test('entrypoint: hermit install decoupled from marketplace add', () => {
     expect(entrypoint).toContain("grep -qF 'claude-code-hermit@claude-code-hermit'");
   });
+
+  test('entrypoint: enable failures distinguish benign "already enabled" from genuine', () => {
+    // Shared shell helper suppresses only the benign case and warns otherwise.
+    expect(entrypoint).toContain('enable_plugin()');
+    expect(entrypoint).toContain('already enabled');
+    // No enable site silently swallows failures via `|| true` anymore.
+    expect(entrypoint).not.toMatch(/plugin enable[^\n]*\|\| true/);
+  });
 });
