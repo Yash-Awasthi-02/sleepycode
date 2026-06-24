@@ -327,10 +327,8 @@ function sandboxProbeCached(): Json | null {
 /**
  * Warn to stdout if sandbox is enabled but deps are unavailable.
  *
- * Skipped inside containers: hermit-start auto-writes enableWeakerNestedSandbox
- * for that case, which sidesteps the user-namespace restriction that the probe
- * tests for. The unshare check would always fail in unprivileged containers
- * regardless, producing a spurious warning.
+ * Skipped inside containers: the container is the isolation boundary, so there is
+ * nothing to warn about (and probing would always fail in unprivileged containers).
  */
 function checkSandboxCapability(): void {
   if (!isSandboxEnabled()) return;
@@ -695,22 +693,16 @@ function writeSettingsEnv(config: Json): void {
     console.log(`[hermit] Cleaned stale token vars from settings.local.json: ${staleKeys.join(', ')}`);
   }
 
-  // Sandbox: manage only sandbox.enableWeakerNestedSandbox.
-  // All other sandbox.* keys are hatch/operator territory — never touched here.
-  // Use `|| {}` so a literal null or non-dict value (corrupted file, jq edit)
-  // doesn't crash downstream.
+  // hermit-start does not own sandbox.enabled — that's a hatch/operator decision;
+  // hermit-evolve migrates existing installs. Here we only strip the obsolete
+  // enableWeakerNestedSandbox key that older versions wrote on container boot.
   let sandbox = settings.sandbox || {};
   if (!isDict(sandbox)) sandbox = {};
-  if (isContainer()) {
-    sandbox.enableWeakerNestedSandbox = true;
+  delete sandbox.enableWeakerNestedSandbox;
+  if (pyTruthy(sandbox)) {
     settings.sandbox = sandbox;
   } else {
-    delete sandbox.enableWeakerNestedSandbox;
-    if (pyTruthy(sandbox)) {
-      settings.sandbox = sandbox;
-    } else {
-      delete settings.sandbox;
-    }
+    delete settings.sandbox;
   }
 
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + '\n');

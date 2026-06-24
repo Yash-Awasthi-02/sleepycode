@@ -599,16 +599,27 @@ describe('writeSettingsEnv sandbox overlay', () => {
     expect(out).toBe('');
   });
 
-  test('in-container boot adds enableWeakerNestedSandbox without clobbering other sandbox keys', () => {
+  test('in-container boot strips obsolete enableWeakerNestedSandbox but never touches enabled', () => {
     process.env.container = 'docker';
-    writeSettings({ sandbox: { enabled: true, allowUnsandboxedCommands: true } });
+    writeSettings({ sandbox: { enabled: true, enableWeakerNestedSandbox: true, allowUnsandboxedCommands: true } });
     writeConfig({});
     const config = loadConfig();
     captureLog(() => writeSettingsEnv(config));
     const settings = readSettings();
-    expect(settings.sandbox.enableWeakerNestedSandbox).toBe(true);
-    expect(settings.sandbox.enabled).toBe(true);
-    expect(settings.sandbox.allowUnsandboxedCommands).toBe(true);
+    expect(settings.sandbox.enabled).toBe(true); // operator/hatch intent untouched
+    expect(settings.sandbox).not.toContainKey('enableWeakerNestedSandbox');
+    expect(settings.sandbox.allowUnsandboxedCommands).toBe(true); // operator keys preserved
+  });
+
+  test('in-container boot leaves an already-off sandbox off without re-adding weaker-nest', () => {
+    process.env.container = 'docker';
+    writeSettings({ sandbox: { enabled: false } });
+    writeConfig({});
+    const config = loadConfig();
+    writeSettingsEnv(config);
+    const settings = readSettings();
+    expect(settings.sandbox.enabled).toBe(false);
+    expect(settings.sandbox).not.toContainKey('enableWeakerNestedSandbox');
   });
 
   test.skipIf(IN_CONTAINER)('non-container boot removes enableWeakerNestedSandbox and preserves other sandbox keys', () => {
