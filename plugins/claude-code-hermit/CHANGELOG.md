@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.11] - 2026-06-24
 
 ### Added
 - **hatch: idle_behavior choice in Quick** — Quick Turn 3 now asks proactive (`discover`) vs reactive (`wait`) instead of silently defaulting to `discover`, so operators pick deliberately.
