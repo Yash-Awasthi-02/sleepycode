@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+- **judge subagents: state terse-output rationale explicitly** — `proposal-triage`, `reflection-judge`, and `quality-gate-judge` now say their final message lands verbatim in the caller's long-lived context and re-read from cache each turn, so reasoning belongs in thinking, not the response (#468).
+
 ## [1.2.11] - 2026-06-24
 
 ### Added
