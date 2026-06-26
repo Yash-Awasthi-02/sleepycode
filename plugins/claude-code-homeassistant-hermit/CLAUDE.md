@@ -42,17 +42,14 @@ A Home Assistant domain layer for `claude-code-hermit`: skills, subagents, a saf
 
 ## MCP vs CLI
 
-- **Home Assistant MCP Server** (`homeassistant`): read-only live ops — `GetLiveContext`, `GetDateTime`. MCP actuation is blocked by `hooks/mcp-safety-gate.ts` (fail-closed on unresolvable targets; intent tools never carry `entity_id`).
-- **CLI** (`bin/ha-agent-lab`): all write operations — `ha actuate <entity_id> <verb> [--level N] [--confirmed]` for device control (light/switch/fan/cover/lock); `ha resolve-entity` to map a phrase to an `entity_id`; plus bulk work — context refresh, YAML simulation, policy checks, apply, audits.
+- **Home Assistant MCP Server** (`homeassistant`): read-only live ops by default — `GetLiveContext`, `GetDateTime`. `Hass*` intent tools (`HassTurnOn`, `HassLightSet`, `HassSetPosition`, `HassFanSetSpeed`, etc.) are hard-blocked unless `ha_assist_control_enabled: true` is set in `config.json` (set during hatch Step 7.55). When enabled, HA's own expose-to-Assist gate is the control boundary — the gate defers to it rather than blocking.
+- **CLI** (`bin/ha-agent-lab`): build and analysis operations — context refresh, YAML simulation, policy checks, apply, audits, structural writes (helpers/areas/registries), and `ha trigger-automation`.
 
 MCP tool IDs follow the pattern `mcp__homeassistant__*`. The `homeassistant` name is required — the safety hook matches on it.
 
 ## CLI Commands
 
 ```
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha resolve-entity "<phrase>" [--domain <domain>]
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha actuate <entity_id> <verb> [--level <N>] [--confirmed]
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha actuate-area "<area name>" <verb> [--level <N>] [--confirmed]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha refresh-context [--incremental]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha simulate <artifact>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha validate-apply <artifact> [--reload automation|script|scene]
@@ -85,6 +82,7 @@ ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-entity-enabled <entity_id> --enabl
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-devices
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha set-device-area <device_id> --area <area_id> [--confirm]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha rename-device <device_id> --name <name> [--confirm]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha trigger-automation <automation_id>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot status [--probe]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab boot store --language <locale> --url <url> [--token <token>]
 bun test
