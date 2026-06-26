@@ -113,15 +113,16 @@ export function resolveEntity(
   );
   const topScore = scored[0]!.score;
   const topHits = scored.filter((c) => c.score === topScore);
+  // The top tier is superset-or-exact (every query token present); partial overlap
+  // (score 1) never auto-matches.
+  const isAutoTier = topScore >= 2;
 
-  // Auto-match only when a single entity sits at the top tier AND that tier is
-  // superset-or-exact (every query token present). Partial overlap never
-  // auto-matches.
-  if (topScore >= 2 && topHits.length === 1) {
+  // Auto-match only when a single entity sits at that tier.
+  if (isAutoTier && topHits.length === 1) {
     return { match: topHits[0]!.entity_id };
   }
 
-  const pool = topScore >= 2 ? topHits : scored;
+  const pool = isAutoTier ? topHits : scored;
   const candidates: Candidate[] = pool
     .slice(0, CANDIDATE_CAP)
     .map(({ entity_id, friendly_name, state }) => ({ entity_id, friendly_name, state }));

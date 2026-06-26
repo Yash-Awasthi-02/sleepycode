@@ -1,22 +1,16 @@
 ---
 name: ha-command-router
-description: Route a natural-language house command (in the operator's locale) to a Home Assistant actuation. Resolves the target entity via the CLI, maps the verb to an MCP intent tool, asks on ambiguity, and confirms sensitive actions over the channel. Use when the operator tells the house to DO something (turn on/off, open/close, set level) — not for state questions (use ha-house-status).
+description: Route a natural-language house command (in the operator's locale) to a Home Assistant actuation. Resolves the target entity via the CLI, maps the verb to a CLI actuate call, asks on ambiguity, and confirms sensitive actions over the channel. Use when the operator tells the house to DO something (turn on/off, open/close, set level) — not for state questions (use ha-house-status).
 allowed-tools:
   - Bash
   - Read
   - Write
   - AskUserQuestion
-  - mcp__homeassistant__HassTurnOn
-  - mcp__homeassistant__HassTurnOff
-  - mcp__homeassistant__HassLightSet
-  - mcp__homeassistant__HassSetPosition
 ---
 
 # HA Command Router
 
-Turn a spoken/typed house command into a concrete, safe Home Assistant call. The
-safety gate (`hooks/mcp-safety-gate.ts`) requires a **concrete `entity_id`** — area
-names and friendly names are blocked — so always resolve the target first.
+Turn a spoken/typed house command into a concrete, safe Home Assistant call.
 
 ## Steps
 
@@ -25,8 +19,8 @@ names and friendly names are blocked — so always resolve the target first.
 
 2. **Parse** the utterance into: a verb (the intent), a target phrase (the device),
    and any parameter (a percentage / level). The model handles typos and synonyms —
-   do not shell out for this. Map the verb to a tool via the Verb Lexicon below to
-   infer the target's likely **domain** (e.g. "acende" → `light`).
+   do not shell out for this. Map the verb to a CLI verb via the Verb Lexicon below
+   to infer the target's likely **domain** (e.g. "acende" → `light`).
 
 3. **Prefer a script** when the whole utterance names a routine, not a single device
    (see Scripts). Otherwise continue.
@@ -40,83 +34,78 @@ names and friendly names are blocked — so always resolve the target first.
    - `{"candidates": [...]}` → **ask, never guess**. Present the friendly names and
      let the operator pick (interactive: `AskUserQuestion`; over a channel: reply
      with a short numbered list and wait for the reply). Re-run with the chosen id.
-     If the result also carries `"truncated": true`, the list was capped — tell the
-     operator there are more matches and ask them to narrow the phrase.
+     If the result also carries `"truncated": true`, tell the operator there are more
+     matches and ask them to narrow the phrase.
    - `{"none": true}` or `{"none": true, "reason": "no_snapshot"}` → reply that you
      don't recognize the device and suggest `/claude-code-homeassistant-hermit:ha-refresh-context`.
 
-5. **Sensitivity check**: if the resolved `entity_id` is sensitive
-   (`${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha policy-check <entity_id>` →
-   `severity` is `block` or `ask`), follow **Confirmation** before actuating.
-   `allow` → actuate directly.
+5. **Actuate** by calling:
+   ```
+   ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha actuate <entity_id> <verb> [--level <N>]
+   ```
+   Branch on the JSON:
+   - `{"status": "ok", ...}` → confirm the result to the operator in their locale (Format below).
+   - `{"status": "blocked", ...}` → the entity is in `strict` mode; surface a proposal instead.
+   - `{"status": "needs_confirmation", ...}` → the entity needs confirmation (see Confirmation).
+   - `{"status": "error", "message": "..."}` → surface the message as a friendly error.
 
-6. **Actuate** by calling the mapped MCP intent tool with the concrete `entity_id`
-   (and the level parameter per the tool's own schema). Never pass `area_id` /
-   friendly names — the gate fails those closed.
+## Verb Lexicon (Portuguese → CLI verb)
 
-7. **Confirm** to the operator in their locale what happened (Format below).
+| Utterance verb            | CLI verb       | Domain  |
+|---------------------------|----------------|---------|
+| acende, liga, ligar       | `on`           | `light` / `switch` |
+| apaga, desliga, desligar  | `off`          | `light` / `switch` |
+| abre, abrir               | `open`         | `cover` |
+| fecha, fechar             | `close`        | `cover` |
+| põe a N%, define N%       | `set --level N`| `light` (brightness_pct) / `cover` (position) |
+| tranca                    | `lock`         | `lock`  |
+| destranca                 | `unlock`       | `lock`  |
 
-## Verb Lexicon (Portuguese → intent)
+Domains covered by `ha actuate`: `light`, `switch`, `fan`, `cover`, `lock`.
+Domains NOT supported (sensors, climate, media, input, etc.) return `{status:"error"}` — surface a
+proposal instead. Sensitive locks/alarms follow the confirmation flow; under `strict` they return
+`{status:"blocked"}` and always become a proposal.
 
-| Utterance verb            | Intent tool        | Notes |
-|---------------------------|--------------------|-------|
-| acende, liga, ligar       | `HassTurnOn`       | domain `light`/`switch` |
-| apaga, desliga, desligar  | `HassTurnOff`      | domain `light`/`switch` |
-| abre, abrir               | `HassTurnOn`       | covers (open) |
-| fecha, fechar             | `HassTurnOff`      | covers (close) |
-| põe a N%, define N%       | `HassLightSet` (brightness) / `HassSetPosition` (cover) | set the level param per the tool schema |
+## Scripts (whole-routine utterances)
 
-These four tools (`HassTurnOn`, `HassTurnOff`, `HassLightSet`, `HassSetPosition`)
-are the skill's `allowed-tools` and cover light/switch/cover/level. Any other tool —
-a dedicated lock/alarm intent, or a dynamically-named script tool (see Scripts) —
-is outside the allowlist and will trigger a permission prompt; that is expected, and
-for sensitive locks/alarms the strict-mode proposal path applies anyway.
-
-## Scripts (optional fallback)
-
-For whole-routine utterances ("bom dia", "vou sair") that have no single-device
-equivalent: list scripts with
-`${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-scripts` and match the phrase to a
-`friendly_name`. Then find the **correspondingly-named tool** in your available
-`mcp__homeassistant__*` tools and call it. There is no deterministic
-`entity_id` → tool-id bridge — if you cannot confidently identify the script tool,
-ask the operator rather than guessing. A sensitive script (e.g. arming an alarm)
-carries no `entity_id`, so the channel-confirmation gate-token path cannot cover it;
-treat such cases as a proposal unless the operator has explicitly arranged otherwise.
+A whole-routine utterance ("bom dia", "vou sair") names a routine, not a single
+device. `ha actuate` rejects `script.*` entities (returns `{status:"error",
+message:"script entities route to a proposal"}`). There is no verified path to
+call HA scripts safely yet. List candidates with
+`${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha list-scripts`, name the routine, and
+surface it as a proposal rather than actuating.
 
 ## Confirmation (sensitive actions)
 
 Sensitive domains (`lock`, `alarm_control_panel`, security-keyworded
-`cover`/`switch`/`button`) are never actuated without confirmation:
+`cover`/`switch`/`button`) return `{"status": "needs_confirmation", ...}` when
+`ha_safety_mode` is `ask` and `--confirmed` is not passed.
 
-- **Interactive session**: use `AskUserQuestion` and actuate on approval.
-- **Channel session** (any channel — Telegram/Discord/voice): do NOT call the MCP tool. Append a pending
-  entry to `.claude-code-hermit/state/pending-ha-actions.json` — create the file as
-  `{"pending": []}` if it does not exist — with `pending[]` entries shaped
-  `{id, tool, entity_id, verb, channel, created_at}`. Then reply
+- **Interactive session**: use `AskUserQuestion` and re-run with `--confirmed` on
+  approval:
+  ```
+  ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha actuate <entity_id> <verb> [--level <N>] --confirmed
+  ```
+- **Channel session** (any channel — Telegram/Discord/voice): do NOT call with
+  `--confirmed` yet. Append a pending entry to
+  `.claude-code-hermit/state/pending-ha-actions.json` — create the file as
+  `{"pending": []}` if it does not exist — with entries shaped
+  `{id, entity_id, verb, level?, channel, created_at}`. Reply
   "Confirmas <action>? (sim/não)". On the operator's next affirmative, this skill is
-  re-invoked with `--resolve` (see below): it writes a one-shot confirmation token
-  the gate honors, then makes the call. On "não", drop the entry and acknowledge.
+  re-invoked in `--resolve` mode.
 
-`strict` mode never actuates sensitive entities — surface a proposal instead.
+`strict` mode never actuates sensitive entities — the CLI returns `{status:"blocked"}`
+and a proposal is surfaced instead.
 
 ### `--resolve` mode
 
-`--resolve` only ever handles **entity-targeting** pending actions. A sensitive
-*script* has no `entity_id`, so the gate fail-closes it before the token is ever
-consulted — never write a token for a script; route it to a proposal instead (see
-Scripts).
-
 When invoked to resolve an entity-targeting pending confirmation: read
-`state/pending-ha-actions.json`, take the matching pending entry, write the one-shot
-token `state/ha-confirm-token.json` as `{"tool": "<mcp tool id>", "tool_input":
-{ ...the exact args the call will send, incl. "entity_id" and any level/position },
-"expiry": <now + 30000 epoch ms>, "nonce": "<random>"}`, then **immediately** call
-that MCP intent tool with those exact args (the gate consumes the token and allows
-the call). The token binds the **whole `tool_input`** — it must be byte-for-byte the
-args the call sends, or the gate falls back to `ask`. Finally remove the pending
-entry and confirm the result in the operator's locale. The token is single-use and
-expires in ~30s — if the call does not fire promptly, re-confirm rather than reusing it.
+`state/pending-ha-actions.json`, take the matching pending entry, call
+`ha actuate <entity_id> <verb> [--level <N>] --confirmed`. Remove the pending entry
+and confirm the result in the operator's locale.
+
+`--resolve` only handles **entity-targeting** pending actions. Scripts have no
+confirmed path — route them to a proposal (see Scripts).
 
 ## Format
 

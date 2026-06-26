@@ -53,14 +53,15 @@ generic categories:
   trancada?"): dispatch to `/claude-code-homeassistant-hermit:ha-house-status`.
 - **Affirmative/negative with a pending HA action** — a bare "sim"/"não" (or
   yes/no) while `.claude-code-hermit/state/pending-ha-actions.json` has a `pending`
-  entry: dispatch to `ha-command-router` in `--resolve` mode to execute (or cancel)
-  the held action. Check this **before** the core micro-approval branch. `--resolve`
-  only executes **entity-targeting** actions; a sensitive *script* (no `entity_id`)
-  cannot be token-bridged through the gate — it surfaces a proposal instead.
+  entry: dispatch to `/claude-code-homeassistant-hermit:ha-command-router` in
+  `--resolve` mode to execute (or cancel) the held action. Check this **before** the
+  core micro-approval branch. `--resolve`
+  only executes **entity-targeting** actions; sensitive script routines have no
+  confirmed path and surface a proposal instead.
 
 This routing is declarative — `channel-responder` is not modified; it reads these
 rules. Sensitive actuations still follow the gated confirmation flow in
-`ha-command-router`.
+`/claude-code-homeassistant-hermit:ha-command-router`.
 
 ### Subagents
 
@@ -72,15 +73,16 @@ rules. Sensitive actuations still follow the gated confirmation flow in
 
 ### MCP vs CLI
 
-- **MCP (`homeassistant`)**: live operations — `GetLiveContext`, `GetDateTime`, light/cover/fan control.
-- **CLI** (`${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab`): bulk work — context refresh, simulation, policy checks, apply, audits.
-- **Safety hook**: MCP actuation tools are gated by `hooks/mcp-safety-gate.ts` before reaching HA.
+- **MCP (`homeassistant`)**: read-only live operations — `GetLiveContext`, `GetDateTime`. Actuation via MCP is blocked by `hooks/mcp-safety-gate.ts`.
+- **CLI** (`${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab`): all write operations — `ha actuate <entity_id> <verb> [--level N] [--confirmed]` for device control; `ha resolve-entity` for entity lookup; plus context refresh, simulation, policy checks, apply, audits.
 
 MCP tool IDs follow `mcp__homeassistant__*`. If you registered the HA MCP Server under a different name, update `hooks/hooks.json` accordingly.
 
 ### CLI Commands
 
 ```
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha resolve-entity "<phrase>" [--domain <domain>]
+${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha actuate <entity_id> <verb> [--level <N>] [--confirmed]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha refresh-context [--incremental]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha simulate <artifact>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha validate-apply <artifact> [--reload automation|script]

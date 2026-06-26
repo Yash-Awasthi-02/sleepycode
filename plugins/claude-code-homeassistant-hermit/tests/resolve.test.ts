@@ -160,3 +160,10 @@ test('CLI: missing snapshot returns none with no_snapshot reason', async () => {
   expect(code).toBe(0);
   expect(JSON.parse(out)).toEqual({ none: true, reason: 'no_snapshot' });
 });
+
+test('CLI: parseable snapshot with missing entity_index reports no_snapshot, not device-not-found', async () => {
+  const root = makeHaRoot({ generated_at: '2026-01-01' }); // snapshot exists, no entity_index
+  const { code, out } = await runResolve(root, ['ha', 'resolve-entity', 'luz']);
+  expect(code).toBe(0);
+  expect(JSON.parse(out)).toEqual({ none: true, reason: 'no_snapshot' });
+});

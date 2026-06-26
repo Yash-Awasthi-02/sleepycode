@@ -27,8 +27,7 @@
 // is not an object (e.g. `[]`, `"x"`, `42`, `null`) crashed Python with an
 // uncaught AttributeError (exit 1 → fail-open); here it blocks (exit 2).
 
-import { readFileSync, renameSync, writeSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync, writeSync } from 'node:fs';
 
 import { Severity, classifyEntity, isReadOnlyTool } from '../src/policy';
 import { projectRoot } from '../src/config';
@@ -118,70 +117,6 @@ export function pyJsonString(s: string): string {
   return out + '"';
 }
 
-// Channel-native confirmation bridge. ha-command-router writes a one-shot token
-// after the operator confirms a sensitive action over a channel — where the
-// terminal "ask" prompt cannot be answered (verified: a headless session returns
-// the ask reason to the model instead of executing). This token ONLY upgrades an
-// otherwise-"ask" verdict to allow. It is never consulted for a "block"/strict
-// verdict or the fail-closed unresolvable-target branch (both resolved earlier).
-// It binds the EXACT call the operator confirmed — same tool AND byte-identical
-// tool_input (so a token for "garage to 50%" cannot authorize "garage to 100%",
-// nor a different entity) — is single-use, and short-lived. Any doubt => no allow.
-//
-// Validation runs BEFORE the consuming rename: a non-matching ask-tier call must
-// not eat a token meant for a different call (that would silently drop a real
-// confirmation). The rename only fires once the token fully matches, so single-use
-// still holds and two concurrent matching runs cannot both win (the loser's rename
-// throws ENOENT -> reject).
-//
-// SECURITY NOTE: because the agent itself writes this token, channel confirmation
-// is an agent-asserted approval, strictly weaker than a harness-enforced terminal
-// "ask". It only relaxes the ask tier the operator opted into — strict is untouched.
-const TOKEN_TTL_MS = 30_000;
-
-/** Deterministic JSON (recursively sorted object keys) for stable comparison. */
-function canonicalJson(v: unknown): string {
-  if (v === null || typeof v !== 'object') return JSON.stringify(v) ?? 'null';
-  if (Array.isArray(v)) return `[${v.map(canonicalJson).join(',')}]`;
-  const obj = v as Record<string, unknown>;
-  const body = Object.keys(obj)
-    .sort()
-    .map((k) => `${JSON.stringify(k)}:${canonicalJson(obj[k])}`)
-    .join(',');
-  return `{${body}}`;
-}
-
-function consumeConfirmationToken(toolName: unknown, toolInput: unknown, root: string): boolean {
-  if (typeof toolName !== 'string') return false;
-  const path = join(root, '.claude-code-hermit', 'state', 'ha-confirm-token.json');
-  let tok: Record<string, unknown>;
-  try {
-    const parsed = JSON.parse(readFileSync(path, 'utf8'));
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return false;
-    tok = parsed as Record<string, unknown>;
-  } catch {
-    // ENOENT (no token) or unreadable/invalid JSON -> fall through to the ask path.
-    return false;
-  }
-  // Validate scope BEFORE consuming, so a non-matching call never drops a token.
-  if (tok['tool'] !== toolName) return false;
-  const expiry = tok['expiry'];
-  if (typeof expiry !== 'number') return false;
-  const now = Date.now();
-  // Expired, or an absurd far-future expiry — reject either way (cheap checks
-  // before the tool_input serialization).
-  if (now >= expiry || expiry - now > TOKEN_TTL_MS * 4) return false;
-  if (canonicalJson(tok['tool_input'] ?? {}) !== canonicalJson(toolInput ?? {})) return false;
-  // Token matches: consume by atomic rename. A concurrent run that already
-  // consumed it makes this throw (ENOENT) -> reject, preserving single-use.
-  try {
-    renameSync(path, `${path}.consumed`);
-  } catch {
-    return false;
-  }
-  return true;
-}
-
 function fail(message: string): never {
   // The exit code IS the fail-closed contract. A stderr write can itself throw
   // (closed fd / broken pipe = EPIPE/EBADF) — if that escaped, the process
@@ -264,13 +199,6 @@ function main(): void {
 
     if (currentSev === Severity.BLOCK) {
       fail(`Blocked sensitive entities: ${names}. Use a proposal instead.`);
-    }
-
-    // A fresh, exact-scope (tool + full tool_input), single-use channel-
-    // confirmation token upgrades this ask to an allow. Consulted only on the
-    // ask tier, never on block/strict.
-    if (consumeConfirmationToken(toolName, toolInput, root)) {
-      process.exit(0);
     }
 
     // Byte-identical to Python's json.dumps(...) of the same dict: `, ` / `: `
