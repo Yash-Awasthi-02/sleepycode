@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+### Fixed
+- **hermit-settings: reconcile the heartbeat monitor on change** — after writing a `heartbeat` change, auto-runs `/heartbeat start` (if enabled) or `/heartbeat stop` (if disabled) so the live Monitor's cadence and `config.json` can't silently desync. (#452)
 ### Changed
 - **judge subagents: state terse-output rationale explicitly** — `proposal-triage`, `reflection-judge`, and `quality-gate-judge` now say their final message lands verbatim in the caller's long-lived context and re-read from cache each turn, so reasoning belongs in thinking, not the response (#468).
 ### Added
