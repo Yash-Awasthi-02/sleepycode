@@ -90,6 +90,39 @@ describe('heartbeat-precheck alert-state durability', () => {
     expect(fs.readFileSync(alertPath(dir), 'utf-8')).toBe(CORRUPT);
     expect(stateFiles(dir).some(f => f.startsWith('alert-state.json.corrupt-'))).toBe(false);
   }));
+
+  // A transient read error (EACCES/EMFILE/EIO) on a HEALTHY file must NOT be treated as
+  // corruption. Simulated portably by making the path a directory → readFileSync throws
+  // EISDIR (works regardless of test UID, unlike chmod 000).
+  test('transient read error (EISDIR) is not quarantined or reset', withTmp(async (dir) => {
+    fs.mkdirSync(alertPath(dir));
+
+    const verdict = await precheck(dir);
+
+    expect(verdict).toBe('EVALUATE');
+    expect(fs.statSync(alertPath(dir)).isDirectory()).toBe(true);
+    expect(stateFiles(dir).some(f => f.startsWith('alert-state.json.corrupt-'))).toBe(false);
+  }));
+
+  test('non-object JSON is treated as corrupt, not crashed on', withTmp(async (dir) => {
+    fs.writeFileSync(alertPath(dir), '5');
+
+    const verdict = await precheck(dir);
+
+    expect(verdict).toBe('EVALUATE');
+    expect(fs.existsSync(alertPath(dir))).toBe(false);
+    expect(stateFiles(dir).filter(f => f.startsWith('alert-state.json.corrupt-')).length).toBe(1);
+  }));
+
+  test('array JSON is treated as corrupt (not a valid state object)', withTmp(async (dir) => {
+    fs.writeFileSync(alertPath(dir), '[]');
+
+    const verdict = await precheck(dir);
+
+    expect(verdict).toBe('EVALUATE');
+    expect(fs.existsSync(alertPath(dir))).toBe(false);
+    expect(stateFiles(dir).filter(f => f.startsWith('alert-state.json.corrupt-')).length).toBe(1);
+  }));
 });
 
 describe('update-alert-state durability', () => {
@@ -104,6 +137,15 @@ describe('update-alert-state durability', () => {
 
     const written = JSON.parse(fs.readFileSync(alertPath(dir), 'utf-8'));
     expect(written.alerts.k).toEqual({ suppressed: false });
+  }));
+
+  test('transient read error (EISDIR) declines to write, does not clobber', withTmp(async (dir) => {
+    fs.mkdirSync(alertPath(dir));
+
+    await updateAlertState(dir, { new_entries: { k: { suppressed: false } } });
+
+    expect(fs.statSync(alertPath(dir)).isDirectory()).toBe(true);
+    expect(stateFiles(dir).some(f => f.startsWith('alert-state.json.corrupt-'))).toBe(false);
   }));
 
   test('preserves precheck-owned total_ticks under atomic write, no .tmp leak', withTmp(async (dir) => {

@@ -3,7 +3,7 @@
 ## [Unreleased]
 
 ### Fixed
-- **heartbeat/alert-state: atomic writes + corrupt-file quarantine** — `heartbeat-precheck.ts` and `update-alert-state.ts` write `alert-state.json` via temp+rename and quarantine an unparseable existing file to `alert-state.json.corrupt-<ts>` instead of reinitializing skill-owned `alerts`/`self_eval` to empty. Stops silent loss of accumulated alert/self-eval telemetry on an interrupted or partial write (#463).
+- **heartbeat/alert-state: atomic writes + corrupt-file quarantine** — `heartbeat-precheck.ts` and `update-alert-state.ts` write `alert-state.json` via temp+rename and quarantine an unparseable existing file to `alert-state.json.corrupt-<ts>` instead of reinitializing skill-owned `alerts`/`self_eval` to empty. Reads split the file read from the JSON parse (shared `scripts/lib/alert-state.ts`), so a transient read error (EACCES/EMFILE/EIO) on a healthy file is never mistaken for corruption and never quarantined or reset. Stops silent loss of accumulated alert/self-eval telemetry on an interrupted or partial write (#463).
 
 ## [1.2.11] - 2026-06-24
 
