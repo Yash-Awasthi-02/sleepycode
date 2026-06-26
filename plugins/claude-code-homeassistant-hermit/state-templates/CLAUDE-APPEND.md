@@ -46,18 +46,17 @@ When an inbound channel message (Discord/Telegram/voice, handled by
 `/claude-code-hermit:channel-responder`) is about the house, route it before the
 generic categories:
 
-- **Control utterance** — an imperative naming a device or routine ("acende a luz da
-  sala", "fecha o estore", "bom dia"): dispatch to
+- **Control utterance** — an imperative naming a device or routine ("turn on the
+  living room light", "close the blind", "good morning"): dispatch to
   `/claude-code-homeassistant-hermit:ha-command-router`.
-- **State question** — asks about house state ("o que está ligado?", "a porta está
-  trancada?"): dispatch to `/claude-code-homeassistant-hermit:ha-house-status`.
-- **Affirmative/negative with a pending HA action** — a bare "sim"/"não" (or
-  yes/no) while `.claude-code-hermit/state/pending-ha-actions.json` has a `pending`
-  entry: dispatch to `/claude-code-homeassistant-hermit:ha-command-router` in
-  `--resolve` mode to execute (or cancel) the held action. Check this **before** the
-  core micro-approval branch. `--resolve`
-  only executes **entity-targeting** actions; sensitive script routines have no
-  confirmed path and surface a proposal instead.
+- **State question** — asks about house state ("what's on?", "is the door
+  locked?"): dispatch to `/claude-code-homeassistant-hermit:ha-house-status`.
+- **Affirmative/negative with a pending HA action** — a bare "yes"/"no" while
+  `.claude-code-hermit/state/pending-ha-actions.json` has a `pending` entry:
+  dispatch to `/claude-code-homeassistant-hermit:ha-command-router` in `--resolve`
+  mode to execute (or cancel) the held action. Check this **before** the core
+  micro-approval branch. `--resolve` only executes **entity-targeting** actions;
+  sensitive script routines have no confirmed path and surface a proposal instead.
 
 This routing is declarative — `channel-responder` is not modified; it reads these
 rules. Sensitive actuations still follow the gated confirmation flow in
@@ -135,7 +134,7 @@ Requires `.env` at the project root (gitignored):
 
 Use these prefixes in capability-gap proposal titles (from `domain-brainstorm`):
 - **[automation-gap]** — a device/sensor/area wired into zero automations
-- **[coverage-asymmetry]** — a paired-pattern gap (e.g. `bom_dia` with no `boa_noite`)
+- **[coverage-asymmetry]** — a paired-pattern gap (e.g. `morning_mode` with no `evening_mode`)
 - **[unbuilt-intent]** — an operator-stated want with no automation implementing it
 
 Ideas surfaced by `/claude-code-homeassistant-hermit:domain-brainstorm` are single-pass — the brainstorm establishes the candidate, so the cross-session recurrence condition is waived (consequence + operator-actionable still apply).
