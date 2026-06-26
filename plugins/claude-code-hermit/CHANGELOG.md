@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [1.2.12] - 2026-06-26
 
 ### Added
 - **config: `storage_drift.ignore`** — allowlist of top-level `.claude-code-hermit/` dirs exempt from storage-drift alerts. Domain plugins register hermit-owned runtime trees (Composer vendor installs, SDK caches) so the drift check never false-flags them as stray archive content. See `docs/plugin-hermit-storage.md`.
@@ -14,6 +14,32 @@
 - **heartbeat/alert-state: atomic writes + corrupt-file quarantine** — `heartbeat-precheck.ts` and `update-alert-state.ts` write `alert-state.json` via temp+rename and quarantine an unparseable existing file to `alert-state.json.corrupt-<ts>` instead of reinitializing skill-owned `alerts`/`self_eval` to empty. Reads split the file read from the JSON parse (shared `scripts/lib/alert-state.ts`), so a transient read error (EACCES/EMFILE/EIO) on a healthy file is never mistaken for corruption and never quarantined or reset. Stops silent loss of accumulated alert/self-eval telemetry on an interrupted or partial write (#463).
 - **hermit-settings: reconcile the heartbeat monitor on change** — after writing a `heartbeat` change, auto-runs `/heartbeat start` (if enabled) or `/heartbeat stop` (if disabled) so the live Monitor's cadence and `config.json` can't silently desync. (#452)
 - **routines: suppress duplicate `fired` metric** — heartbeat-restart's self-re-arm (`hermit-routines load` at its own prompt tail) could log a second `fired` with no intervening `started` (#464); `log-routine-event.sh` now skips a `fired` that immediately follows another `fired` for the same routine.
+
+### Files affected
+
+| File | Change |
+|------|--------|
+| `scripts/lib/alert-state.ts` | New: shared read/parse helper for alert-state.json |
+| `scripts/lib/drift.ts` | Read `storage_drift.ignore`; skip allowlisted dirs |
+| `scripts/heartbeat-precheck.ts` | Atomic write via temp+rename; corrupt-file quarantine |
+| `scripts/update-alert-state.ts` | Atomic write via temp+rename; corrupt-file quarantine |
+| `scripts/hermit-start.ts` | Pass `storage_drift.ignore` to drift check |
+| `scripts/log-routine-event.sh` | Skip `fired` immediately following another `fired` |
+| `skills/session-close/SKILL.md` | Completed-vs-Artifacts quality-check item |
+| `skills/hermit-settings/SKILL.md` | Auto-reconcile heartbeat monitor after config write |
+| `agents/proposal-triage.md` | State terse-output rationale |
+| `agents/reflection-judge.md` | State terse-output rationale |
+| `agents/quality-gate-judge.md` | State terse-output rationale |
+| `state-templates/config.json.template` | Added `storage_drift: {ignore: []}` key |
+| `state-templates/SESSION-REPORT.md.template` | `## Completed` labeled as narrative |
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The evolve skill handles:
+
+1. **Refresh SESSION-REPORT.md template** — copy `${CLAUDE_PLUGIN_ROOT}/state-templates/SESSION-REPORT.md.template` to `.claude-code-hermit/templates/SESSION-REPORT.md.template`.
+
+No `config.json` changes required. (`storage_drift.ignore` is additive and fail-open; domain plugins register their own dirs via their hatch steps.)
 
 ## [1.2.11] - 2026-06-24
 
