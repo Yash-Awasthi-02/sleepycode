@@ -30,7 +30,6 @@ This project has the `claude-code-homeassistant-hermit` plugin installed. The ru
 | `/claude-code-homeassistant-hermit:ha-apply-change` | Validate and apply YAML with safety checks |
 | `/claude-code-homeassistant-hermit:ha-analyze-patterns` | Identify patterns and automation opportunities |
 | `/claude-code-homeassistant-hermit:ha-house-status` | Live house status via MCP |
-| `/claude-code-homeassistant-hermit:ha-command-router` | Route a natural-language house command to a safe HA actuation (control verbs) |
 | `/claude-code-homeassistant-hermit:ha-morning-brief` | Morning brief — live status, overnight anomalies, recommendations |
 | `/claude-code-homeassistant-hermit:ha-safety-audit` | Re-audit live automations against the safety policy (weekly scheduled_check) |
 | `/claude-code-homeassistant-hermit:ha-integration-health` | Detect dropped integrations via per-domain unavailable ratios (daily scheduled_check) |
@@ -47,20 +46,12 @@ When an inbound channel message (Discord/Telegram/voice, handled by
 generic categories:
 
 - **Control utterance** — an imperative naming a device or routine ("turn on the
-  living room light", "close the blind", "good morning"): dispatch to
-  `/claude-code-homeassistant-hermit:ha-command-router`.
+  living room light", "close the blind", "good morning"): use HA Assist intent
+  tools (`HassTurnOn`, `HassLightSet`, etc.) directly via MCP — requires
+  `ha_assist_control_enabled: true` in `.claude-code-hermit/config.json` and
+  each device exposed in HA (Settings → Voice assistants → Expose).
 - **State question** — asks about house state ("what's on?", "is the door
   locked?"): dispatch to `/claude-code-homeassistant-hermit:ha-house-status`.
-- **Affirmative/negative with a pending HA action** — a bare "yes"/"no" while
-  `.claude-code-hermit/state/pending-ha-actions.json` has a `pending` entry:
-  dispatch to `/claude-code-homeassistant-hermit:ha-command-router` in `--resolve`
-  mode to execute (or cancel) the held action. Check this **before** the core
-  micro-approval branch. `--resolve` only executes **entity-targeting** actions;
-  sensitive script routines have no confirmed path and surface a proposal instead.
-
-This routing is declarative — `channel-responder` is not modified; it reads these
-rules. Sensitive actuations still follow the gated confirmation flow in
-`/claude-code-homeassistant-hermit:ha-command-router`.
 
 ### Subagents
 
@@ -72,16 +63,14 @@ rules. Sensitive actuations still follow the gated confirmation flow in
 
 ### MCP vs CLI
 
-- **MCP (`homeassistant`)**: read-only live operations — `GetLiveContext`, `GetDateTime`. Actuation via MCP is blocked by `hooks/mcp-safety-gate.ts`.
-- **CLI** (`${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab`): all write operations — `ha actuate <entity_id> <verb> [--level N] [--confirmed]` for device control; `ha resolve-entity` for entity lookup; plus context refresh, simulation, policy checks, apply, audits.
+- **MCP (`homeassistant`)**: read-only by default (`GetLiveContext`, `GetDateTime`). When `ha_assist_control_enabled: true` is set, HA Assist intent tools (`HassTurnOn`, `HassLightSet`, etc.) are allowed — HA's expose-to-Assist setting is the control boundary.
+- **CLI** (`${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab`): build and analysis operations — context refresh, simulation, policy checks, apply, audits, structural writes (helpers/areas/registries), and `ha trigger-automation`.
 
 MCP tool IDs follow `mcp__homeassistant__*`. If you registered the HA MCP Server under a different name, update `hooks/hooks.json` accordingly.
 
 ### CLI Commands
 
 ```
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha resolve-entity "<phrase>" [--domain <domain>]
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha actuate <entity_id> <verb> [--level <N>] [--confirmed]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha refresh-context [--incremental]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha simulate <artifact>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha validate-apply <artifact> [--reload automation|script|scene]

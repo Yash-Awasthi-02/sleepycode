@@ -31,15 +31,11 @@ Both tiers enforce confirmation through the runtime; there is no "operator-owns-
 
 The mode dial does **not** relax the hard fail-closed branch: an unresolvable `area_id`/`floor_id`/`label_id`/`device_id` fan-out, a malformed `entity_id`, or an unnamed/garbage call all still block regardless of mode. `Hass*` intent tools that target by `name`/`area` also hard-block unless `ha_assist_control_enabled: true` is set (see below). The one mode-dependent case is an **opaque named script tool** (a bare-`object_id` call with no concrete target and no fan-out selector): `strict` blocks it, `ask` prompts the operator — same as it does for a concrete sensitive entity. The `HA_SAFE_ENTITIES` per-entity allowlist still takes precedence over both modes — a listed entity is always allowed.
 
-### Channel confirmation (any channel — Telegram/Discord/voice)
+### Channel actuation
 
-In a channel or always-on session there is no terminal to answer a `permissionDecision: "ask"` prompt (verified: a headless session returns the ask reason to the model rather than presenting a UI). Actuation does not go through MCP intent tools — it goes through `ha actuate` in the CLI. When `ha actuate` returns `{"status":"needs_confirmation", ...}` (sensitive entity, `ask` mode, no `--confirmed`), `ha-command-router`:
+In always-on and channel sessions, runtime device control goes through HA Assist intent tools (`HassTurnOn`, `HassLightSet`, etc.) via MCP — requires `ha_assist_control_enabled: true` and each device exposed in HA (Settings → Voice assistants → Expose). The safety gate passes these through when the opt-in is set; HA's own exposure list is the control boundary.
 
-1. Stores a pending entry in `.claude-code-hermit/state/pending-ha-actions.json` with the entity, verb, optional level, channel, and timestamp.
-2. Replies "Confirmas `<action>`? (sim/não)" over the channel.
-3. On the operator's next affirmative, re-invokes itself in `--resolve` mode, which re-calls `ha actuate <entity_id> <verb> [--level N] --confirmed` and removes the pending entry.
-
-Channel confirmation is *agent-asserted* — strictly weaker than a harness-enforced terminal `ask`. It only ever upgrades the `ask` tier; it never relaxes `strict` mode. Practical guidance: do not enable `ask` mode for any entity whose actuation you would not accept the agent self-approving. Locks and alarms are best left on `strict` (channel control then surfaces a proposal instead of actuating).
+In a headless session a `permissionDecision: "ask"` prompt is returned to the model as context rather than presented as a UI dialog. Sensitive entities under `ask` mode still emit the ask decision; the model must not auto-approve without operator input over the channel.
 
 Change the mode by editing `ha_safety_mode` in `.claude-code-hermit/config.json` or re-running `/claude-code-homeassistant-hermit:hatch`.
 

@@ -116,7 +116,7 @@ const SENSITIVE_CALL = JSON.stringify({
   tool_input: { entity_id: 'lock.front_door' },
 });
 
-test('ask mode: sensitive entity asks (no token bridge — confirmation is now via ha actuate --confirmed)', () => {
+test('ask mode: sensitive entity emits permissionDecision ask', () => {
   const dir = askModeCwd();
   try {
     const r = runGate(SENSITIVE_CALL, dir);

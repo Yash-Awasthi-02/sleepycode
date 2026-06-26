@@ -43,16 +43,13 @@ A Home Assistant domain layer for `claude-code-hermit`: skills, subagents, a saf
 ## MCP vs CLI
 
 - **Home Assistant MCP Server** (`homeassistant`): read-only live ops by default — `GetLiveContext`, `GetDateTime`. `Hass*` intent tools (`HassTurnOn`, `HassLightSet`, `HassSetPosition`, `HassFanSetSpeed`, etc.) are hard-blocked unless `ha_assist_control_enabled: true` is set in `config.json` (set during hatch Step 7.55). When enabled, HA's own expose-to-Assist gate is the control boundary — the gate defers to it rather than blocking.
-- **CLI** (`bin/ha-agent-lab`): all write operations — `ha actuate <entity_id> <verb> [--level N] [--confirmed]` for device control (light/switch/fan/cover/lock); `ha resolve-entity` to map a phrase to an `entity_id`; plus bulk work — context refresh, YAML simulation, policy checks, apply, audits.
+- **CLI** (`bin/ha-agent-lab`): build and analysis operations — context refresh, YAML simulation, policy checks, apply, audits, structural writes (helpers/areas/registries), and `ha trigger-automation`.
 
 MCP tool IDs follow the pattern `mcp__homeassistant__*`. The `homeassistant` name is required — the safety hook matches on it.
 
 ## CLI Commands
 
 ```
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha resolve-entity "<phrase>" [--domain <domain>]
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha actuate <entity_id> <verb> [--level <N>] [--confirmed]
-${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha actuate-area "<area name>" <verb> [--level <N>] [--confirmed]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha refresh-context [--incremental]
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha simulate <artifact>
 ${CLAUDE_PLUGIN_ROOT}/bin/ha-agent-lab ha validate-apply <artifact> [--reload automation|script|scene]
