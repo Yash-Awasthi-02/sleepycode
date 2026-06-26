@@ -5,6 +5,7 @@ All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are d
 ## [Unreleased]
 
 ### Added
+- **`ha trigger-automation <automation_id>`** — fires an automation on demand via `automation.trigger`; provides the fire-to-test step in the build → simulate → apply → fire → observe → restore loop. No policy gate (triggering an automation you've already applied is not a sensitive actuation path).
 - **House assistant over any channel (Telegram/Discord/voice) (`ha-command-router` + `ha resolve-entity` + `ha actuate`)** — natural-language house control via CLI REST: `ha resolve-entity` maps a phrase to a concrete `entity_id` (accent/article-insensitive, never-guess disambiguation); `ha actuate <entity_id> <verb> [--level N]` POSTs to `/api/services/<domain>/<service>` with policy enforcement via `classifyEntity`. Routing declared in the HA `CLAUDE-APPEND` block. Closes #467.
 - **`ha actuate` CLI command** — entity_id-precise device control (light/switch/fan/cover/lock). Outputs `{status:"ok"|"blocked"|"needs_confirmation"|"error"}`. Non-actuating paths (strict+sensitive, ask+unconfirmed) never create an HA client. `--confirmed` flag for channel-confirmed sensitive actions.
 - **Channel-native sensitive confirmation via `needs_confirmation`/`--confirmed`** — `ha actuate` returns `{status:"needs_confirmation"}` for sensitive entities in `ask` mode; `ha-command-router` stores a pending entry, asks "sim/não" over the channel, and re-calls with `--confirmed` on affirmative. No token file; simpler and race-free.

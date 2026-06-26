@@ -176,6 +176,7 @@ const HA_COMMANDS = [
   'list-devices',
   'set-device-area',
   'rename-device',
+  'trigger-automation',
 ] as const;
 const HA_USAGE = [
   'usage: ha_agent_lab ha [-h]',
@@ -250,6 +251,7 @@ positional arguments:
     list-devices        List the device registry via WebSocket.
     set-device-area     Assign a device to an area (gated write).
     rename-device       Set a device's user name (gated write).
+    trigger-automation  Fire an automation by entity_id via automation.trigger.
 
 options:
   -h, --help            show this help message and exit`;
@@ -621,6 +623,12 @@ const LEAF_SPECS: Record<string, LeafSpec> = {
     usage: 'usage: ha_agent_lab ha rename-device [-h] [--confirm] --name NAME device_id',
     positionals: ['device_id'],
     flags: { '--name': { kind: 'value' }, '--confirm': { kind: 'store_true' } },
+  },
+  'ha trigger-automation': {
+    prog: 'ha_agent_lab ha trigger-automation',
+    usage: 'usage: ha_agent_lab ha trigger-automation [-h] automation_id',
+    positionals: ['automation_id'],
+    flags: {},
   },
 };
 
@@ -1073,6 +1081,10 @@ export async function main(argv: string[], overrides: Partial<CliDeps> = {}): Pr
     );
   }
 
+  if (args.command === 'ha' && args.sub === 'trigger-automation') {
+    return handleTriggerAutomation(args.positionals[0]!, config, deps);
+  }
+
   // Unreachable: every subcommand is handled above (argparse parity guard).
   console.error(`${TOP_USAGE}\nha_agent_lab: error: Unsupported command.`);
   return 2;
@@ -1465,6 +1477,37 @@ async function handleActuateArea(
   if (level != null) out['level'] = level;
   console.log(jsonDumps(out, { ensureAscii: false }));
   return errors.length > 0 ? 1 : 0;
+}
+
+async function handleTriggerAutomation(
+  automationId: string,
+  config: AppConfig,
+  deps: CliDeps,
+): Promise<number> {
+  if (!automationId.startsWith('automation.')) {
+    console.log(
+      jsonDumps(
+        { status: 'error', message: `automation_id must start with 'automation.', got: '${automationId}'` },
+        { ensureAscii: false },
+      ),
+    );
+    return 2;
+  }
+  try {
+    const client = await deps.createClient(config);
+    await client.callService('automation', 'trigger', { entity_id: automationId });
+    console.log(jsonDumps({ status: 'ok', automation_id: automationId }, { ensureAscii: false }));
+    return 0;
+  } catch (exc) {
+    if (!(exc instanceof HomeAssistantError)) throw exc;
+    console.log(
+      jsonDumps(
+        { status: 'error', message: extractHaErrorMessage(exc) },
+        { ensureAscii: false },
+      ),
+    );
+    return 1;
+  }
 }
 
 function handleResolveEntity(
