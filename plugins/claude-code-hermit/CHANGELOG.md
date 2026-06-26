@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **routines: suppress duplicate `fired` metric** — heartbeat-restart's self-re-arm (`hermit-routines load` at its own prompt tail) could log a second `fired` with no intervening `started` (#464); `log-routine-event.sh` now skips a `fired` that immediately follows another `fired` for the same routine.
+
 ## [1.2.11] - 2026-06-24
 
 ### Added
