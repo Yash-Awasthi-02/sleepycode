@@ -142,7 +142,6 @@ UPDATE_ROWS_AFTER=$(printf '%s\n' "$ROWS_AFTER" | grep '^UPDATE	' || true)
 # --- Apply in the running tmux session if one exists (host tmux, no docker exec). ---
 RELOAD_PLUGINS_SENT=false
 EVOLVE_SENT=false
-NEW_HERMIT_VER=""
 
 # Match the rendered REPL input box: the prompt char ❯ plus any structural marker
 # (── rule, older ╭─/╰─ corners, or the always-present mode/shortcuts hint). See the
@@ -192,7 +191,6 @@ if [ ${#PLUGINS_OK_IDS[@]} -gt 0 ] && tmux has-session -t "$TMUX_SESSION" 2>/dev
         process.stdout.write("0\n");
       } catch { process.stdout.write("0\n"); }
     ' "$UPDATE_ROWS_AFTER" "$PROJECT_DIR/.claude-code-hermit/config.json" 2>/dev/null || echo "0")
-    NEW_HERMIT_VER=$(printf '%s\n' "$UPDATE_ROWS_AFTER" | awk -F'\t' '$2 ~ /^claude-code-hermit@/ {print $4; exit}')
     CORE_FAILED=false
     for _fid in "${PLUGINS_FAIL_IDS[@]:-}"; do
       case "$_fid" in claude-code-hermit@*) CORE_FAILED=true ;; esac

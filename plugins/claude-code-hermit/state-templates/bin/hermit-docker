@@ -364,7 +364,6 @@ case "$CMD" in
     # PLUGIN_ROWS_AFTER is a TSV where $1=name@marketplace and $3=version (different from
     # hermit-update's $2/$4 layout). Detects sibling-only bumps as well as core bumps.
     EVOLVE_SENT=false
-    NEW_HERMIT_VER=""
     if [ "$CC_ONLY" = false ] && [ "$RELOAD_PLUGINS_SENT" = true ]; then
       # Check whether any registered hermit has a version gap (core or sibling).
       HERMIT_GAP=$(bun -e '
@@ -384,7 +383,6 @@ case "$CMD" in
           process.stdout.write("0\n");
         } catch { process.stdout.write("0\n"); }
       ' "$PLUGIN_ROWS_AFTER" "$PROJECT_DIR/.claude-code-hermit/config.json" 2>/dev/null || echo "0")
-      NEW_HERMIT_VER=$(printf '%s\n' "$PLUGIN_ROWS_AFTER" | awk -F'\t' '$1 ~ /^claude-code-hermit@/ {print $3; exit}')
       CORE_FAILED=false
       for _fid in "${PLUGINS_FAIL_IDS[@]:-}"; do
         case "$_fid" in claude-code-hermit@*) CORE_FAILED=true ;; esac
@@ -484,8 +482,6 @@ JSEOF
       fi
       if [ "$EVOLVE_SENT" = true ]; then
         echo "  hermit-evolve auto-started (unattended) — hermit config is upgrading."
-      elif [ -n "$NEW_HERMIT_VER" ] && [ -n "$CONFIG_HERMIT_VER" ] && [ "$NEW_HERMIT_VER" != "$CONFIG_HERMIT_VER" ]; then
-        echo "  Hermit plugin version bumped — run: /claude-code-hermit:hermit-evolve"
       fi
     fi
     echo ""

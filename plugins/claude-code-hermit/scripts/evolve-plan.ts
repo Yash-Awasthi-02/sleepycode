@@ -706,10 +706,15 @@ function buildPlan({ hermitDir, pluginRoot, hatchTarget, pluginListJsonPath }: {
   // work_pending: true when core or any sibling needs attention (version gap or
   // CLAUDE-APPEND drift). Drives the short-circuit in SKILL.md Step 1 —
   // "already up to date" only when nothing to do for core OR any registered sibling.
+  // Siblings we could not fully assess (path-unresolved, or a plugin-list/CHANGELOG
+  // warning) also keep work_pending true so the skill runs Step 7 and surfaces them
+  // instead of silently reporting "up to date".
   const siblingWorkNeeded = plan.siblings.some(
     (s: SiblingPlanEntry) => !s.up_to_date || s.claude_append_changed
   );
-  plan.work_pending = !plan.up_to_date || siblingWorkNeeded;
+  const siblingsUnassessed =
+    plan.siblings_path_unresolved.length > 0 || (plan.siblings_warnings?.length ?? 0) > 0;
+  plan.work_pending = !plan.up_to_date || siblingWorkNeeded || siblingsUnassessed;
 
   return plan;
 }

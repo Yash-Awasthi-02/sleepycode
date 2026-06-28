@@ -642,6 +642,9 @@ test('siblings_path_unresolved: registered sibling not found in plugin list', wi
   const d = await runPlan(proj, 'local');
   expect(d.siblings).toHaveLength(0);
   expect(d.siblings_path_unresolved).toContain('claude-code-dev-hermit');
+  // core is current (1.1.7) but a registered sibling is unassessed -> work_pending
+  // must stay true so the skill runs Step 7 and surfaces it (not "up to date").
+  expect(d.work_pending).toBe(true);
 }));
 
 test('siblings_detected_unregistered: project-effective hermit not in _hermit_versions', withProj(async (proj) => {
