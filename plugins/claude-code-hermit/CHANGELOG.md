@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+- **hermit-evolve: domain (sibling) hermits now upgrade reliably** — `evolve-plan.ts` computes sibling plans deterministically (registry-driven from `_hermit_versions`), `plan.work_pending` replaces the core-only short-circuit so sibling-only gaps still run, and the `hermit-update`/`hermit-docker update` wrappers chain evolve on any registered hermit gap.
+
+### Upgrade Instructions
+
+Run `/claude-code-hermit:hermit-evolve`. The `bin/hermit-update` and `bin/hermit-docker` wrappers in `.claude-code-hermit/bin/` ship new logic to detect sibling gaps. The evolve skill replaces them automatically via the standard bin-wrapper refresh (Step 5b).
+
 ## [1.2.12] - 2026-06-26
 
 ### Added
