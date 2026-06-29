@@ -2,7 +2,7 @@
 
 All notable changes to `claude-code-homeassistant-hermit` / `ha-agent-lab` are documented here.
 
-## [Unreleased]
+## [0.3.1] - 2026-06-29
 
 ### Changed
 - **ha-pattern-analyst: removed `maxTurns` cap** — workload grows with accumulated entity inventory and historical snapshots; a fixed cap silently truncates analysis on mature deployments.
