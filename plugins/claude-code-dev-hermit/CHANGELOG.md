@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.4.6] - 2026-06-29
 
 ### Added
 - **diagnosing-bugs skill: build a red-capable feedback loop before hypothesising** — adapted from mattpocock/skills (MIT); fills the gap between static code review (`feature-dev:code-reviewer`) and running actual repros. Reads `.claude-code-hermit/compiled/` for architectural context; drops diagnostic artifacts in `.claude-code-hermit/raw/`.
