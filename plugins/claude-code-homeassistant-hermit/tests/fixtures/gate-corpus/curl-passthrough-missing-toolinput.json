@@ -1,5 +1,0 @@
-{
-  "gate": "curl",
-  "stdin": "{\"tool_name\":\"Bash\"}",
-  "verdict": "passthrough"
-}

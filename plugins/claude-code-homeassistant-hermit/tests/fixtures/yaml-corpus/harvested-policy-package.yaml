@@ -1,9 +1,0 @@
-automation:
-  - alias: "Test"
-    action:
-      - service: light.turn_on
-        target:
-          entity_id: light.kitchen
-      - service: lock.unlock
-        target:
-          entity_id: lock.front_door

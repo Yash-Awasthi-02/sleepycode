@@ -1,8 +1,0 @@
-{
-  "gate": "curl",
-  "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"curl https://example.com/data\"}}",
-  "env": {
-    "HOMEASSISTANT_LOCAL_URL": "http://homeassistant.local:8123"
-  },
-  "verdict": "passthrough"
-}

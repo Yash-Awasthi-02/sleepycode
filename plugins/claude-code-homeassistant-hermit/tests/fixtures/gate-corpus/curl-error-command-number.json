@@ -1,6 +1,0 @@
-{
-  "gate": "curl",
-  "stdin": "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":42}}",
-  "verdict": "error-passthrough",
-  "stderr_class": "exception-text"
-}

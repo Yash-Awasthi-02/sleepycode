@@ -1,7 +1,0 @@
-{
-  "gate": "mcp",
-  "stdin": "{\"tool_input\":{\"entity_id\":\"LOCK.front_door\"}}",
-  "verdict": "block",
-  "divergence": "Code-review finding: the Python matched the domain case-sensitively, so LOCK.front_door slipped past the sensitive-domain check and was ALLOWED (exit 0) — a real bypass. The TS port lowercases the domain, so it blocks (exit 2).",
-  "expect_py": { "exit": 0 }
-}

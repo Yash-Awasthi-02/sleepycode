@@ -1,0 +1,64 @@
+{
+  "session_name": "sleepycode",
+
+  "poll_interval": 10,
+  "retry_wait": 8,
+  "max_retries": 5,
+  "rate_limit_wait": 300,
+  "idle_timeout": 60,
+
+  "roadmap_files": [
+    "progress.md",
+    "ROADMAP.md",
+    "roadmap.md",
+    "TODO.md",
+    "plan.md"
+  ],
+
+  "deepseek_model": "deepseek-chat",
+
+  "work_done_signals": [
+    "all tasks complete",
+    "all done",
+    "work is complete",
+    "implementation complete",
+    "everything is done",
+    "finished everything",
+    "completed all",
+    "nothing left to do"
+  ],
+
+  "credit_signals": [
+    "credit",
+    "billing",
+    "insufficient fund",
+    "payment required",
+    "quota exceeded",
+    "usage limit",
+    "top up",
+    "topup",
+    "out of credits",
+    "balance"
+  ],
+
+  "api_error_signals": [
+    "error 500",
+    "error 503",
+    "error 529",
+    "error 502",
+    "error 429",
+    "rate limit",
+    "overloaded",
+    "server error",
+    "bad gateway",
+    "connection refused",
+    "timeout",
+    "api error"
+  ],
+
+  "notifications": {
+    "enabled": false,
+    "telegram_bot_token": "",
+    "telegram_chat_id": ""
+  }
+}
