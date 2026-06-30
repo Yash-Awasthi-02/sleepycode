@@ -41,6 +41,10 @@ import time
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.json")
 LOG_PATH = os.path.join(SCRIPT_DIR, "watchdog.log")
+
+# Ensure brain.py is importable regardless of where watchdog is invoked from
+if SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, SCRIPT_DIR)
 STATE_DIR = os.path.join(os.getcwd(), ".sleepycode")
 STATE_PATH = os.path.join(STATE_DIR, "state.json")
 LOCK_PATH = os.path.join(STATE_DIR, "watchdog.lock")
@@ -326,21 +330,26 @@ def handle_credit_exhausted(session: str, state: dict) -> None:
     time.sleep(10)
 
 
-def handle_api_error(session: str, state: dict) -> None:
+def handle_api_error(session: str, state: dict, cfg: dict) -> None:
     """
-    Wait briefly then send retry/resume. Back off heavily after 5 consecutive errors.
+    Wait briefly then send retry/resume. Back off heavily after max_retries consecutive errors.
     """
+    retry_wait     = cfg.get("retry_wait", 8)
+    max_retries    = cfg.get("max_retries", 5)
+    rate_limit_wait = cfg.get("rate_limit_wait", 300)
+
     state["retry_count"] = state.get("retry_count", 0) + 1
     retry_count = state["retry_count"]
     logger.info("STATE: api_error (retry #%d)", retry_count)
 
-    if retry_count > 5:
-        logger.warning("Too many consecutive API errors (%d). Backing off 300s.", retry_count)
-        time.sleep(300)
-        # Reset counter after long back-off — give the service a chance to recover
+    if retry_count > max_retries:
+        logger.warning(
+            "Too many consecutive API errors (%d). Backing off %ds.", retry_count, rate_limit_wait
+        )
+        time.sleep(rate_limit_wait)
         state["retry_count"] = 0
     else:
-        time.sleep(8)
+        time.sleep(retry_wait)
         tmux_send(session, "retry")
         time.sleep(2)
         tmux_send(session, "resume")
@@ -360,7 +369,7 @@ def handle_work_done(session: str, state: dict) -> None:
     save_state(state)
 
 
-def handle_post_done_wait(session: str, state: dict, output: str, api_key: str) -> None:
+def handle_post_done_wait(session: str, state: dict, output: str, cfg: dict) -> None:
     """
     We sent the wrap-up prompt; now we're waiting for Claude to respond.
     After 30 seconds we check for compact/clear keywords in the output.
@@ -379,11 +388,13 @@ def handle_post_done_wait(session: str, state: dict, output: str, api_key: str) 
     elif "clear" in lower and "compact" not in lower:
         decision = "clear"
     else:
-        # Ambiguous or neither found — ask DeepSeek
         logger.info("post_done_wait: ambiguous output, consulting DeepSeek")
-        # Import here to avoid circular issues and keep top-level imports clean
         from brain import ask_compact_or_clear  # noqa: PLC0415
-        decision = ask_compact_or_clear(output, api_key=api_key)
+        decision = ask_compact_or_clear(
+            output,
+            api_key=cfg.get("deepseek_api_key", ""),
+            model=cfg.get("deepseek_model", "deepseek-chat"),
+        )
 
     logger.info("post_done_wait: sending /%s", decision)
     tmux_send(session, f"/{decision}")
@@ -397,7 +408,7 @@ def handle_post_done_wait(session: str, state: dict, output: str, api_key: str) 
     save_state(state)
 
 
-def handle_needs_input(session: str, state: dict, output: str, api_key: str) -> None:
+def handle_needs_input(session: str, state: dict, output: str, cfg: dict) -> None:
     """
     Ask DeepSeek what to respond to the prompt Claude Code is showing.
     Injects the response back into the tmux pane.
@@ -405,7 +416,10 @@ def handle_needs_input(session: str, state: dict, output: str, api_key: str) -> 
     logger.info("STATE: needs_input — consulting DeepSeek brain")
     from brain import ask_deepseek, load_roadmap  # noqa: PLC0415
 
-    roadmap = load_roadmap(os.getcwd())
+    api_key      = cfg.get("deepseek_api_key", "")
+    model        = cfg.get("deepseek_model", "deepseek-chat")
+    project_dir  = cfg.get("project_dir", os.getcwd())
+    roadmap      = load_roadmap(project_dir)
 
     # Extract the specific question from the last non-empty line
     question = ""
@@ -420,10 +434,10 @@ def handle_needs_input(session: str, state: dict, output: str, api_key: str) -> 
         question=question,
         roadmap=roadmap,
         api_key=api_key,
+        model=model,
     )
     logger.info("needs_input: sending response %r", response)
     tmux_send(session, response)
-    # Reset retry counter on successful interaction
     state["retry_count"] = 0
     save_state(state)
 
@@ -436,9 +450,8 @@ def run_watchdog(config: dict) -> None:
     """
     Main polling loop. Runs until interrupted (SIGINT / SIGTERM).
     """
-    session = config["session_name"]
+    session       = config["session_name"]
     poll_interval = config["poll_interval"]
-    api_key = config["deepseek_api_key"]
 
     state = load_state()
     logger.info(
@@ -485,16 +498,16 @@ def run_watchdog(config: dict) -> None:
                 save_state(state)
 
             elif detected == "api_error":
-                handle_api_error(session, state)
+                handle_api_error(session, state, config)
 
             elif detected == "work_done":
                 handle_work_done(session, state)
 
             elif detected == "post_done_wait":
-                handle_post_done_wait(session, state, output, api_key)
+                handle_post_done_wait(session, state, output, config)
 
             elif detected == "needs_input":
-                handle_needs_input(session, state, output, api_key)
+                handle_needs_input(session, state, output, config)
 
             elif detected == "running":
                 # Claude Code is actively working — reset error counter, do nothing

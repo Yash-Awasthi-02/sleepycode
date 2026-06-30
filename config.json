@@ -1,6 +1,9 @@
 {
   "session_name": "sleepycode",
 
+  "_keys_note": "API keys read from env vars first (DEEPSEEK_API_KEY). Set here only as fallback — never commit this file with a real key.",
+  "deepseek_api_key": "",
+
   "poll_interval": 10,
   "retry_wait": 8,
   "max_retries": 5,

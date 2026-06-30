@@ -126,7 +126,8 @@ if [[ ! -f "${WATCHDOG}" ]]; then
     WATCHDOG_PID=""
 else
     info "Starting watchdog brain..."
-    python3 "${WATCHDOG}" >> "${STATE_DIR}/watchdog.log" 2>&1 &
+    # Watchdog handles its own file logging — redirect only bare stderr to avoid split logs
+    python3 "${WATCHDOG}" 2>> "${SCRIPT_DIR}/watchdog.log" &
     WATCHDOG_PID=$!
 
     # Persist the PID so external tools (install.sh, stop scripts) can find it
