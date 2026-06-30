@@ -63,19 +63,20 @@ logger = logging.getLogger("sleepycode.watchdog")
 # State detection keyword sets (all lowercase for case-insensitive matching)
 # ---------------------------------------------------------------------------
 
-CREDIT_EXHAUSTED_KEYWORDS = frozenset([
+# Defaults — overridden at runtime by config.json values in load_config()
+CREDIT_EXHAUSTED_KEYWORDS: frozenset = frozenset([
     "credit", "billing", "insufficient fund", "payment required",
     "quota exceeded", "usage limit", "top up", "topup",
     "out of credits", "balance",
 ])
 
-API_ERROR_KEYWORDS = frozenset([
+API_ERROR_KEYWORDS: frozenset = frozenset([
     "error 500", "error 503", "error 529", "error 502", "error 429",
     "rate limit", "overloaded", "server error", "bad gateway",
     "connection refused", "timeout", "api error",
 ])
 
-WORK_DONE_PHRASES = frozenset([
+WORK_DONE_PHRASES: frozenset = frozenset([
     "all tasks complete", "all done", "work is complete",
     "implementation complete", "everything is done", "finished everything",
     "completed all", "nothing left to do",
@@ -115,14 +116,35 @@ def load_config() -> dict:
     with open(CONFIG_PATH, "r", encoding="utf-8") as fh:
         cfg = json.load(fh)
 
-    required = ("session_name", "deepseek_api_key")
+    required = ("session_name",)
     missing = [k for k in required if not cfg.get(k)]
     if missing:
         logger.error("Config missing required keys: %s", missing)
         sys.exit(1)
 
+    # Resolve DeepSeek API key: env var takes priority, config is fallback
+    cfg["deepseek_api_key"] = (
+        os.environ.get("DEEPSEEK_API_KEY", "")
+        or cfg.get("deepseek_api_key", "")
+    )
+    if not cfg["deepseek_api_key"]:
+        logger.warning(
+            "DEEPSEEK_API_KEY not set and not in config.json — "
+            "AI responses will fall back to 'y'"
+        )
+
     cfg.setdefault("poll_interval", 10)
     cfg.setdefault("project_dir", os.getcwd())
+
+    # Override module-level keyword sets with config.json values if present
+    global CREDIT_EXHAUSTED_KEYWORDS, API_ERROR_KEYWORDS, WORK_DONE_PHRASES
+    if cfg.get("credit_signals"):
+        CREDIT_EXHAUSTED_KEYWORDS = frozenset(cfg["credit_signals"])
+    if cfg.get("api_error_signals"):
+        API_ERROR_KEYWORDS = frozenset(cfg["api_error_signals"])
+    if cfg.get("work_done_signals"):
+        WORK_DONE_PHRASES = frozenset(cfg["work_done_signals"])
+
     return cfg
 
 

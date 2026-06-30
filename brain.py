@@ -10,6 +10,7 @@ import logging
 import os
 import urllib.error
 import urllib.request
+from typing import Optional
 
 logger = logging.getLogger("sleepycode.brain")
 
@@ -77,7 +78,7 @@ def ask_deepseek(
     context: str,
     question: str,
     roadmap: str = "",
-    api_key: str | None = None,
+    api_key: Optional[str] = None,
     model: str = "deepseek-chat",
 ) -> str:
     """
@@ -154,7 +155,7 @@ def ask_deepseek(
 
 def ask_compact_or_clear(
     context: str,
-    api_key: str | None = None,
+    api_key: Optional[str] = None,
     model: str = "deepseek-chat",
 ) -> str:
     """
