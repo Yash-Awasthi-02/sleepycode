@@ -2,9 +2,7 @@
 # =============================================================================
 # install.sh — SleepyCode watchdog OS-level scheduler installer
 #
-# Installs watchdog.py as a recurring background job that fires every 30 s
-# independently of the main sleepy.sh process.  This ensures the orchestrator
-# brain keeps running even if sleepy.sh exits or the terminal is closed.
+# Installs watchdog.py as a persistent background daemon.
 #
 # Supported schedulers (detected automatically):
 #   • systemd user units  (Linux with systemctl --user)
@@ -23,11 +21,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WATCHDOG_PATH="${SCRIPT_DIR}/watchdog.py"
 STATE_DIR="${SCRIPT_DIR}/.sleepycode"
+LOG_PATH="${SCRIPT_DIR}/watchdog.log"
 
-# Scheduler-specific artifact paths (populated below)
+# Scheduler-specific artifact paths
 SYSTEMD_SERVICE_DIR="${HOME}/.config/systemd/user"
 SYSTEMD_SERVICE="${SYSTEMD_SERVICE_DIR}/sleepycode-watchdog.service"
-SYSTEMD_TIMER="${SYSTEMD_SERVICE_DIR}/sleepycode-watchdog.timer"
 LAUNCHD_PLIST="${HOME}/Library/LaunchAgents/com.sleepycode.watchdog.plist"
 CRON_MARKER="# sleepycode-watchdog"
 
@@ -62,7 +60,6 @@ detect_scheduler() {
             echo "cron"
         fi
     else
-        # FreeBSD, etc. — fall back to cron
         echo "cron"
     fi
 }
@@ -74,59 +71,53 @@ info "Detected scheduler: ${SCHEDULER}"
 # systemd (Linux with user-level systemd)
 # =============================================================================
 install_systemd() {
-    info "Installing systemd user units..."
+    info "Installing systemd user service (persistent daemon)..."
     mkdir -p "${SYSTEMD_SERVICE_DIR}"
 
-    # --- service unit (oneshot — runs watchdog.py and exits) -----------------
+    # Long-running daemon: systemd restarts it on failure automatically
     cat > "${SYSTEMD_SERVICE}" <<EOF
 [Unit]
 Description=SleepyCode Watchdog
 After=network.target
 
 [Service]
-Type=oneshot
+Type=simple
 WorkingDirectory=${SCRIPT_DIR}
 ExecStart=python3 ${WATCHDOG_PATH}
-StandardOutput=append:${STATE_DIR}/watchdog.log
-StandardError=append:${STATE_DIR}/watchdog.log
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:${LOG_PATH}
+StandardError=append:${LOG_PATH}
+
+[Install]
+WantedBy=default.target
 EOF
 
-    # Inject DEEPSEEK_API_KEY if it's set in the current environment so the
-    # systemd unit inherits it.  Users can also set it via:
-    #   systemctl --user set-environment DEEPSEEK_API_KEY=sk-...
+    # Inject API keys if present in current environment.
+    # Can also be set later with: systemctl --user set-environment DEEPSEEK_API_KEY=sk-...
     if [[ -n "${DEEPSEEK_API_KEY:-}" ]]; then
         echo "Environment=DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}" >> "${SYSTEMD_SERVICE}"
     else
         warn "DEEPSEEK_API_KEY is not set in your environment."
         warn "Set it with:  systemctl --user set-environment DEEPSEEK_API_KEY=<your-key>"
     fi
-
-    # --- timer unit (fires every 30 s) ----------------------------------------
-    cat > "${SYSTEMD_TIMER}" <<EOF
-[Unit]
-Description=SleepyCode Watchdog Timer
-
-[Timer]
-OnBootSec=60
-OnUnitActiveSec=30s
-
-[Install]
-WantedBy=timers.target
-EOF
+    if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
+        echo "Environment=ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}" >> "${SYSTEMD_SERVICE}"
+    fi
 
     info "Reloading systemd user daemon..."
     systemctl --user daemon-reload
 
-    info "Enabling and starting timer..."
-    systemctl --user enable --now sleepycode-watchdog.timer
+    info "Enabling and starting service..."
+    systemctl --user enable --now sleepycode-watchdog
 
     echo ""
     echo "Installation complete (systemd)."
-    echo "Timer status:"
-    systemctl --user status sleepycode-watchdog.timer --no-pager || true
+    echo "Service status:"
+    systemctl --user status sleepycode-watchdog --no-pager || true
     echo ""
-    echo "Logs:  tail -f ${STATE_DIR}/watchdog.log"
-    echo "Stop:  systemctl --user stop sleepycode-watchdog.timer"
+    echo "Logs:  tail -f ${LOG_PATH}"
+    echo "Stop:  systemctl --user stop sleepycode-watchdog"
 }
 
 # =============================================================================
@@ -158,15 +149,17 @@ install_launchd() {
     <integer>30</integer>
 
     <key>StandardOutPath</key>
-    <string>${STATE_DIR}/watchdog.log</string>
+    <string>${LOG_PATH}</string>
 
     <key>StandardErrorPath</key>
-    <string>${STATE_DIR}/watchdog.log</string>
+    <string>${LOG_PATH}</string>
 
     <key>EnvironmentVariables</key>
     <dict>
         <key>DEEPSEEK_API_KEY</key>
         <string>${DEEPSEEK_API_KEY:-}</string>
+        <key>ANTHROPIC_API_KEY</key>
+        <string>${ANTHROPIC_API_KEY:-}</string>
     </dict>
 
     <key>RunAtLoad</key>
@@ -181,7 +174,7 @@ EOF
     echo ""
     echo "Installation complete (launchd)."
     echo "Plist: ${LAUNCHD_PLIST}"
-    echo "Logs:  tail -f ${STATE_DIR}/watchdog.log"
+    echo "Logs:  tail -f ${LOG_PATH}"
     echo "Stop:  launchctl unload ${LAUNCHD_PLIST}"
 }
 
@@ -191,18 +184,13 @@ EOF
 install_cron() {
     info "Installing cron job (fallback — minimum interval is 1 minute)..."
 
-    # Note: cron cannot fire more often than every 1 minute.  The watchdog's
-    # own poll_interval (from config.json) controls finer-grained checks once
-    # it is running, but the entry point fires at most once per minute.
-    CRON_LINE="*/1 * * * * cd ${SCRIPT_DIR} && python3 ${WATCHDOG_PATH} >> ${STATE_DIR}/watchdog.log 2>&1 ${CRON_MARKER}"
+    CRON_LINE="*/1 * * * * cd ${SCRIPT_DIR} && python3 ${WATCHDOG_PATH} >> ${LOG_PATH} 2>&1 ${CRON_MARKER}"
 
-    # Check whether the entry is already present
     if crontab -l 2>/dev/null | grep -qF "${CRON_MARKER}"; then
         warn "Cron entry already exists. Skipping. Run ./uninstall.sh first to reinstall."
         return 0
     fi
 
-    # Append to existing crontab (preserve existing entries)
     ( crontab -l 2>/dev/null; echo "${CRON_LINE}" ) | crontab -
 
     echo ""
@@ -211,9 +199,9 @@ install_cron() {
     echo "Added cron entry:"
     echo "  ${CRON_LINE}"
     echo ""
-    echo "NOTE: cron fires at most once per minute, not every 30 s."
+    echo "NOTE: cron fires at most once per minute."
     echo "      The watchdog polls internally at the interval in config.json."
-    echo "Logs: tail -f ${STATE_DIR}/watchdog.log"
+    echo "Logs: tail -f ${LOG_PATH}"
     echo "Remove with: ./uninstall.sh"
 }
 
@@ -227,6 +215,5 @@ case "${SCHEDULER}" in
     *) error "Unknown scheduler '${SCHEDULER}'" ;;
 esac
 
-# Record which scheduler was used so uninstall.sh knows what to undo
 echo "${SCHEDULER}" > "${STATE_DIR}/scheduler"
 info "Scheduler type saved to ${STATE_DIR}/scheduler"

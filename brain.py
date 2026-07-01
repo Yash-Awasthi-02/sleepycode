@@ -28,15 +28,24 @@ ROADMAP_CANDIDATES = [
 ]
 
 
-def load_roadmap(project_dir: str = ".") -> str:
+def load_roadmap(project_dir: str = ".", candidates: Optional[list] = None) -> str:
     """
     Search for a roadmap / progress file in project_dir.
 
     Checks candidates in priority order: progress.md, ROADMAP.md, roadmap.md,
     TODO.md, plan.md. Returns the content of the first file found, or an empty
     string if none exist.
+
+    Parameters
+    ----------
+    project_dir : str
+        Directory to search for roadmap files.
+    candidates : list, optional
+        Custom list of filenames to check (overrides ROADMAP_CANDIDATES).
+        Useful for config.json roadmap_files override.
     """
-    for filename in ROADMAP_CANDIDATES:
+    search_list = candidates if candidates is not None else ROADMAP_CANDIDATES
+    for filename in search_list:
         candidate = os.path.join(project_dir, filename)
         if os.path.isfile(candidate):
             try:

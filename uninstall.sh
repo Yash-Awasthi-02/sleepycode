@@ -48,18 +48,18 @@ fi
 # Uninstall functions
 # =============================================================================
 uninstall_systemd() {
-    info "Stopping and disabling systemd timer..."
-    systemctl --user stop  sleepycode-watchdog.timer  2>/dev/null || true
-    systemctl --user disable sleepycode-watchdog.timer 2>/dev/null || true
+    info "Stopping and disabling systemd service..."
+    systemctl --user stop    sleepycode-watchdog 2>/dev/null || true
+    systemctl --user disable sleepycode-watchdog 2>/dev/null || true
 
-    info "Removing unit files..."
-    rm -f "${SYSTEMD_SERVICE}" "${SYSTEMD_TIMER}"
+    info "Removing unit file..."
+    rm -f "${SYSTEMD_SERVICE}"
 
     info "Reloading systemd user daemon..."
     systemctl --user daemon-reload
 
     echo ""
-    echo "Uninstall complete (systemd). Timer and service removed."
+    echo "Uninstall complete (systemd). Service removed."
 }
 
 uninstall_launchd() {

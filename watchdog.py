@@ -7,20 +7,20 @@ the appropriate response so Claude Code never gets stuck unattended.
 
 Architecture
 ------------
-- Reads terminal output via:    tmux capture-pane -p -t {SESSION}
+- Reads terminal output via:    tmux capture-pane -p -J -S -{lines} -t {SESSION}
 - Injects input via:            tmux send-keys -t {SESSION} "text" Enter
-- Persistent state:             .sleepycode/state.json
+- Persistent state:             .sleepycode/state.json  (SCRIPT_DIR-relative)
 - Lock file (PID-based):        .sleepycode/watchdog.lock
 - Config:                       config.json  (same directory as this script)
 - Log file:                     watchdog.log (same directory as this script)
 
-State detection priority (highest → lowest)
--------------------------------------------
-1. credit_exhausted  — billing / quota keywords
-2. api_error         — 5xx / rate-limit / network keywords
-3. work_done         — completion phrases
-4. needs_input       — output ends with a question or prompt
-5. running           — default; do nothing
+State detection priority (highest first)
+-----------------------------------------
+1. Vision AI (text_deepseek / text_claude / screenshot) — primary classifier
+2. Keyword fallback if vision returns "unknown"
+
+State values:
+    credit_exhausted | api_error | work_done | needs_input | running | post_done_wait
 
 Dependencies: Python 3.8+ stdlib only. No pip packages required.
 """
@@ -33,6 +33,7 @@ import signal
 import subprocess
 import sys
 import time
+from typing import Optional
 
 # ---------------------------------------------------------------------------
 # Script-level paths
@@ -40,14 +41,16 @@ import time
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.json")
-LOG_PATH = os.path.join(SCRIPT_DIR, "watchdog.log")
+LOG_PATH    = os.path.join(SCRIPT_DIR, "watchdog.log")
 
-# Ensure brain.py is importable regardless of where watchdog is invoked from
+# Ensure brain.py and vision.py are importable regardless of invocation cwd
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
-STATE_DIR = os.path.join(os.getcwd(), ".sleepycode")
+
+# STATE_DIR anchored to SCRIPT_DIR — NOT os.getcwd() — so it's always consistent
+STATE_DIR  = os.path.join(SCRIPT_DIR, ".sleepycode")
 STATE_PATH = os.path.join(STATE_DIR, "state.json")
-LOCK_PATH = os.path.join(STATE_DIR, "watchdog.lock")
+LOCK_PATH  = os.path.join(STATE_DIR, "watchdog.lock")
 
 # ---------------------------------------------------------------------------
 # Logging setup
@@ -65,19 +68,20 @@ logger = logging.getLogger("sleepycode.watchdog")
 
 # ---------------------------------------------------------------------------
 # State detection keyword sets (all lowercase for case-insensitive matching)
+# Narrow, multi-word phrases only — single words like "credit" cause false positives
 # ---------------------------------------------------------------------------
 
 # Defaults — overridden at runtime by config.json values in load_config()
 CREDIT_EXHAUSTED_KEYWORDS: frozenset = frozenset([
-    "credit", "billing", "insufficient fund", "payment required",
+    "insufficient fund", "payment required",
     "quota exceeded", "usage limit", "top up", "topup",
-    "out of credits", "balance",
+    "out of credits",
 ])
 
 API_ERROR_KEYWORDS: frozenset = frozenset([
     "error 500", "error 503", "error 529", "error 502", "error 429",
     "rate limit", "overloaded", "server error", "bad gateway",
-    "connection refused", "timeout", "api error",
+    "connection refused", "api error",
 ])
 
 WORK_DONE_PHRASES: frozenset = frozenset([
@@ -107,12 +111,14 @@ def load_config() -> dict:
 
     Required keys:
         session_name      — tmux session/pane target (e.g. "work" or "work:0.0")
-        deepseek_api_key  — DeepSeek API key
 
     Optional keys:
+        deepseek_api_key  — DeepSeek API key (fallback to DEEPSEEK_API_KEY env var)
         poll_interval     — seconds between checks (default: 10)
-        roadmap_files     — list of filenames to check for roadmap (overrides brain defaults)
-        project_dir       — project root to look for roadmap files (default: cwd)
+        startup_delay     — seconds to wait before first poll (default: 5)
+        roadmap_files     — list of filenames to check for roadmap
+        project_dir       — project root to look for roadmap files (default: SCRIPT_DIR)
+        vision            — AI state classifier config (mode, model, anthropic_api_key)
     """
     if not os.path.isfile(CONFIG_PATH):
         logger.error("Config file not found: %s", CONFIG_PATH)
@@ -138,7 +144,8 @@ def load_config() -> dict:
         )
 
     cfg.setdefault("poll_interval", 10)
-    cfg.setdefault("project_dir", os.getcwd())
+    cfg.setdefault("startup_delay", 5)
+    cfg.setdefault("project_dir", SCRIPT_DIR)
 
     # Override module-level keyword sets with config.json values if present
     global CREDIT_EXHAUSTED_KEYWORDS, API_ERROR_KEYWORDS, WORK_DONE_PHRASES
@@ -169,10 +176,10 @@ def load_state() -> dict:
         except (OSError, json.JSONDecodeError) as exc:
             logger.warning("Could not read state file (%s), starting fresh", exc)
     return {
-        "post_done": False,       # True after work_done handler fires; waiting for compact/clear
-        "retry_count": 0,         # consecutive api_error retries
-        "last_hash": "",          # SHA-256 of last pane snapshot
-        "post_done_ts": 0.0,      # epoch time when post_done was set
+        "post_done":    False,   # True after work_done handler fires; waiting for compact/clear
+        "retry_count":  0,       # consecutive api_error retries
+        "last_hash":    "",      # SHA-256 of last pane snapshot
+        "post_done_ts": 0.0,     # epoch time when post_done was set
     }
 
 
@@ -193,15 +200,12 @@ def acquire_lock() -> bool:
     Writes the current PID to LOCK_PATH. If a lock file already exists and its
     PID corresponds to a running process, returns False (another instance is
     alive). Stale locks (process dead) are removed automatically.
-
-    Returns True if the lock was acquired, False otherwise.
     """
     ensure_state_dir()
     if os.path.isfile(LOCK_PATH):
         try:
             with open(LOCK_PATH, "r") as fh:
                 existing_pid = int(fh.read().strip())
-            # Check if that process is still alive
             os.kill(existing_pid, 0)  # raises OSError if dead
             logger.warning(
                 "Another watchdog instance is running (PID %d). Exiting.", existing_pid
@@ -229,12 +233,17 @@ def release_lock() -> None:
 
 def tmux_capture(session: str, lines: int = 60) -> str:
     """
-    Capture the last `lines` lines from the tmux pane.
+    Capture the last `lines` lines from the tmux pane, including scrollback.
+
+    Flags:
+      -p   print to stdout
+      -J   join wrapped lines (avoids false-split of long phrases at terminal width)
+      -S   start of scrollback range (negative = lines back from top of history)
     Returns the output as a string (empty string on failure).
     """
     try:
         result = subprocess.run(
-            ["tmux", "capture-pane", "-p", "-t", session],
+            ["tmux", "capture-pane", "-p", "-J", "-S", f"-{lines}", "-t", session],
             capture_output=True,
             text=True,
             timeout=5,
@@ -242,32 +251,27 @@ def tmux_capture(session: str, lines: int = 60) -> str:
         if result.returncode != 0:
             logger.warning("tmux capture-pane exited %d: %s", result.returncode, result.stderr.strip())
             return ""
-        # Return only the last N lines
-        captured = result.stdout
-        output_lines = captured.splitlines()
-        return "\n".join(output_lines[-lines:])
+        return result.stdout
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError) as exc:
         logger.error("tmux capture failed: %s", exc)
         return ""
 
 
 def tmux_send(session: str, text: str) -> None:
-    """
-    Send `text` to the tmux pane followed by Enter.
-    """
+    """Send `text` to the tmux pane followed by Enter."""
     try:
         subprocess.run(
             ["tmux", "send-keys", "-t", session, text, "Enter"],
             check=True,
             timeout=5,
         )
-        logger.info("tmux_send -> %r", text[:120])  # truncate long prompts in log
+        logger.info("tmux_send -> %r", text[:120])
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, FileNotFoundError, OSError) as exc:
         logger.error("tmux send-keys failed: %s", exc)
 
 
 # ---------------------------------------------------------------------------
-# State detection
+# State detection (keyword fallback — used when vision returns "unknown")
 # ---------------------------------------------------------------------------
 
 def sha256(text: str) -> str:
@@ -276,32 +280,27 @@ def sha256(text: str) -> str:
 
 def detect_state(output: str, post_done: bool) -> str:
     """
-    Classify the current pane output into one of:
-        credit_exhausted | api_error | work_done | needs_input | running
+    Keyword-based state classifier. Used as fallback when vision is unavailable
+    or returns state="unknown".
 
-    If post_done is True (we already sent the wrap prompt), we check for
-    compact/clear response instead — returns "post_done_wait" so the caller
-    handles it separately.
+    Returns one of:
+        credit_exhausted | api_error | work_done | needs_input |
+        running | post_done_wait
     """
     lower = output.lower()
 
-    # Special case: we're waiting for Claude to tell us compact vs clear
     if post_done:
         return "post_done_wait"
 
-    # 1. Credit exhausted (highest priority — must rotate key first)
     if any(kw in lower for kw in CREDIT_EXHAUSTED_KEYWORDS):
         return "credit_exhausted"
 
-    # 2. API / infrastructure error
     if any(kw in lower for kw in API_ERROR_KEYWORDS):
         return "api_error"
 
-    # 3. Work done
     if any(phrase in lower for phrase in WORK_DONE_PHRASES):
         return "work_done"
 
-    # 4. Waiting for input — check last non-empty line
     last_line = ""
     for line in reversed(output.splitlines()):
         stripped = line.strip()
@@ -319,23 +318,24 @@ def detect_state(output: str, post_done: bool) -> str:
 # Action handlers
 # ---------------------------------------------------------------------------
 
-def handle_credit_exhausted(session: str, state: dict) -> None:
-    """Rotate API key via 'kr rotate', confirm with 'y', then pause for recovery."""
+def handle_credit_exhausted(session: str, state: dict, cfg: dict) -> None:
+    """Rotate API key via 'kr rotate', confirm with 'y', then pause for propagation."""
+    retry_wait  = cfg.get("retry_wait", 5)
+    credit_wait = cfg.get("credit_wait", 15)
     logger.info("STATE: credit_exhausted — rotating API key")
     tmux_send(session, "kr rotate")
-    time.sleep(3)
+    time.sleep(retry_wait)
     tmux_send(session, "y")
-    logger.info("Key rotation initiated.")
-    # Extra sleep handled by the caller (post-action delay)
-    time.sleep(10)
+    logger.info("Key rotation initiated. Waiting %ds for key to propagate.", credit_wait)
+    time.sleep(credit_wait)
 
 
 def handle_api_error(session: str, state: dict, cfg: dict) -> None:
     """
     Wait briefly then send retry/resume. Back off heavily after max_retries consecutive errors.
     """
-    retry_wait     = cfg.get("retry_wait", 8)
-    max_retries    = cfg.get("max_retries", 5)
+    retry_wait      = cfg.get("retry_wait", 8)
+    max_retries     = cfg.get("max_retries", 5)
     rate_limit_wait = cfg.get("rate_limit_wait", 300)
 
     state["retry_count"] = state.get("retry_count", 0) + 1
@@ -372,15 +372,16 @@ def handle_work_done(session: str, state: dict) -> None:
 def handle_post_done_wait(session: str, state: dict, output: str, cfg: dict) -> None:
     """
     We sent the wrap-up prompt; now we're waiting for Claude to respond.
-    After 30 seconds we check for compact/clear keywords in the output.
+    After post_done_wait seconds we check for compact/clear keywords in the output.
     If not found, ask DeepSeek to decide. Then send the command and continue.
     """
-    elapsed = time.time() - state.get("post_done_ts", 0.0)
-    if elapsed < 30:
-        logger.debug("post_done_wait: only %.1fs elapsed, waiting for Claude response", elapsed)
+    wait_time = cfg.get("post_done_wait", 30)
+    elapsed   = time.time() - state.get("post_done_ts", 0.0)
+    if elapsed < wait_time:
+        logger.debug("post_done_wait: only %.1fs elapsed (need %ds), waiting", elapsed, wait_time)
         return
 
-    logger.info("post_done_wait: 30s elapsed, checking for compact/clear in output")
+    logger.info("post_done_wait: %ds elapsed, checking for compact/clear in output", wait_time)
     lower = output.lower()
 
     if "compact" in lower and "clear" not in lower:
@@ -401,27 +402,37 @@ def handle_post_done_wait(session: str, state: dict, output: str, cfg: dict) -> 
     time.sleep(3)
     tmux_send(session, "continue")
 
-    # Clear the post_done flag — session management complete
-    state["post_done"] = False
+    state["post_done"]    = False
     state["post_done_ts"] = 0.0
-    state["retry_count"] = 0
+    state["retry_count"]  = 0
     save_state(state)
 
 
-def handle_needs_input(session: str, state: dict, output: str, cfg: dict) -> None:
+def handle_needs_input(
+    session: str, state: dict, output: str, cfg: dict, vision_response: str = ""
+) -> None:
     """
-    Ask DeepSeek what to respond to the prompt Claude Code is showing.
-    Injects the response back into the tmux pane.
+    Respond to whatever Claude Code is waiting on.
+
+    If vision already computed a suggested_response, use it directly (saves a
+    second API call). Otherwise ask DeepSeek brain to decide.
     """
+    if vision_response:
+        logger.info("needs_input: using vision suggested_response %r", vision_response[:80])
+        tmux_send(session, vision_response)
+        state["retry_count"] = 0
+        save_state(state)
+        return
+
     logger.info("STATE: needs_input — consulting DeepSeek brain")
     from brain import ask_deepseek, load_roadmap  # noqa: PLC0415
 
-    api_key      = cfg.get("deepseek_api_key", "")
-    model        = cfg.get("deepseek_model", "deepseek-chat")
-    project_dir  = cfg.get("project_dir", os.getcwd())
-    roadmap      = load_roadmap(project_dir)
+    api_key       = cfg.get("deepseek_api_key", "")
+    model         = cfg.get("deepseek_model", "deepseek-chat")
+    project_dir   = cfg.get("project_dir", "") or SCRIPT_DIR
+    roadmap_files = cfg.get("roadmap_files", None)
+    roadmap       = load_roadmap(project_dir, candidates=roadmap_files)
 
-    # Extract the specific question from the last non-empty line
     question = ""
     for line in reversed(output.splitlines()):
         stripped = line.strip()
@@ -447,19 +458,37 @@ def handle_needs_input(session: str, state: dict, output: str, cfg: dict) -> Non
 # ---------------------------------------------------------------------------
 
 def run_watchdog(config: dict) -> None:
-    """
-    Main polling loop. Runs until interrupted (SIGINT / SIGTERM).
-    """
+    """Main polling loop. Runs until interrupted (SIGINT / SIGTERM)."""
     session       = config["session_name"]
     poll_interval = config["poll_interval"]
 
     state = load_state()
+
+    # ------------------------------------------------------------------
+    # Startup hygiene: prevent stale state from corrupting new sessions
+    # ------------------------------------------------------------------
+    # Always reset consecutive-error counter on fresh start
+    state["retry_count"] = 0
+    # Reset post_done if it was set more than an hour ago — a previous session's
+    # leftover flag would otherwise trigger /compact on a brand-new session
+    if state.get("post_done") and time.time() - state.get("post_done_ts", 0) > 3600:
+        logger.info("Resetting stale post_done flag from a previous session (>1h old)")
+        state["post_done"]    = False
+        state["post_done_ts"] = 0.0
+    save_state(state)
+
     logger.info(
         "Watchdog started. Session=%r poll_interval=%ds PID=%d",
         session, poll_interval, os.getpid(),
     )
 
-    def _shutdown(signum, frame):  # noqa: ANN001
+    # Startup delay — gives tmux session time to initialise before first poll
+    startup_delay = config.get("startup_delay", 5)
+    if startup_delay > 0:
+        logger.info("Startup delay: waiting %ds before first poll", startup_delay)
+        time.sleep(startup_delay)
+
+    def _shutdown(signum: int, frame: object) -> None:
         logger.info("Received signal %d, shutting down.", signum)
         release_lock()
         sys.exit(0)
@@ -476,24 +505,36 @@ def run_watchdog(config: dict) -> None:
                 time.sleep(poll_interval)
                 continue
 
-            current_hash = sha256(output)
+            current_hash    = sha256(output)
             content_changed = current_hash != state.get("last_hash", "")
 
-            # Always act if content changed or if we're in a special waiting state
             if not content_changed and not state.get("post_done", False):
                 logger.debug("No change in pane output, skipping.")
                 time.sleep(poll_interval)
                 continue
 
-            # Update hash before acting to avoid re-acting on same content
             state["last_hash"] = current_hash
 
-            detected = detect_state(output, state.get("post_done", False))
-            logger.info("Detected state: %s (changed=%s)", detected, content_changed)
+            # ------------------------------------------------------------------
+            # Vision-first detection; keyword fallback if vision returns "unknown"
+            # ------------------------------------------------------------------
+            from vision import classify_state_smart  # noqa: PLC0415
+            vision_result = classify_state_smart(
+                output, config, post_done=state.get("post_done", False)
+            )
+            detected = vision_result["state"]
+            if detected == "unknown":
+                detected = detect_state(output, state.get("post_done", False))
+
+            logger.info(
+                "Detected state: %s (changed=%s, method=%s, confidence=%.2f)",
+                detected, content_changed,
+                vision_result.get("method", "keyword"),
+                vision_result.get("confidence", 0.0),
+            )
 
             if detected == "credit_exhausted":
-                handle_credit_exhausted(session, state)
-                # credit_exhausted resets retry counter — it's a different failure class
+                handle_credit_exhausted(session, state, config)
                 state["retry_count"] = 0
                 save_state(state)
 
@@ -507,10 +548,10 @@ def run_watchdog(config: dict) -> None:
                 handle_post_done_wait(session, state, output, config)
 
             elif detected == "needs_input":
-                handle_needs_input(session, state, output, config)
+                vision_resp = vision_result.get("suggested_response") or ""
+                handle_needs_input(session, state, output, config, vision_response=vision_resp)
 
             elif detected == "running":
-                # Claude Code is actively working — reset error counter, do nothing
                 if state.get("retry_count", 0) > 0:
                     logger.debug("Back to running, resetting retry_count.")
                     state["retry_count"] = 0
@@ -521,7 +562,6 @@ def run_watchdog(config: dict) -> None:
                 logger.warning("Unknown state %r — ignoring.", detected)
 
         except Exception as exc:  # noqa: BLE001
-            # Never crash the daemon; log and keep polling
             logger.exception("Unhandled exception in main loop: %s", exc)
 
         time.sleep(poll_interval)
@@ -534,7 +574,6 @@ def run_watchdog(config: dict) -> None:
 def main() -> None:
     if not acquire_lock():
         sys.exit(1)
-
     try:
         config = load_config()
         run_watchdog(config)

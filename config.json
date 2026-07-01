@@ -1,14 +1,19 @@
 {
   "session_name": "sleepycode",
 
-  "_keys_note": "API keys read from env vars first (DEEPSEEK_API_KEY). Set here only as fallback — never commit this file with a real key.",
+  "_keys_note": "API keys read from env vars first (DEEPSEEK_API_KEY, ANTHROPIC_API_KEY). Set here only as fallback — never commit with a real key.",
   "deepseek_api_key": "",
 
   "poll_interval": 10,
-  "retry_wait": 8,
+  "startup_delay": 5,
+  "retry_wait": 5,
+  "credit_wait": 15,
   "max_retries": 5,
   "rate_limit_wait": 300,
+  "post_done_wait": 30,
   "idle_timeout": 60,
+
+  "project_dir": "",
 
   "roadmap_files": [
     "progress.md",
@@ -19,6 +24,12 @@
   ],
 
   "deepseek_model": "deepseek-chat",
+
+  "vision": {
+    "mode": "text_deepseek",
+    "anthropic_api_key": "",
+    "model": "claude-3-5-haiku-20241022"
+  },
 
   "work_done_signals": [
     "all tasks complete",
@@ -32,16 +43,13 @@
   ],
 
   "credit_signals": [
-    "credit",
-    "billing",
     "insufficient fund",
     "payment required",
     "quota exceeded",
     "usage limit",
     "top up",
     "topup",
-    "out of credits",
-    "balance"
+    "out of credits"
   ],
 
   "api_error_signals": [
@@ -55,7 +63,6 @@
     "server error",
     "bad gateway",
     "connection refused",
-    "timeout",
     "api error"
   ],
 
